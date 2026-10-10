@@ -98,8 +98,10 @@ def archive_catalog_filepath(dst_folderpath: str, collection: str) -> str:
     """`{dst_folderpath}/{collection}/catalog.parquet` -- the catalog of one collection.
 
     The archive root is the only path a caller writes; this is how to name the catalog
-    inside it without rebuilding the layout by hand (spec 59 D5/A1). Pure: no I/O, no
-    storage configuration, no collection validation.
+    inside it without rebuilding the layout by hand. Pure: no I/O, no storage configuration,
+    no collection validation.
+
+    Spec: 59.
     """
     return os.path.join(collection_root(dst_folderpath, collection), "catalog.parquet")
 
@@ -176,9 +178,11 @@ def _check_window(startdate, enddate, mosaic_days, bands) -> list[str]:
 
 
 def _check_catalog_collection_dir(catalog_filepath: str, collection: str) -> list[str]:
-    """Spec 59 D5: the directory holding `catalog.parquet` is part of the contract --
+    """The directory holding `catalog.parquet` is part of the contract --
     `{root}/{collection}/catalog.parquet` -- so a catalog of one collection handed to a verb
-    for another is caught before any work, naming both."""
+    for another is caught before any work, naming both.
+
+    Spec: 59."""
     parent = os.path.basename(os.path.dirname(str(catalog_filepath).rstrip("/")))
     if parent == collection:
         return []
@@ -199,9 +203,11 @@ _SOURCE_SERVED_COLLECTIONS = {"cdse": _CDSE_SERVED_COLLECTIONS, "mpc": _MPC_SERV
 
 
 def _check_source_collection(source: str, collection: str) -> list[str]:
-    """Not every (source, collection) pair is valid (spec 58 D15) -- each source module
-    declares what it serves; an unserved pair raises at preflight, naming what the source
-    DOES serve, rather than failing deep inside discovery."""
+    """Not every (source, collection) pair is valid -- each source module declares what it
+    serves; an unserved pair raises at preflight, naming what the source DOES serve, rather
+    than failing deep inside discovery.
+
+    Spec: 58."""
     served = _SOURCE_SERVED_COLLECTIONS.get(source)
     if served is not None and collection not in served:
         return [
@@ -213,8 +219,10 @@ def _check_source_collection(source: str, collection: str) -> list[str]:
 
 def _check_cloudcover_capability(collection: str, max_cloudcover: float) -> list[str]:
     """`max_cloudcover` requires the collection to declare `supports_cloud_cover=True`
-    (spec 58 D6) -- passing it against a collection with no cloud-cover concept (e.g.
-    Sentinel-1) would otherwise silently be a no-op filter."""
+    -- passing it against a collection with no cloud-cover concept (e.g. Sentinel-1) would
+    otherwise silently be a no-op filter.
+
+    Spec: 58."""
     declaration = _collections.get(collection)
     if not declaration.supports_cloud_cover:
         return [
@@ -380,67 +388,61 @@ def download(
     `dst_folderpath`, build/append the collection's TileCatalog, and return that catalog's
     filepath (feed it to `create_training_data`).
 
-    **Archive layout (spec 59 D2/D5).** `dst_folderpath` is the archive ROOT; granules land
-    in `{dst_folderpath}/{collection}/YYYY/MM/DD/{canonical granule name}/` and the catalog
-    is `{dst_folderpath}/{collection}/catalog.parquet` (one catalog per collection directory).
+    **Archive layout.** `dst_folderpath` is the archive ROOT; granules land in
+    `{dst_folderpath}/{collection}/YYYY/MM/DD/{canonical granule name}/` and the catalog is
+    `{dst_folderpath}/{collection}/catalog.parquet` (one catalog per collection directory).
     The canonical granule name keeps every processing field and drops every provider-specific
     one, so the same granule fetched from MPC and CDSE lands in ONE folder and ONE catalog row
     (`source` = `"cdse,mpc"`), while two processings of one acquisition coexist on disk.
 
-    **`processing`** (spec 59 D7) chooses which processing of each acquisition to FETCH:
-    `"latest"` (default) or a PEP 440 specifier (`"==05.00"` to match training data,
-    `">=05.00"` to refuse old baselines), applied per acquisition to what the chosen `source`
-    offers, after `properties_filter` and before `max_tiles`. `None` is refused. Every skipped
-    granule is printed, and so is any acquisition the archive now holds in more than one
-    processing -- a build over those needs its own `processing=` (D6).
+    **`processing`** chooses which processing of each acquisition to FETCH: `"latest"`
+    (default) or a PEP 440 specifier (`"==05.00"` to match training data, `">=05.00"` to
+    refuse old baselines), applied per acquisition to what the chosen `source` offers, after
+    `properties_filter` and before `max_tiles`. `None` is refused. Every skipped granule is
+    printed, and so is any acquisition the archive now holds in more than one processing -- a
+    build over those needs its own `processing=`.
 
-    `source` (provider) and `collection` (product) are orthogonal (spec 58 D1/ADR 0030):
-    `source="mpc"` (default) wraps `sources.mpc.download` (Microsoft Planetary Computer,
-    anonymous by default — `creds` is not required and `cog` is ignored, MPC assets are
-    already COG); `source="cdse"` wraps `sources.cdse.download` and requires `creds`. Not
-    every `(source, collection)` pair is valid -- each source serves a fixed set of
-    collections (`sources.mpc.SERVED_COLLECTIONS`/`sources.cdse.SERVED_COLLECTIONS`); an
-    unserved pair raises at preflight, naming what the source DOES serve (spec 58 D15).
-    The default `source` changed `"cdse"` -> `"mpc"` (spec 58 D1): the documented,
-    credential-free happy path should not require credentials by default. Preflighted.
-    `storage` is a seam: `_check_local_seams` accepts local or `"azure"`.
+    `source` (provider) and `collection` (product) are orthogonal. `source="mpc"` (default,
+    credential-free) wraps `sources.mpc.download` (Microsoft Planetary Computer, anonymous:
+    `creds` is not required and `cog` is ignored, MPC assets are already COG);
+    `source="cdse"` wraps `sources.cdse.download` and requires `creds`. Each source serves a
+    fixed set of collections (`sources.mpc.SERVED_COLLECTIONS`/`sources.cdse.SERVED_COLLECTIONS`);
+    an unserved pair raises at preflight, naming what the source DOES serve. `storage` is
+    local or `"azure"`.
 
-    `max_cloudcover` requires the collection to declare `supports_cloud_cover=True` (spec
-    58 D6, a discovery-only capability, e.g. every optical collection but not Sentinel-1) --
-    passing it against a collection with no cloud-cover concept raises rather than
-    silently being a no-op filter.
+    `max_cloudcover` requires the collection to declare `supports_cloud_cover=True` (every
+    optical collection, not Sentinel-1); passing it against a collection with no cloud-cover
+    concept raises rather than silently being a no-op filter.
 
-    `properties_filter` (spec 58 D9) narrows discovered granules by STAC property, e.g.
+    `properties_filter` narrows discovered granules by STAC property, e.g.
     `{"sat:orbit_state": "descending"}`, **before** `max_tiles` is checked. A download is a
     whole-asset byte copy -- a ~5 km ROI still fetches entire ~250 km Sentinel-1 scenes --
-    and a build can only ever use ONE value of a partitioned property (D9's enforcement),
-    so fetching the others is pure waste. `source='cdse'` does not implement it and says so
-    at preflight rather than ignoring it.
+    and a build can only ever use ONE value of a partitioned property, so fetching the others
+    is pure waste. `source='cdse'` does not implement it and says so at preflight rather than
+    ignoring it.
 
     `max_concurrent` is how many band files transfer at once (`sources.mpc.download`'s
     `max_concurrent`, `sources.cdse.download`'s `max_concurrent_s3`). `None` keeps each
-    source's default -- for MPC that is `config.MPC_MAX_CONCURRENT` (4), a value chosen for
-    a one-granule smoke run and far too low for a whole archive: 200+ granules x 4 bands over
-    4 threads is latency-bound, not bandwidth-bound. Raise it (16-32 against MPC, which is
-    a public Azure endpoint) when the run is large. It was previously not reachable from
-    this verb at all, which made a big download slow with no way to say so.
+    source's default -- for MPC that is `config.MPC_MAX_CONCURRENT` (4), chosen for a
+    one-granule smoke run and far too low for a whole archive: 200+ granules x 4 bands over
+    4 threads is latency-bound, not bandwidth-bound. Raise it (16-32 against MPC, a public
+    Azure endpoint) when the run is large.
 
-    `runner="local"` (default) downloads in-process, as above. `runner="aml"` dispatches
-    onto an Azure ML cluster instead, colocated with blob: CDSE runs as **one** job; MPC
-    **fans out** across N. `runner_kwargs` carries
-    `cluster=`/`environment=`/`root=`/`identity_client_id=`/ and, for CDSE, exactly
-    one of `vault_url=`+`secret_name=` (Key Vault) or `creds_url=` (blob JSON) — see
-    `workflows.runners.run_aml_download`. `creds` is ignored for `runner="aml"`: the
-    dispatched job reads them on the node instead, so `roi` must be a url the node can
-    also read, never an in-memory GeoDataFrame. The AML path is collection-aware: MPC
-    discovers on the driver for `collection` (each shard row carries it), and CDSE only ever
-    serves Sentinel-2 L2A, so its job needs no `collection` argument. `processing` reaches
-    both AML shapes -- driver-side for MPC, on the CDSE job's command line.
+    `runner="local"` (default) downloads in-process. `runner="aml"` dispatches onto an Azure
+    ML cluster colocated with blob: CDSE runs as **one** job; MPC **fans out** across N.
+    `runner_kwargs` carries `cluster=`/`environment=`/`root=`/`identity_client_id=` and, for
+    CDSE, exactly one of `vault_url=`+`secret_name=` (Key Vault) or `creds_url=` (blob JSON)
+    -- see `workflows.runners.run_aml_download`. `creds` is ignored for `runner="aml"`: the
+    job reads them on the node, so `roi` must be a url the node can also read, never an
+    in-memory GeoDataFrame. CDSE only ever serves Sentinel-2 L2A, so its job needs no
+    `collection`. `processing` reaches both AML shapes.
 
-    `dst_folderpath` is the identity of this download: its `TileCatalog` is what a
-    re-run diffs against to skip what is already there, so re-running with a different `roi`/
-    `startdate`/`enddate`/`bands` into the same `dst_folderpath` appends into one shared catalog
-    rather than starting a new one.
+    `dst_folderpath` is the identity of this download: its `TileCatalog` is what a re-run
+    diffs against to skip what is already there, so re-running with a different `roi`/
+    `startdate`/`enddate`/`bands` into the same `dst_folderpath` appends into one shared
+    catalog rather than starting a new one.
+
+    Spec: 58, 59.
     """
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
     errs = _check_local_seams(runner, storage) + date_errs
@@ -458,7 +460,7 @@ def download(
         errs += _check_cloudcover_capability(collection, max_cloudcover)
     if properties_filter and source != "mpc":
         # Loud, not silently ignored: a caller who narrowed to one orbit and still got
-        # every orbit's bytes would only find out from the disk bill (spec 58 D9).
+        # every orbit's bytes would only find out from the disk bill.
         errs.append(
             f"properties_filter is not implemented for source={source!r} (only 'mpc'); "
             "drop it, or use source='mpc'."
@@ -467,8 +469,8 @@ def download(
     _raise_preflight(errs)
 
     _configure_storage(storage)
-    # Spec 59 D5: `dst_folderpath` is the archive root; the catalog lives in the
-    # collection's own directory.
+    # `dst_folderpath` is the archive root; the catalog lives in the collection's own
+    # directory.
     fs.makedirs(dst_folderpath)
     catalog_filepath = archive_catalog_filepath(dst_folderpath, collection)
     fs.makedirs(os.path.dirname(catalog_filepath))
@@ -541,22 +543,18 @@ def create_training_data(
     """Label polygons (+ imagery) -> flattened, locally-landed training arrays: the
     full-pipeline façade.
 
-    Orchestrates an optional download phase, `workflows.create_datacube` (one datacube per
-    polygon, calendar mosaic), then `flatten_training_data` — the user never types "flatten".
-    Returns a `TrainingData` handle.
+    Runs an optional download phase, `workflows.create_datacube` (one datacube per polygon,
+    calendar mosaic), then `flatten_training_data`. Returns a `TrainingData` handle.
 
-    **Skips work already done.** The download leg already diffs against the
-    catalog. The build leg diffs `input.csv`'s `datacube_filepath` column
-    against what already exists: a shortfall of 0 submits no job. The flatten leg is
-    skipped when `_flatten_stamp.json` already records the identity -- never the
-    modification time -- of exactly this cube set + these run parameters
-    (`bands`/`mosaic_days`/window/`aggregate`/feature transform), so when nothing changed,
-    ``create_training_data`` does only what the user described it as doing: fetch the
-    already-flattened arrays. `overwrite=` forces past this: ``False`` (default) skips
-    whatever is already done; ``"datacubes"`` rebuilds the cubes (and therefore re-flattens,
-    since the caller has explicitly asked for a rebuild); ``"flatten"`` keeps the cubes and
-    redoes the flatten; ``True`` does both. Every skip prints one line naming what it
-    skipped and why.
+    **Skips work already done.** The download leg diffs against the catalog. The build leg
+    diffs `input.csv`'s `datacube_filepath` column against what already exists: a shortfall
+    of 0 submits no job. The flatten leg is skipped when `_flatten_stamp.json` already
+    records the identity -- never the modification time -- of exactly this cube set + these
+    run parameters (`bands`/`mosaic_days`/window/`aggregate`/feature transform). `overwrite=`
+    forces past this: ``False`` (default) skips whatever is already done; ``"datacubes"``
+    rebuilds the cubes (and therefore re-flattens, since the caller has explicitly asked for
+    a rebuild); ``"flatten"`` keeps the cubes and redoes the flatten; ``True`` does both.
+    Every skip prints one line naming what it skipped and why.
 
     **Download phase:** `download=False` (default) requires `catalog_filepath` to already
     exist — run `fsd.download` first, because compute never fetches from a provider
@@ -572,8 +570,9 @@ def create_training_data(
     `runner="local"`.
 
     **In-memory polygons:** for `runner="aml"`, an in-memory `label_polygons` GeoDataFrame is
-    materialized once to a GeoJSON under the blob `root` and that one URL serves as both the
-    download ROI and the per-cell build shapefile. A path/URL `label_polygons` is used as-is.
+    materialized once to a GeoJSON under `run_folderpath` (by default under the blob `root`)
+    and that one URL serves as both the download ROI and the per-cell build shapefile. A
+    path/URL `label_polygons` is used as-is.
 
     **Feature engineering:** pass an `adapter` (preferred — its `feature_sequence` is the
     *same* one used at inference, which is what keeps training and inference features from
@@ -587,28 +586,29 @@ def create_training_data(
     join key for labels joined in later, without re-flattening.
 
     `runner="aml"` dispatches download + the build fan-out + the flatten reduce onto an Azure
-    ML cluster; `runner_kwargs` carries its
-    `cluster=`/`environment=`/`root=`/`identity_client_id=` (see `workflows.runners`).
+    ML cluster; `runner_kwargs` carries `cluster=`/`environment=`/`root=`/`identity_client_id=`
+    (see `workflows.runners`).
 
-    `properties_filter` (spec 58 D9) narrows the catalog to rows matching every given
-    STAC property (e.g. `{"sat:orbit_state": "descending"}`) before the build --
-    required for `collection="sentinel-1-rtc"`, whose ascending/descending passes must
-    never be medianed together (a build spanning both raises, enumerating what is
-    available). A key no row in the catalog carries at all raises rather than silently
-    filtering to zero rows. Every P1 collection declares no partition, so omitting this
-    (the default) is a no-op for them.
+    `properties_filter` narrows the catalog to rows matching every given STAC property
+    (e.g. `{"sat:orbit_state": "descending"}`) before the build -- required for
+    `collection="sentinel-1-rtc"`, whose ascending/descending passes must never be medianed
+    together (a build spanning both raises, enumerating what is available). A key no row in
+    the catalog carries at all raises rather than silently filtering to zero rows. Omitting
+    it (the default) is a no-op for a collection with no `mosaic_partition` (e.g. S2 L2A).
 
-    `processing` (spec 59 D6) resolves acquisitions the archive holds in more than one
-    processing (two baselines; the same granule from two sources): `None` (default) RAISES
-    naming each duplicate group and the arguments that resolve it; `"latest"` keeps the
-    newest per acquisition; a PEP 440 specifier (`">=05.00"`) keeps rows satisfying it, then
-    the newest (an acquisition with none is dropped and reported). It joins the cube path
-    when not `None`. With `download=True` a specifier is also forwarded to the download leg
-    (D7), and `None` uses the download default `"latest"`.
+    `processing` resolves acquisitions the archive holds in more than one processing (two
+    baselines; the same granule from two sources): `None` (default) RAISES naming each
+    duplicate group and the arguments that resolve it; `"latest"` keeps the newest per
+    acquisition; a PEP 440 specifier (`">=05.00"`) keeps rows satisfying it, then the newest
+    (an acquisition with none is dropped and reported). It joins the cube path when not
+    `None`. With `download=True` a specifier is also forwarded to the download leg, and
+    `None` uses the download default `"latest"`.
 
     `catalog_filepath` is `{archive root}/{collection}/catalog.parquet`; its parent directory
-    must be named for `collection` (spec 59 D5), and `download=True` fetches into the
-    archive root two levels up.
+    must be named for `collection`, and `download=True` fetches into the archive root two
+    levels up.
+
+    Spec: 49, 58, 59.
     """
     if adapter is not None and feature_sequence is not None:
         raise PreflightError(
@@ -619,7 +619,7 @@ def create_training_data(
             f"overwrite={overwrite!r} must be one of {list(_VALID_OVERWRITE)} (spec 49 D4)."
         )
 
-    # Canonicalize bands to native asset keys (spec 58 D8) as early as possible: every
+    # Canonicalize bands to native asset keys as early as possible: every
     # downstream use -- the adapter check, the flatten identity, the cube digest -- must
     # see one spelling, or `bands=["B8A"]` and `bands=["nir08"]` would behave differently
     # despite naming the identical band.
@@ -784,16 +784,16 @@ def create_training_data(
     _raise_preflight(catalog_errs)
 
     if download:
-        # Spec 59 D5: the catalog lives at `{root}/{collection}/catalog.parquet`, so the
-        # archive root is its GRANDPARENT (the parent-name check ran in wave 1).
+        # The catalog lives at `{root}/{collection}/catalog.parquet`, so the archive root is
+        # its GRANDPARENT (the parent-name check ran in wave 1).
         dst_folderpath = os.path.dirname(os.path.dirname(catalog_filepath.rstrip("/"))) or "."
         _download_verb(
             roi=shapefilepath, startdate=startdate, enddate=enddate, bands=bands,
             dst_folderpath=dst_folderpath, creds=creds, source=source, collection=collection,
             properties_filter=properties_filter,
-            # D7: a specifier is forwarded; `None` (build default) fetches the download
-            # default, "latest" -- one processing per acquisition, so the build then sees
-            # no ambiguity it did not already have.
+            # A specifier is forwarded; `None` (build default) fetches the download default,
+            # "latest" -- one processing per acquisition, so the build then sees no ambiguity
+            # it did not already have.
             processing=processing if processing is not None else _processing.LATEST,
             max_tiles=max_tiles, max_cloudcover=max_cloudcover, cog=cog,
             storage=storage, runner=runner, runner_kwargs=runner_kwargs,
@@ -871,8 +871,8 @@ def _flatten_identity(input_df: pd.DataFrame, *, id_col, filepath_col, adapter, 
             # or this never matches `_flatten_identity_from_request`'s freshly-computed
             # "" for the same request.
             params[col] = sorted(set(input_df[col].fillna("").astype(str)))
-    # An `input.csv` written before spec 59 has no `processing` column; that is the same
-    # request as `processing=None`, which `_flatten_identity_from_request` records as [""].
+    # An older `input.csv` has no `processing` column; that is the same request as
+    # `processing=None`, which `_flatten_identity_from_request` records as [""].
     params.setdefault("processing", [""])
     params["aggregate"] = _fingerprint_aggregate(aggregate)
     params["features"] = _fingerprint_features(adapter, feature_sequence)
@@ -1133,10 +1133,10 @@ def flatten_training_data(
 
     data, metadata = _load_landed_arrays(export_folderpath)
     if not skip:
-        # Spec 59 D9: the stamp records which processing versions and sources the arrays
-        # were flattened from (the reduce union'd them from each cube's metadata). Written
-        # after landing so it can read them; a crash before this leaves no stamp, which
-        # only means "re-flatten" (fail towards running).
+        # The stamp records which processing versions and sources the arrays were flattened
+        # from (the reduce union'd them from each cube's metadata). Written after landing so
+        # it can read them; a crash before this leaves no stamp, which only means
+        # "re-flatten" (fail towards running).
         _stamp.write_stamp(stamp_filepath, identity, provenance=metadata.get("provenance"))
 
     feature_bands = metadata.get("feature_bands")
