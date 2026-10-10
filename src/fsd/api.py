@@ -2123,14 +2123,16 @@ def verify_adapter(
     It is still not a substitute for your own `bundle.save`: `_ensure_bundle` passes no
     `requirements=`, which `verify_image` checks the image against at gate 2 -- never reached
     here, since the inference leg runs in-process on the driver. Bundle deliberately for
-    anything you intend to deploy.
+    anything you intend to deploy; this one lives inside a verify output folder that is safe
+    to delete.
 
     `cell=`: an explicit grid-cell id uses it (`PreflightError`, naming the available ids
     bounded, if it is not in this roi); `None` (default) picks DETERMINISTICALLY -- largest
-    in-window catalog coverage, tie-broken by id -- and prints which cell and why; `"random"`
-    opts in to a random pick and prints the chosen id so a run worth keeping can be pinned by
-    pasting that id back as `cell=`. `grids.geojson` (every cell in the roi) is ALWAYS written
-    next to the output and its path printed -- open it in QGIS, pick an id, re-run with `cell=`.
+    in-window catalog coverage, tie-broken by id -- and prints which cell and why, so two runs
+    over the same roi/window pick the same cell; `"random"` opts in to a random pick and
+    prints the chosen id so a run worth keeping can be pinned by pasting that id back as
+    `cell=`. `grids.geojson` (every cell in the roi) is ALWAYS written next to the output and
+    its path printed -- open it in QGIS, pick an id, re-run with `cell=`.
 
     `export_folderpath` is where everything lands, LOCALLY, no hidden cache: the cube
     (`datacube.npy` + `metadata.pickle.npy`), `output.tif`, `grids.geojson`, `cell.geojson`,
@@ -2536,7 +2538,8 @@ def deploy(
     """
     errs = _check_local_seams(runner, storage)
     _raise_preflight(errs)  # seam errors first, before `_configure_storage`
-    # Before the first storage access: `_bundle.read_spec` below reads `bundle_path`.
+    # Before the first storage access: `_bundle.read_spec` below reads `bundle_path`, and
+    # `publish` writes into `registry`.
     _configure_storage(storage)
 
     if not isinstance(bundle_path, str):
