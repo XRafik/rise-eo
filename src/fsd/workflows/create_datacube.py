@@ -14,7 +14,6 @@ from __future__ import annotations
 import concurrent.futures
 import datetime
 import hashlib
-import io
 import json
 import os
 import tempfile
@@ -242,11 +241,7 @@ def setup(
     # match -- must see one spelling, or `bands=["B8A"]` and `bands=["nir08"]` would
     # resolve to different cube paths despite naming the identical band.
     bands = [declaration.canonical_to_native(b) for b in bands]
-    # Read via fsd.storage + BytesIO, never a raw path: a cluster node has no `shapefiles/`
-    # checkout, so a raw-path geometry read cannot work there. A local path is unaffected --
-    # fsd.storage routes file:// transparently (TODO #40).
-    with fs.open(shapefilepath, "rb") as f:
-        shapes_gdf = gpd.read_file(io.BytesIO(f.read()))
+    shapes_gdf = fs.read_geo(shapefilepath)
 
     # `export_folderpath` is derived from `srow[id_col]`, so two shapes sharing an id are two
     # work-units writing the SAME folder -- concurrently, once `max_concurrent > 1`. On blob
@@ -565,11 +560,6 @@ def _presence_for_paths(datacube_filepaths, *, label: str) -> dict[str, bool]:
     return out
 
 
-def _load_shapes_gdf(shapefilepath: str) -> gpd.GeoDataFrame:
-    with fs.open(shapefilepath, "rb") as f:
-        return gpd.read_file(io.BytesIO(f.read()))
-
-
 def _row_matches_window(
     row, *, bands: list[str], mosaic_days: int, startdate, enddate,
     mosaic_scheme: str, collection: str,
@@ -747,7 +737,7 @@ def build_shortfall_only(
     """
     declaration = _collections.get(collection)
     bands = [declaration.canonical_to_native(b) for b in bands]
-    shapes_gdf = _load_shapes_gdf(shapefilepath)
+    shapes_gdf = fs.read_geo(shapefilepath)
     window_segment = window_folder_segment(
         startdate, enddate, mosaic_days, bands=bands, mosaic_scheme=mosaic_scheme,
         collection=collection, declaration=declaration, properties_filter=properties_filter,
