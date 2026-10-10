@@ -36,7 +36,8 @@ def run_infer_only(
 ) -> list[str]:
     """Infer rows `[lo, hi)` of `input_csv` to their `output_filepath`s. One bundle load, then a
     plain sequential loop (no pool). Skips a row whose output already exists unless `overwrite`."""
-    df = pd.read_csv(input_csv)
+    with fs.open(input_csv, "r") as f:
+        df = pd.read_csv(f)
     lo, hi = rows
     adapter = _bundle.load(bundle_path)                 # ONE load for the whole group
     written = []

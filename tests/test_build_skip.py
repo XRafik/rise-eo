@@ -189,7 +189,7 @@ def test_overwrite_forces_full_rebuild(tmp_path, monkeypatch):
 def test_no_mtime_read_in_build_skip_logic():
     src = "".join(inspect.getsource(fn) for fn in (
         cd._cube_present, cd._build_shortfall, cd._force_rebuild, cd.run_create_datacube,
-        cd.build_shortfall_only, cd._read_known_empty, cd._record_known_empty,
+        cd.build_shortfall_only, cd._read_known_empty, cd._load_manifest, cd._record_known_empty,
         cd._row_matches_window, cd._row_matches_path, cd._present_cube_ids_at,
         cd._presence_for_paths, cd._cube_present_many,
     ))
