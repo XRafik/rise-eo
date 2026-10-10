@@ -218,6 +218,28 @@ def _check_source_collection(source: str, collection: str) -> list[str]:
     return []
 
 
+def _check_download_source(
+    source: str, collection: str, max_tiles: int | None, *,
+    runner: str, creds, max_tiles_required: bool,
+) -> list[str]:
+    """The source, `max_tiles` and CDSE-credentials rules, in that order, for `download` and
+    `create_training_data`'s download leg. `max_tiles_required` is the latter: its
+    `max_tiles` defaults to `None` and must be given when it downloads."""
+    errs = []
+    if source not in ("cdse", "mpc"):
+        errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
+    else:
+        errs += _check_source_collection(source, collection)
+    if max_tiles_required:
+        if max_tiles is None or max_tiles < 1:
+            errs.append(f"max_tiles (>= 1) is required when download=True (got {max_tiles!r}).")
+    elif max_tiles < 1:
+        errs.append(f"max_tiles ({max_tiles}) must be >= 1.")
+    if runner == "local" and source == "cdse" and creds is None:
+        errs.append("creds (CdseCredentials) required for source='cdse' with runner='local'.")
+    return errs
+
+
 def _check_cloudcover_capability(collection: str, max_cloudcover: float) -> list[str]:
     """`max_cloudcover` requires the collection to declare `supports_cloud_cover=True`
     -- passing it against a collection with no cloud-cover concept (e.g. Sentinel-1) would
@@ -451,14 +473,10 @@ def download(
         # A download has no mosaic: any `mosaic_days >= 1` makes both mosaic checks inert, so
         # this checks only the dates and `bands`.
         errs += _check_window(startdate, enddate, 20, bands)
-    if source not in ("cdse", "mpc"):
-        errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
-    else:
-        errs += _check_source_collection(source, collection)
-    if max_tiles < 1:
-        errs.append(f"max_tiles ({max_tiles}) must be >= 1.")
-    if runner == "local" and source == "cdse" and creds is None:
-        errs.append("creds (CdseCredentials) required for source='cdse' with runner='local'.")
+    errs += _check_download_source(
+        source, collection, max_tiles,
+        runner=runner, creds=creds, max_tiles_required=False,
+    )
     if max_cloudcover is not None and not errs:
         errs += _check_cloudcover_capability(collection, max_cloudcover)
     if properties_filter and source != "mpc":
@@ -748,18 +766,10 @@ def create_training_data(
     # exist no more than it needs `setup` to run.
     catalog_errs: list[str] = []
     if download:
-        if source not in ("cdse", "mpc"):
-            catalog_errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
-        else:
-            catalog_errs += _check_source_collection(source, collection)
-        if max_tiles is None or max_tiles < 1:
-            catalog_errs.append(
-                f"max_tiles (>= 1) is required when download=True (got {max_tiles!r})."
-            )
-        if runner == "local" and source == "cdse" and creds is None:
-            catalog_errs.append(
-                "creds (CdseCredentials) required for source='cdse' with runner='local'."
-            )
+        catalog_errs += _check_download_source(
+            source, collection, max_tiles,
+            runner=runner, creds=creds, max_tiles_required=True,
+        )
         if max_cloudcover is not None and not catalog_errs:
             catalog_errs += _check_cloudcover_capability(collection, max_cloudcover)
     else:
