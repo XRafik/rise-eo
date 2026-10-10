@@ -131,7 +131,7 @@ def params_key(
 
     Same string form `setup` writes to `input.csv`, so a digest from a read-back row agrees.
 
-    Spec: 58 D4.
+    Spec: 58 D4, D9.3; 59 D6.
     """
     parts = [",".join(bands), mosaic_scheme, collection, declaration_module.digest(declaration)]
     selection = _canonicalize_properties_filter(properties_filter)
@@ -232,7 +232,7 @@ def setup(
     resolve it; `"latest"` / a PEP 440 specifier select one row per acquisition (a group with
     no satisfying row is dropped and reported). Joins the cube path as `properties_filter` does.
 
-    Spec: 58 D13.
+    Spec: 58 D9, D13; 59 D6.
     """
     startdate = pd.to_datetime(startdate, utc=True)
     enddate = pd.to_datetime(enddate, utc=True)

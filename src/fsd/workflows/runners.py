@@ -165,7 +165,7 @@ def run_local_inference(
     cell (TODO #25); default 1. `overwrite` forces a recompute of every cell (`--forceall`
     **and** `infer_task`'s own per-cell skip is bypassed, config `overwrite=1`); otherwise
     each cell's `output.tif` existence makes it resumable, decoupled from group size. Azure
-    ML runs this same task on each node (`runner="aml"`, through `fsd.workflows.shard`).
+    ML runs this same task on each node (`runner="aml"`, through `fsd.workflows.infer_shard`).
 
     Raises before dispatch if `input_csv` has two distinct-content rows sharing an
     `export_folderpath` -- a malformed manifest, the same exposure as
@@ -210,8 +210,8 @@ def run_local_infer_only(
     `input_csv` has `datacube_filepath`, `output_filepath`. `cores` = how many groups run at once
     (Snakemake — the only parallel primitive); `cubes_per_task` groups K cubes per sequential job to
     amortise the one-per-job bundle load. `overwrite` forces recompute (`--forceall`); otherwise
-    per-group sentinels + the task's skip-existing make it resumable. Azure ML runs this same
-    task on each node (`runner="aml"`, through `fsd.workflows.shard`).
+    per-group sentinels + the task's skip-existing make it resumable. Local only: there is no
+    AML dispatcher for pre-built cubes (`api.run_inference` keeps that path local).
     """
     conf = {
         "input_csv": input_csv,

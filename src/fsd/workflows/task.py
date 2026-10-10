@@ -71,7 +71,7 @@ def run_task(
     returns immediately -- the resume signal is the artifact's own existence, not a sentinel,
     so a re-dispatched (recovery-retried) shard skips every cube it already finished.
 
-    Spec: 58 D13.
+    Spec: 58 D13, D14.
     """
     if fs.exists(os.path.join(export_folderpath, "datacube.npy")):
         return
