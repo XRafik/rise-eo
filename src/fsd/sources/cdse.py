@@ -337,10 +337,12 @@ def _select_item_files(
     the `.jp2` asset; when `cog` the local destination is `Bxx.tif`, converted on arrival,
     else `Bxx.jp2`.
 
-    `bands` may be canonical STAC EO `common_name`s (spec 58 D8) or already-native asset
-    keys -- `declaration.canonical_to_native` normalizes either spelling to the same
-    native key. **Raises**, naming the band and collection, when a requested band
-    genuinely does not exist on this item (spec 58 D8) -- this used to silently `continue`.
+    `bands` may be canonical STAC EO `common_name`s or already-native asset keys --
+    `declaration.canonical_to_native` normalizes either spelling to the same native key.
+    **Raises**, naming the band and collection, when a requested band does not exist on
+    this item, rather than skipping it: a skipped band lets a cube build without it.
+
+    Spec: 58 D8.
     """
     if declaration is None:
         declaration = _collections.get(collection)
@@ -467,17 +469,15 @@ def _convert_one(
     stamp the declared GDAL scale/offset (radiometry bands only; `offset=0` is a no-op) and
     nodata-if-missing tags (#10, #30), then remove `staging`.
 
-    **Stamp, then publish (spec 59 D10, closes #74).** The COG is built at
-    `<dst>.stage`, stamped THERE, and only then `os.replace`d onto `dst_path` -- the one
-    step that creates it. The removal of `staging` and of any leftover `.stage` is in a
-    `finally`, so a crash or a stamp exception leaves no `.tif` under its final name at all
-    (it used to leave an unstamped one, which the `size > 0` skip then trusted forever);
-    the next resume pass re-transfers and re-converts.
+    The COG is built at `<dst>.stage`, stamped THERE, and only then `os.replace`d onto
+    `dst_path` (#74). `staging` and any leftover `.stage` are removed in a `finally`: an
+    unstamped `.tif` under its final name would be trusted forever by the `size > 0` skip,
+    so a crash or stamp error leaves none and the next resume pass re-transfers and
+    re-converts.
 
-    Top-level and picklable, for `ProcessPoolExecutor` under spawn -- it operates only on
-    real local files (and a frozen, picklable `CollectionDeclaration`), so it never needs a
-    parent-process monkeypatch. `declaration=None` (a worker started before spec 58, or a
-    direct call in a test) falls back to the S2 L2A default.
+    Top-level and picklable, for `ProcessPoolExecutor` under spawn; it touches only local
+    files and a frozen `CollectionDeclaration`. `declaration=None` falls back to the S2 L2A
+    default.
 
     ⚠️ A failure here is a local/data fault (`"ConvertError"`), never a bad CDSE window, so
     the caller must NOT fold it into the transfer-failure circuit breaker.
@@ -674,52 +674,48 @@ def download(
     collection: str = config.SATELLITE_S2L2A,
     processing: str = processing_module.LATEST,
 ) -> DownloadResult:
-    """THE SOURCE CONTRACT (documented signature; see specs/01-sources.md).
+    """Discover matching granules and download the requested band files (+ MTD_TL.xml) to
+    `root_folderpath` through a **pipeline**: a `MAX_CONCURRENT_S3`-wide thread pool
+    transfers bytes while a process pool converts fetched JP2s to COGs, chained by
+    `add_done_callback` and bounded by a `max_staged` backpressure semaphore (staged but
+    unconverted JP2s on disk). Idempotent (skips files already on disk); the catalog is
+    upserted every `chunksize` completions so a crash doesn't lose progress; refuses if
+    matched granules exceed `max_tiles`.
 
-    `processing` (spec 59 D7) selects ONE processing per acquisition among what CDSE offers
-    -- `"latest"` (default; CDSE never deduplicated before) or a PEP 440 specifier such as
-    `"==05.00"` -- before `max_tiles`. `None` raises. Skips are printed, and so is any
-    acquisition this download leaves holding more than one processing in the archive.
+    `processing` selects ONE processing per acquisition among what CDSE offers: `"latest"`
+    (default) or a PEP 440 specifier such as `"==05.00"`, applied before `max_tiles`.
+    `None` raises. Skips are printed, and so is any acquisition this download leaves
+    holding more than one processing in the archive.
 
-    Discover matching granules and download the requested band files (+ MTD_TL.xml) to
-    `root_folderpath` via a **pipeline**: a `MAX_CONCURRENT_S3`-wide thread
-    pool transfers bytes while a separate process pool converts fetched JP2s to COGs
-    concurrently, chained by `add_done_callback` and bounded by a `max_staged`
-    backpressure semaphore (staged-but-unconverted JP2s on disk). Idempotent (skips
-    files already on disk); the catalog is upserted every `chunksize` completions so a
-    crash doesn't lose progress; refuses if matched granules exceed `max_tiles`.
+    `cog` (default True) converts each fetched JP2 band to a lossless COG (`Bxx.tif`, with
+    overviews) on arrival, which the datacube build reads far faster; `cog=False` keeps the
+    native `.jp2`. A remote (`s3://`/`az://`) `root_folderpath` with `cog=True` stages to
+    local scratch, converts there, then pushes the whole run to the remote root
+    (`_push_scratch_to_remote`), a batch push rather than per-file streaming (TODO #31).
 
-    `cog` (default True): convert each fetched JP2 band to a lossless COG
-    (`Bxx.tif`, with overviews) on arrival — the native ingest format, which the
-    datacube build reads far faster. `cog=False` keeps the native `.jp2`
-    (and never staggers a convert pool). A remote (`s3://`/`az://`) `root_folderpath`
-    with `cog=True` stages to local scratch, converts there, then pushes the whole
-    run to the remote root (`_push_scratch_to_remote` below) — a whole-run batch push, not
-    per-file streaming (TODO #31).
-
-    `max_convert_procs` (default `config.MAX_CONVERT_PROCS`), `max_staged` (default:
-    `_default_max_staged`, disk-aware) and `convert_executor` (default: a real
-    `ProcessPoolExecutor`, spawn context) are optional knobs — `convert_executor` is
-    the test seam (inject a synchronous stand-in to exercise the pipeline in-process,
-    no subprocess). The convert pool is created **lazily**, on the first file that
-    actually needs conversion — a `cog=False` run or an all-skip resume pass spawns
-    zero processes.
+    `max_convert_procs` (default `config.MAX_CONVERT_PROCS`), `max_staged` (default
+    `_default_max_staged`, disk-aware) and `convert_executor` (default a spawn-context
+    `ProcessPoolExecutor`) are optional knobs; `convert_executor` is the test seam, so a
+    synchronous stand-in runs the pipeline in-process. The convert pool is created
+    **lazily**, on the first file that needs conversion: a `cog=False` run or an all-skip
+    resume pass spawns zero processes.
 
     `max_consecutive_failures` is the **circuit breaker**, keyed on consecutive
-    **transfer** failures only -- a `_convert_one` failure is a local fault, not a CDSE
-    window. If that many transfers fail back-to-back (a bad CDSE window, BUG-001), the
-    submit loop stops queuing new work, in-flight transfers/converts
-    drain, and the pass returns with `circuit_tripped=True` instead of grinding — it
-    stops within roughly `max_staged` items of the trip (streaming, no exact chunk
-    boundary). Pair with `download_resume` to retry the remainder later — the catalog
-    makes it a clean resume.
+    **transfer** failures only; a `_convert_one` failure is a local fault, not a CDSE
+    window. When that many transfers fail back-to-back (a bad CDSE window, BUG-001), the
+    submit loop stops queuing, in-flight work drains, and the pass returns with
+    `circuit_tripped=True`, within roughly `max_staged` items of the trip. Pair with
+    `download_resume` to retry the remainder later.
 
-    `should_stop` (default None) is a generic user-stop predicate checked in the submit
-    loop, alongside `tripped`/`pool_broken`,
-    throttled to at most once per `config.PROGRESS_EVERY_S` (a filesystem check isn't
-    stat-ed per granule). Halts **new** submissions only — every already-submitted
-    transfer/convert finalizes normally and drains; a stopped item is never attempted,
-    so it is not a failure and not counted. Sets `DownloadResult.stopped=True`.
+    `should_stop` (default None) is a user-stop predicate checked in the submit loop,
+    throttled to once per `config.STOP_CHECK_EVERY_S`. Halts **new** submissions only:
+    already-submitted work finalizes and drains, and a stopped item is never attempted, so
+    it is not a failure and not counted. Sets `DownloadResult.stopped=True`.
+
+    ⚠️ Only a converted band takes the `max_staged` semaphore, so with `cog=False` the
+    whole work list is queued at once and neither a trip nor a stop halts the pass (#157).
+
+    Spec: 01.
     """
     import collections
     import concurrent.futures
@@ -758,8 +754,8 @@ def download(
         _items_to_gdf(items, collection=collection, declaration=declaration),
         roi_gdf, max_cloudcover,
     )
-    # CDSE never deduplicated before spec 59; its own forum guidance for near-duplicate
-    # products is "use the most recent" -- hence "latest" by default (D7).
+    # CDSE's own forum guidance for near-duplicate products is "use the most recent",
+    # hence "latest" by default.
     tiles = select_granules(tiles, processing=processing, prefix="[fsd.cdse.download]")
 
     if len(tiles) > max_tiles:
@@ -869,9 +865,8 @@ def download(
             if not ok:
                 failures.append((src, reason))
             state["done"] += 1
-            # Catalog-flush cadence: chunksize no longer batches the
-            # executor (one continuous pipeline) — it now only controls how often the
-            # buffer flushes to the catalog (crash resilience).
+            # `chunksize` sets only how often the buffer flushes to the catalog (crash
+            # resilience), not executor batching.
             if len(pending_results) >= chunksize:
                 snapshot = list(pending_results)
                 pending_results.clear()
@@ -1038,24 +1033,17 @@ def download_resume(
     collection: str = config.SATELLITE_S2L2A,
     processing: str = processing_module.LATEST,
 ) -> list[DownloadResult]:
-    """Resume-loop: run `download` repeatedly until every file is present (a full pass
-    with no failures) or `max_passes` is reached.
-
-    Each pass is idempotent (skips files already on disk) and trips the circuit breaker
-    on a bad CDSE window (`max_consecutive_failures`); on a trip we wait `cooldown_s`
-    then try again — the *fail-fast + resume-later* strategy (BUG-001). A partial
-    window (scattered fast-fails, no trip) loops immediately to retry the remainder.
+    """Resume-loop: run `download` repeatedly until a full pass has no failures or
+    `max_passes` is reached. Each pass is idempotent. On a circuit-breaker trip
+    (`max_consecutive_failures`) wait `cooldown_s` then retry: *fail-fast + resume-later*
+    (BUG-001). A partial window (scattered fast-fails, no trip) loops immediately.
 
     `on_pass(pass_index, DownloadResult)` is called after each pass (e.g. to persist
     stats), keeping file I/O out of the library. Returns the per-pass results.
+    `max_convert_procs`/`max_staged`/`convert_executor` pass through to `download`.
 
-    `max_convert_procs`/`max_staged`/`convert_executor` pass through to each `download`
-    call unchanged — see its docstring.
-
-    `should_stop` passes through to each `download` pass; when a pass
-    returns `stopped=True` the resume loop ends immediately (no cooldown, not a
-    completion). Also checked once before starting each new pass so a stop between
-    passes doesn't launch another.
+    `should_stop` passes through to each pass; a pass returning `stopped=True` ends the loop
+    at once (no cooldown, not a completion). It is also checked before each new pass.
     """
     import time
 

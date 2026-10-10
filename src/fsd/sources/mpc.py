@@ -1,24 +1,19 @@
-"""MPC source: Sentinel-2 L2A discovery + near-pure-copy granule download.
+"""MPC source: Sentinel-2 L2A discovery and download of granules that are already COG.
 
 Spec: specs/32-mpc-source-baseline-harmonization.md
 
-Microsoft Planetary Computer serves S2 L2A assets **already as COG on Azure**, so unlike
-CDSE there is no `jp2->COG` conversion and a download here is essentially a byte copy via
-`fsd.storage.transfer` (signed HTTPS -> local). Discovery mirrors CDSE's STAC-item pattern
-(`pystac_client`), signed via the official `planetary-computer` package — anonymous by
-default, with an optional `PC_SDK_SUBSCRIPTION_KEY` env var (read by that package itself)
-raising rate limits. There is no `CdseCredentials` for this source.
+MPC serves S2 L2A assets already as COG, so a download is a byte copy via
+`fsd.storage.transfer` (signed HTTPS -> local), with no jp2->COG conversion. Access is
+anonymous; an optional `PC_SDK_SUBSCRIPTION_KEY` env var (read by `planetary-computer`)
+raises rate limits.
 
-⚠️ MPC serves raw, UNHARMONIZED DN and does not expose the per-band S2 processing-baseline
-offset in STAC — `raster:bands` is absent. It must be derived from the item property
-`s2:processing_baseline` (`_s2_radiometry.offset_for_item`) and stored as the additive
-`offset` catalog column, or every cube built from this archive is off by the baseline
-offset.
+⚠️ MPC serves raw, UNHARMONIZED DN and has no `raster:bands`. The per-band offset must be
+derived from `s2:processing_baseline` (`_s2_radiometry.offset_for_item`) and stored as the
+additive `offset` column, or every cube is off by the baseline offset.
 
-That is why the download is not a *pure* byte-copy: after `fs.transfer`, ingest stamps the
-GDAL scale/offset + nodata-if-missing tags on the local COG
-(`fsd.raster.cog.stamp_or_reencode`) and pushes the result to `root_folderpath`, local or
-blob — a cheap header edit, no pixel decode.
+So the copy is not *pure*: ingest then stamps scale/offset (and nodata if missing) via
+`fsd.raster.cog.stamp_or_reencode`, a header edit with no pixel decode, and pushes the
+result to `root_folderpath`.
 """
 
 from __future__ import annotations
@@ -240,15 +235,16 @@ def _select_item_files(
     directly (`"B04"`, `"SCL"`, …), simpler than CDSE's `Bxx_YYm`. Returns
     `[(signed_href, local_dst_path, native_band), ...]`.
 
-    `bands` may be canonical STAC EO `common_name`s (spec 58 D8, e.g. `"nir08"`) or
+    `bands` may be canonical STAC EO `common_name`s (e.g. `"nir08"`) or
     already-native asset keys (e.g. `"B8A"`) — `declaration.canonical_to_native`
     normalizes either spelling to the same native key, so `bands=["B8A"]` and
     `bands=["nir08"]` select the identical asset (and, upstream, resolve to the same
     cube path).
 
-    **Raises**, naming the band and collection, when a requested band genuinely does
-    not exist on this item (spec 58 D8) — this used to silently `continue`, which let a
-    cube quietly build with a missing band."""
+    **Raises**, naming the band and collection, when a requested band does not exist on
+    this item, rather than skipping it: a skipped band lets a cube build without it.
+
+    Spec: 58 D8."""
     if declaration is None:
         declaration = _collections.get(collection)
     # Spec 59 D2/D3: `{root}/{collection}/YYYY/MM/DD/{canonical granule name}/`.
@@ -270,12 +266,8 @@ def _select_item_files(
 def _failure_reason(exc: BaseException | None) -> str:
     """`"<ExceptionType>: <message>"` -- the type FIRST, because the type is the diagnosis.
 
-    A bare `str(exc)` is what this used to return, and on the real failure path it is
-    useless: fsspec/adlfs raise `FileNotFoundError(url)`, so `str(exc)` is just the asset
-    URL. A 2026-09-06 run reported "74 transfers FAILED" as 74 distinct one-off "reasons",
-    each a different URL, plus one `unknown` from an exception whose message was empty --
-    the grouping could not group and said nothing about the cause. With the type in front,
-    74 timeouts collapse to one line that names them.
+    fsspec/adlfs raise `FileNotFoundError(url)`, so `str(exc)` alone is just the asset
+    URL and groups nothing.
     """
     if exc is None:
         return "unknown"
@@ -286,11 +278,8 @@ def _failure_reason(exc: BaseException | None) -> str:
 def _failure_kind(reason: str) -> str:
     """The GROUPING key for a failure: the exception type, not the whole message.
 
-    `_failure_reason` formats `"<Type>: <message>"`, and for the common transfer failure the
-    message is the asset URL -- unique per file. Grouping on the full string therefore made
-    every failure its own group: a 2026-09-06 run printed "74 transfers FAILED" as 74 lines
-    of `1 x <url>`, which is the raw list with extra steps. Cutting at the first `": "`
-    collapses those to one `74 x FileNotFoundError` line, which is the finding.
+    The message is the asset URL, unique per file, so grouping on the full string makes
+    each failure its own group. Cutting at the first `": "` leaves the type.
     """
     head = str(reason).splitlines()[0] if reason else ""
     kind, sep, _rest = head.partition(": ")
@@ -304,14 +293,9 @@ def _failure_kind(reason: str) -> str:
 def _print_failure_summary(failures: list[tuple[str, str]], *, total: int) -> None:
     """Print WHY transfers failed, grouped by exception type -- not just how many.
 
-    `DownloadResult.failures` has always carried `(src_url, reason)`, but nothing ever
-    printed it: the progress line shows `fail=N` and the caller (`api.download`) discards
-    the whole result. A 2026-09-05 run of `runbooks/58-redownload-austria-mpc.md` lost 393
-    of 552 files and left no way to tell throttling from an expired token from a network
-    fault -- the reasons were in memory and thrown away.
-
-    Grouped by `_failure_kind`, with one example message per kind. The example matters as
-    much as the count: the count says how bad, the example says what to do about it.
+    `api.download` discards the whole result, so this print is the only place the reasons
+    surface. Grouped by `_failure_kind`, one example per kind: the count says how bad,
+    the example says what to do.
     """
     if not failures:
         return
@@ -345,30 +329,22 @@ def _transfer_and_stamp_one(
     tries: int = 3, base_delay: float = 0.5,
 ) -> tuple[bool, str]:
     """Byte-copy one already-COG asset, then stamp the declared GDAL scale/offset
-    (reflectance bands only) + nodata-if-missing tags.
+    (reflectance bands only) + nodata-if-missing tags. Returns `(ok, reason)`.
 
-    A cheap header edit, not a pixel-decoding re-encode -- though
-    `fsd.raster.cog.stamp_or_reencode` does fall back to a GDAL-COG-driver re-encode if the
-    in-place stamp would break COG validity.
+    A header edit, not a pixel decode -- though `fsd.raster.cog.stamp_or_reencode` does
+    fall back to a GDAL-COG-driver re-encode if the in-place stamp would break COG validity.
+    Idempotent skip on an existing non-empty `dst_path`. Stamping needs a real LOCAL file,
+    so a remote `dst_path` is staged in local scratch, stamped, then pushed.
 
-    Stamping needs a real LOCAL file, so when `dst_path` is remote the transfer lands in
-    local scratch first, gets stamped there, and is then pushed to `dst_path`. Idempotent
-    skip on an existing non-empty `dst_path`. Returns `(ok, reason)`.
+    `dst_path` is created by the LAST step and never edited afterwards (#74): a local
+    destination is staged as `<dst>.stage`, stamped, and only then `os.replace`d onto
+    `dst_path`. A kill or stamp error before that leaves no `dst_path`, so the `size > 0`
+    skip only ever sees fully stamped files.
 
-    **Stamp, then publish (spec 59 D10, closes #74).** `dst_path` is created by the LAST
-    step and never edited afterwards: a local destination is staged as `<dst>.stage`
-    (`fs.transfer` -- itself atomic through its own `.part` -- then the in-place stamp), and
-    only then `os.replace`d onto `dst_path`. A kill or a stamp exception before that leaves
-    no `dst_path`, so the `size > 0` skip above can only ever see a fully stamped file.
-
-    `sign`, when given, is applied to `src_url` **inside the retry loop, immediately before
-    each attempt** -- so the SAS token is minted seconds before it is used, never at
-    discovery time. An MPC token lives ~45 min; a whole-archive `download()` runs longer
-    than that, so signing up front meant every asset still queued when the token aged out
-    failed at once. (Observed 2026-09-05: 159 of 552 files landed over 44 minutes, then the
-    remaining 393 failed within ~2 -- the tail of a newest-first work list.) Signing per
-    ATTEMPT rather than per submission also means a retry after a long queue wait re-signs
-    instead of retrying with the same dead token.
+    `sign`, when given, is applied **inside the retry loop, immediately before each
+    attempt**. An MPC SAS token lives ~45 min and a whole-archive run is longer, so signing
+    at discovery fails every asset still queued when the token ages out; per-attempt
+    signing also re-signs a retry after a long queue wait.
     """
     import shutil
     import tempfile
@@ -493,26 +469,23 @@ def download(
     """Discover matching MPC `collection` granules and download the requested band files
     to `root_folderpath`, local or remote/blob. No credentials required: MPC is anonymous.
 
-    `processing` (spec 59 D7) selects ONE processing per acquisition among what MPC offers
-    -- `"latest"` (default, spec 33's rule generalized to the acquisition key) or a PEP 440
-    specifier -- after `properties_filter` and before `max_tiles`. `None` raises. Every
-    skipped granule is printed, and so is any acquisition this download leaves holding more
-    than one processing in the archive.
+    `processing` selects ONE processing per acquisition among what MPC offers: `"latest"`
+    (default) or a PEP 440 specifier. It applies after `properties_filter` and before
+    `max_tiles`; `None` raises. Every skipped granule is printed, and so is any
+    acquisition this download leaves holding more than one processing in the archive.
 
-    Unlike `cdse.download`, source assets are already COG — no jp2->COG conversion — so this
-    uses a straightforward thread-pool transfer + stamp, with no convert-process-pool and no
-    disk-aware staging cap. Idempotent: files already on disk are skipped.
+    Assets are already COG, so this is a thread-pool transfer + stamp with no convert
+    process pool. Idempotent: files already on disk are skipped. `should_stop` (optional)
+    halts new submissions only, but every unit is submitted up front, so once the run
+    starts it halts nothing (#157).
 
-    `should_stop` (optional) is checked in the submit loop, with the same
-    halt-new-submissions-only semantics as `cdse.download`.
+    `properties_filter` narrows the discovered granules by STAC property, e.g.
+    `{"sat:orbit_state": "descending"}`, **before** the `max_tiles` cap, so the cap counts
+    what will be transferred: a transfer is a whole-asset byte copy, and a partitioned
+    collection like `sentinel-1-rtc` returns orbits a build can never use. A key no
+    discovered granule carries raises, naming the keys they do carry.
 
-    `properties_filter` (spec 58 D9) narrows the discovered granules by STAC property —
-    e.g. `{"sat:orbit_state": "descending"}` — **before** the `max_tiles` cap, so the cap
-    measures what will actually be transferred. This matters because a transfer is a
-    whole-asset byte copy: a partitioned collection like `sentinel-1-rtc` returns every
-    orbit's scenes over an ROI, and a build can only ever use one of them (D9's partition
-    enforcement), so downloading both is pure waste. Same semantics as everywhere else —
-    a key no discovered granule carries raises, naming the keys they do carry.
+    Spec: 59 D7, 58 D9.
     """
     import concurrent.futures
     import time
@@ -524,11 +497,8 @@ def download(
         fs.makedirs(root_folderpath, exist_ok=True)
 
     roi_gdf = _roi_gdf(roi)
-    # UNSIGNED discovery, then sign per transfer below -- an MPC SAS token lives ~45 min,
-    # and a whole-archive download runs longer, so hrefs signed here would age out mid-run
-    # and take the entire tail of the work list with them (observed 2026-09-05: 159 of 552
-    # files, then 393 instant failures). Same reasoning `discover_shard_rows` already
-    # documents for the AML fan-out; `download()` was the path that still signed up front.
+    # Unsigned discovery, sign per transfer: a SAS token lives ~45 min and a whole-archive
+    # download runs longer.
     sign = _import_pc_sign()
     items = _search_items_unsigned(roi_gdf, startdate, enddate, max_cloudcover=max_cloudcover,
                                     collection=collection)
@@ -623,27 +593,20 @@ def discover_shard_rows(
     properties_filter: Mapping[str, str | Sequence[str]] | None = None,
     processing: str = processing_module.LATEST,
 ) -> list[dict]:
-    """Driver-side discovery for the AML fan-out: query MPC STAC
-    (cheap, no bytes -- `_search_items_unsigned`, so no href carries a token yet)
-    and flatten the matched items to **one row per asset**. `run_aml_download`
-    partitions the result with `shard_units` (asset-level round-robin, open
-    question #1) and hands each partition to `download_shard`, which signs on
-    the node. The ROI-based `download()` above is untouched -- this is a
-    parallel, additive discovery path feeding the shard CLI instead.
+    """Driver-side discovery for the AML fan-out: query MPC STAC (no bytes; unsigned, so
+    no href carries a token yet) and flatten the matched items to **one row per asset**.
+    `run_aml_download` partitions the rows with `shard_units` and hands each partition to
+    `download_shard`, which signs on the node.
 
-    Every row of one call shares `collection`, so `download_shard` (node-side) resolves
-    the declaration once, from the first row's `collection` -- via the registry, which is
-    fine here because discovery itself is driver-side (spec 58 D13's node-never-consults-
-    a-registry rule targets the *build* path's collection-variant resolution; this is
-    ingest, where the declaration is only artifact facts, not a user-choosable variant).
+    Every row shares `collection`, so the node resolves the declaration once from the
+    registry. That is allowed: this is ingest, where the declaration is only artifact
+    facts, not the build's collection-variant resolution that spec 58 D13 keeps
+    registry-free.
 
-    `properties_filter` narrows the granules exactly as in `download()` above (spec 58 D9), and
-    here too it lands before any row exists, so `max_tiles` downstream counts only the granules
-    that will actually transfer.
-
-    `processing` (spec 59 D7) is applied here, on the driver, per acquisition -- the shard
-    CSVs then carry only the chosen processing, so no node ever decides. This is one of the
-    four paths `processing=` must reach (spec 59 AC 15).
+    `properties_filter` narrows the granules as in `download()`, before any row exists, so
+    `max_tiles` downstream counts only what will transfer. `processing` is applied here, on
+    the driver, per acquisition, so the shard CSVs carry only the chosen processing and no
+    node decides.
     """
     declaration = _collections.get(collection)
     require_valid_processing(processing, collection)
