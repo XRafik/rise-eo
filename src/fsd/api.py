@@ -407,8 +407,8 @@ def download(
     `creds` is not required and `cog` is ignored, MPC assets are already COG);
     `source="cdse"` wraps `sources.cdse.download` and requires `creds`. Each source serves a
     fixed set of collections (`sources.mpc.SERVED_COLLECTIONS`/`sources.cdse.SERVED_COLLECTIONS`);
-    an unserved pair raises at preflight, naming what the source
-    DOES serve. `storage` is local or `"azure"`.
+    an unserved pair raises at preflight, naming what the source DOES serve. `storage` is
+    local or `"azure"`.
 
     `max_cloudcover` requires the collection to declare `supports_cloud_cover=True` (every
     optical collection, not Sentinel-1); passing it against a collection with no cloud-cover
@@ -571,8 +571,8 @@ def create_training_data(
 
     **In-memory polygons:** for `runner="aml"`, an in-memory `label_polygons` GeoDataFrame is
     materialized once to a GeoJSON under `run_folderpath` (by default under the blob `root`)
-    and that one URL serves as both the
-    download ROI and the per-cell build shapefile. A path/URL `label_polygons` is used as-is.
+    and that one URL serves as both the download ROI and the per-cell build shapefile. A
+    path/URL `label_polygons` is used as-is.
 
     **Feature engineering:** pass an `adapter` (preferred — its `feature_sequence` is the
     *same* one used at inference, which is what keeps training and inference features from
@@ -586,7 +586,8 @@ def create_training_data(
     join key for labels joined in later, without re-flattening.
 
     `runner="aml"` dispatches download + the build fan-out + the flatten reduce onto an Azure
-    ML cluster; `runner_kwargs` carries `cluster=`/`environment=`/`root=`/`identity_client_id=`.
+    ML cluster; `runner_kwargs` carries `cluster=`/`environment=`/`root=`/`identity_client_id=`
+    (see `workflows.runners`).
 
     `properties_filter` narrows the catalog to rows matching every given STAC property
     (e.g. `{"sat:orbit_state": "descending"}`) before the build -- required for
