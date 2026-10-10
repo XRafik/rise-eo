@@ -1,8 +1,7 @@
 """Datacube builder — general seam + S2-L2A in-memory implementation.
 
-Spec: specs/03-datacube.md. Folds in the working in-memory builder
-(create_datacube_inmemory_single). `build_datacube` is the stable seam; an
-alternate engine (e.g. rslearn) must emit the same datacube.npy + metadata.
+Spec: specs/03-datacube.md. `build_datacube` is the stable seam; an alternate
+engine (e.g. rslearn) must emit the same datacube.npy + metadata.
 
 Artifact contract (specs/00 §6):
   datacube.npy        : 4-D (timestamps|ids, height, width, bands)
@@ -70,8 +69,7 @@ def _resolve_declaration(
 
     A `gdf` that came from a file (`fs.read_parquet` stamps
     `attrs[fs.SOURCE_PATH_ATTRS_KEY]`) and carries no declaration stamp is an
-    error: this is precisely the "coincidentally correct because everything is
-    S2" fallback that hid TODO #42 for a whole spec cycle. Re-stamping is a
+    error: it would otherwise be built as S2 by coincidence (#42). Re-stamping is a
     footer rewrite (`python -m fsd.catalog.restamp_cli`), not a re-download.
     """
     if declaration is not None:
@@ -95,7 +93,7 @@ def _resolve_declaration(
 def _resolve_build_declaration(
     catalog_gdf: gpd.GeoDataFrame, declaration: CollectionDeclaration | None,
 ) -> CollectionDeclaration:
-    """`_resolve_declaration`, plus the spec 58 D14 guard: a build may request a
+    """`_resolve_declaration`, plus a guard: a build may request a
     **different named collection** from the one the catalog is stamped with only if
     its ARTIFACT facts are identical to the stamp's -- its BUILD POLICY fields
     (`mask_spec`, `mosaic_method`, `mosaic_partition`, `partition_policy`,
@@ -104,9 +102,9 @@ def _resolve_build_declaration(
     A requested declaration disagreeing with the stamp on an artifact fact
     (`nodata`, `scale`, `radiometry_bands`, `band_aliases`,
     `requires_subscription_key`) is a lie about what the bytes ARE, so this raises
-    instead of silently building against the wrong radiometry -- this is what closes
-    the "lying stamp" spec 58 D3 describes for the old mask-classes override, generalized to any
-    artifact fact.
+    instead of silently building against the wrong radiometry.
+
+    Spec: 58 D14.
     """
     if declaration is None:
         return _resolve_declaration(catalog_gdf, None)
@@ -130,23 +128,25 @@ def _resolve_build_declaration(
     return declaration
 
 
-# --- mosaic partition enforcement (spec 58 D9) --------------------------------
+# --- mosaic partition enforcement ---------------------------------------------
 
 def _enforce_mosaic_partition(
     catalog_subset: gpd.GeoDataFrame, shape_gdf: gpd.GeoDataFrame,
     declared: CollectionDeclaration,
 ) -> None:
     """A build whose rows span more than one value of `declared.mosaic_partition`
-    raises, enumerating what is available (spec 58 D9, AC11) -- e.g. mixing ascending
-    and descending Sentinel-1 passes into one median would blend physically
-    incompatible backscatter geometries.
+    raises, enumerating what is available -- e.g. mixing ascending and descending
+    Sentinel-1 passes into one median would blend physically incompatible backscatter
+    geometries.
 
-    No-op when the declaration enforces nothing (every P1 collection: `()`), or when
+    No-op when the declaration has `mosaic_partition=()` (e.g. S2 L2A), or when
     `catalog_subset` carries no rows/`properties` to check (an upstream filter already
     reduced this build to nothing, a separate failure mode).
 
-    `partition_policy="auto"` is declared but not implemented in P2 (D9.2) -- raises
-    `NotImplementedError` rather than silently picking an orbit for the caller.
+    `partition_policy="auto"` is not implemented and raises `NotImplementedError`
+    rather than silently picking an orbit.
+
+    Spec: 58 D9.
     """
     if not declared.mosaic_partition:
         return
@@ -175,7 +175,7 @@ def _enforce_mosaic_partition(
         return
 
     # Report `sat:relative_orbit` alongside the enforced key(s) when the catalog
-    # carries it -- offered and reported, never enforced (D9's evidence split).
+    # carries it -- offered and reported, never enforced.
     report_keys = list(enforced_keys)
     if "sat:relative_orbit" not in report_keys and any(
         "sat:relative_orbit" in props for props in parsed.values()
@@ -218,31 +218,22 @@ def flatten_catalog(
     catalog_gdf: gpd.GeoDataFrame,
     declaration: CollectionDeclaration | None = None,
 ) -> gpd.GeoDataFrame:
-    """Explode a filtered `TileCatalog` (one row per granule, with
-    `area_contribution` from `TileCatalog.filter`) into one row per raster band
-    file — the band-flattened form `build_datacube` consumes.
+    """Explode a filtered `TileCatalog` (one row per granule, with `area_contribution`
+    from `TileCatalog.filter`) into one row per raster band file -- the band-flattened
+    form `build_datacube` consumes.
 
-    Output cols: `id, filepath, band, timestamp, geometry, area_contribution,
-    offset, nodata, properties`. Non-raster files (e.g. `MTD_TL.xml`) are skipped; `band` =
-    filename minus ext. `properties` is the granule row's source-item STAC properties
-    verbatim (JSON string, spec 58 D12), duplicated across a granule's band rows -- what
-    `build_datacube`'s `mosaic_partition` enforcement reads. `offset` is the granule row's
-    declared additive radiometric offset
-    for a band the resolved declaration says carries radiometry
-    (`CollectionDeclaration.is_radiometry_band`), else 0 — mask/QA bands are never
-    harmonized.
-    `nodata` is the granule row's declared nodata,
-    defaulting to 0 when the row doesn't carry one. Missing `offset`/`nodata`
-    columns on `catalog_gdf` (a source with no radiometric-offset concept)
-    default every row to 0.
+    Output cols: `id, filepath, band, timestamp, geometry, area_contribution, offset,
+    nodata, properties, ...`. Non-raster files (e.g. `MTD_TL.xml`) are skipped; `band` =
+    filename minus ext. `properties` is the granule's source-item STAC properties
+    verbatim (JSON string), duplicated across its band rows. `offset` is the granule's
+    declared additive offset for a band the resolved declaration says carries radiometry
+    (`CollectionDeclaration.is_radiometry_band`), else 0 -- mask/QA bands are never
+    harmonized. `nodata` is the granule's declared nodata, 0 when absent; missing
+    `offset`/`nodata` columns default every row to 0.
 
-    `declaration` is the *collection-level* builder contract —
-    which band is the mask/reference, how to interpret the mask, the source's
-    grid shape — resolved by `_resolve_declaration`: the explicit kwarg, else
-    `catalog_gdf`'s own stamp, else the S2 L2A default for a hand-built `catalog_gdf`, else
-    raise for an unstamped file. The resolved declaration is attached to the output as the
-    JSON-able `GeoDataFrame.attrs["fsd:declaration"]` — never the dataclass itself — which
-    `build_datacube` reads instead of hardcoding S2.
+    The declaration is resolved by `_resolve_declaration` and attached as the JSON-able
+    `attrs["fsd:declaration"]` -- never the dataclass itself -- which `build_datacube`
+    reads instead of hardcoding S2.
     """
     declaration = _resolve_declaration(catalog_gdf, declaration)
     data = {k: [] for k in
@@ -254,9 +245,9 @@ def flatten_catalog(
         tile_nodata = row.get("nodata", 0)
         tile_nodata = 0 if tile_nodata is None else tile_nodata
         tile_properties = row.get("properties", "{}") or "{}"
-        # Spec 59 D8: carried through band-flattening so `build_datacube` can apply
-        # D6's per-acquisition `processing=` check and record D9's provenance from the
-        # SAME rows the build assembles from. A hand-built frame without them is its own
+        # Carried through band-flattening so `build_datacube` can apply the
+        # per-acquisition `processing=` check and record provenance from the SAME rows
+        # the build assembles from. A hand-built frame without them is its own
         # acquisition, with no version and no source (cross-processing detection off).
         tile_acq_key = row.get("acquisition_key") or row["id"]
         for file in str(row["files"]).split(","):
@@ -272,7 +263,7 @@ def flatten_catalog(
             data["area_contribution"].append(row["area_contribution"])
             data["offset"].append(tile_offset if declaration.is_radiometry_band(band) else 0)
             data["nodata"].append(tile_nodata)
-            # The source item's STAC properties verbatim (spec 58 D12), carried through
+            # The source item's STAC properties verbatim, carried through
             # band-flattening so `_enforce_mosaic_partition` can read `sat:orbit_state`
             # from the SAME rows the build actually assembles from -- not a re-read of
             # the pre-flatten catalog, which would risk drifting from what was built.
@@ -312,85 +303,61 @@ def build_datacube(
 ) -> None:
     """Assemble one cloud-masked, time-mosaicked datacube and save it.
 
-    Steps: missing-files check -> load+crop ->
-    dst_crs (max mean area contribution) -> reference profile (merge the declared
-    reference band) -> resample all to ref -> stack by timestamp x band -> declared
-    op-sequence assembly (radiometry offset -> mask -> drop mask band -> median
-    mosaic) -> save.
+    Steps: missing-files check -> load+crop -> dst_crs (max mean area contribution) ->
+    reference profile (merge the reference band) -> resample all to ref -> stack by
+    timestamp x band -> declared op sequence (radiometry offset -> mask -> drop mask
+    band -> median mosaic) -> save.
 
-    **Declaration-driven, never hardcoded (#35).** What band is the mask, how to interpret
-    it, which band is the resample reference, and the mosaic method are all read from a
-    `CollectionDeclaration` (`fsd.catalog.declaration`) — resolved by
-    `_resolve_build_declaration`: the explicit `declaration=` kwarg (validated against the
-    catalog's own stamp on ARTIFACT facts, spec 58 D14 -- a differing build-policy field is
-    fine, a differing artifact fact raises), else `catalog_subset`'s own stamp
-    (`attrs["fsd:declaration"]`, set by `flatten_catalog`), else the S2 L2A default for a
-    hand-built `catalog_subset`. An unstamped catalog that came from a FILE raises instead.
+    Declaration-driven, never hardcoded (#35): the mask band and rules, the resample
+    reference and the mosaic method come from a `CollectionDeclaration`, resolved by
+    `_resolve_build_declaration`.
 
-    **The declared `mask_spec` is never overridden (spec 58 D3)** — there is no
-    mask-classes override parameter here any more; a different mask means a different named
-    collection variant (`fsd.collections.register`), not an inline list, which closed the
-    "lying stamp" (the catalog was stamped with one mask but built with another). The
-    declared mask is skipped entirely — no `apply_cloud_mask_scl`, no drop — when
-    `mask_spec` is `None` **or** its `band` is not in the requested `bands`, which is what
-    lets `bands=["B04"]` build without an SCL band existing (#35).
+    The declared `mask_spec` is never overridden; a different mask means a different
+    named collection variant (`fsd.collections.register`). The mask is skipped when
+    `mask_spec` is `None` or its band is not in `bands` (so `bands=["B04"]` builds
+    without SCL). An unimplemented `mask_spec.mask_type` raises `NotImplementedError`
+    rather than masking approximately, as does `native_grid=True` (a growable seam must
+    fail loudly).
 
-    `reference_band`, if given, overrides the resolved declaration's field (build policy,
-    spec 58 D14) — and **must be among `bands`, or this raises** (spec 58 D11): a declared
-    non-`None` reference band absent from the request used to fail deep inside the merge
-    (`ref_indices` silently empty) instead of at the top of the build.
+    `reference_band`, if given, overrides the declaration's, and must be among `bands`,
+    or this raises.
 
-    An unimplemented `mask_spec.mask_type` raises `NotImplementedError` rather than masking
-    approximately: a growable seam must fail loudly, never produce a silently wrong mask.
-    `native_grid=True` (a source with one native grid, e.g. ERA5) raises for the same reason
-    -- the non-tiled build path is designed for but not implemented.
-
-    **`declared.mosaic_partition` is enforced before anything else runs** (spec 58 D9,
-    `_enforce_mosaic_partition`): rows spanning more than one value of a partitioned
+    `declared.mosaic_partition` is enforced before anything else runs
+    (`_enforce_mosaic_partition`): rows spanning more than one value of a partitioned
     property (e.g. Sentinel-1's `sat:orbit_state`) raise, enumerating the available
-    combinations with acquisition counts and ROI coverage -- the error is the discovery
-    mechanism, since which combinations exist depends on geometry and dates. Callers
-    narrow to one combination with `properties_filter`, which is applied both upstream
-    where the catalog is queried (`workflows.create_datacube.setup`) and again here --
-    idempotent when the rows arrived already filtered, and the only way to narrow the
-    partition for a caller that reaches the builder directly with a raw subset. Every P1
-    collection declares `mosaic_partition=()`, so this is a no-op for them.
+    combinations -- the error is the discovery mechanism. `properties_filter` narrows
+    to one; it is applied upstream (`workflows.create_datacube.setup`) and again here,
+    idempotent when the rows arrived already filtered. A no-op for a declaration with
+    `mosaic_partition=()` (e.g. S2 L2A).
 
-    Per-row `offset`/`nodata` catalog columns carry the **radiometric**
-    declaration: each image's declared additive offset is applied (read-time only,
-    `apply_offset`) before the median mosaic, and the build's nodata is read from
-    `catalog_subset["nodata"]` (falling back to the resolved declaration's `nodata`,
-    NOT `config.NODATA`, when the column is absent) — so mutating either in the
-    catalog changes the build, proving neither is config-hardcoded.
+    Each image's `offset` catalog column is applied read-time (`apply_offset`) before the
+    median. The build's nodata is the first row's `nodata`, falling back to the
+    declaration's `nodata` (NOT `config.NODATA`) when the column is absent.
 
-    `startdate` must be on/before the first acquisition and `enddate` on/after the
-    last (median_mosaic requirement). `mosaic_scheme` controls how the
-    mosaic windows are anchored/labeled — the default "calendar" uses fixed calendar
-    windows off `startdate`, so cubes built over the same startdate/enddate/mosaic_days
-    share an identical `timestamps` axis (the workflow now threads the caller's
-    calendar dates, not per-shape actual acquisition; "acquisition" keeps legacy).
+    `startdate` must be on/before the first acquisition and `enddate` on/after the last
+    (median_mosaic requirement). `mosaic_scheme="calendar"` (default) uses fixed windows
+    off `startdate`, so cubes over the same startdate/enddate/mosaic_days share an
+    identical `timestamps` axis; `"acquisition"` windows track the actual acquisition
+    dates.
 
-    `write_timings=True` writes a `timings.json` sidecar (per-phase wall-seconds +
-    counts) next to the artifact — the benchmark seam. Off by default so
-    normal builds leave no extra file; the workflow path enables it via the
-    `FSD_WRITE_TIMINGS` env var (see workflows.task).
+    `write_timings=True` writes a `timings.json` sidecar (per-phase seconds + counts).
+    `write_read_log=True` writes a `reads.jsonl` sidecar (one row per windowed read: grid
+    id, mgrs_tile, product_id, band, filepath, wall-clock epoch start/end, duration) and
+    needs `njobs_load_images == 1` (no-op with a warning otherwise). The
+    workflow enables them via `FSD_WRITE_TIMINGS` / `FSD_WRITE_READ_LOG` (see
+    workflows.task).
 
-    `write_read_log=True` writes a `reads.jsonl` sidecar (one row per windowed read:
-    grid id, mgrs_tile, product_id, band, filepath, epoch start/end, duration) — the
-    Part-2 read-instrumentation seam. Requires `njobs_load_images == 1` (the
-    reads must run in this process to be timed) and is a no-op with a warning otherwise. Uses
-    wall-clock `time.time()` so intervals are comparable across grid processes. The
-    workflow path enables it via the `FSD_WRITE_READ_LOG` env var (see workflows.task).
+    Spec: 03, 58.
     """
     declared = _resolve_build_declaration(catalog_subset, declaration)
-    # D9: the filter is applied HERE as well as upstream where the catalog is queried
+    # The filter is applied HERE as well as upstream where the catalog is queried
     # (`workflows.create_datacube.setup`) -- applying it twice is idempotent, and a
     # caller that reaches the builder directly with an unfiltered subset (a notebook,
     # a run-book's QGIS step) can then narrow the partition in place instead of only
     # being told the rows span two. Resolved AFTER the declaration, whose stamp rides
     # `catalog_subset.attrs` and need not survive a row slice.
     catalog_subset = filter_by_properties(catalog_subset, properties_filter)
-    # Spec 59 D6: the same check runs here as in `create_datacube.setup`, so no entry point
+    # The same check runs here as in `create_datacube.setup`, so no entry point
     # routes around it. `processing=None` RAISES on an acquisition present in more than one
     # processing (mosaicking both would count it twice); "latest"/a specifier select one.
     # Idempotent when the rows arrived already selected.
@@ -468,14 +435,13 @@ def build_datacube(
     # Reference grid = the merged reference-band (B08, 10 m) profile. Everything is
     # resampled TO this real known-10 m image, not to an abstract target grid.
     #
-    # `reference_band=None` (spec 58 D11: bands are already grid-uniform -- S1 RTC,
-    # HLS) has its own meaning, distinct from "no band matches": use the FIRST
-    # requested band's images to build the reference grid. `catalog_gdf["band"] ==
-    # None` would otherwise compare true for nothing, leaving `ref_indices` empty and
-    # `_get_merged_profile` failing on zero images. Since every band is already
-    # grid-uniform for these collections, `_get_indices_to_resample` naturally finds
-    # nothing to resample against whichever band is picked here -- no separate
-    # "skip resample" branch is needed.
+    # `reference_band=None` (bands are already grid-uniform, e.g. S1 RTC) has its own
+    # meaning, distinct from "no band matches": use the FIRST requested band's images
+    # to build the reference grid. `catalog_gdf["band"] == None` would otherwise compare
+    # true for nothing, leaving `ref_indices` empty and `_get_merged_profile` failing on
+    # zero images. Since every band is already grid-uniform for these collections,
+    # `_get_indices_to_resample` naturally finds nothing to resample against whichever
+    # band is picked here -- no separate "skip resample" branch is needed.
     with _timed(timings, "reference_profile"):
         reference_grid_band = reference_band if reference_band is not None else bands[0]
         ref_indices = catalog_gdf.loc[catalog_gdf["band"] == reference_grid_band, "image_index"]
@@ -524,10 +490,9 @@ def build_datacube(
         # request, so it goes into the cube's own metadata.
         metadata["actual_start"] = catalog_subset["timestamp"].min()
         metadata["actual_end"] = catalog_subset["timestamp"].max()
-        # Spec 59 D9: which granules and processing versions this cube was built from.
-        # Metadata, not identity (never enters `params_key`); nothing reads it in spec 59 --
-        # it is recorded so #101 can compare training against inference, and so a stale
-        # cube (D11) is diagnosable.
+        # Which granules and processing versions this cube was built from. Metadata, not
+        # identity (never enters `params_key`): recorded so training and inference can be
+        # compared (#101) and a stale cube diagnosed.
         metadata["provenance"] = _cube_provenance(catalog_subset)
 
     with _timed(timings, "save"):
@@ -559,7 +524,7 @@ def build_datacube(
 
 
 def _cube_provenance(catalog_subset) -> dict:
-    """D9's provenance block for the rows a cube used (`ids` included: one cube is a
+    """The provenance block for the rows a cube used (`ids` included: one cube is a
     bounded set of granules)."""
     if len(catalog_subset) == 0 or "id" not in catalog_subset.columns:
         return {}
@@ -739,8 +704,7 @@ def _load_images(catalog_gdf, shape_gdf, nodata, njobs=1, write_read_log=False):
 
 
 def _apply_offsets(catalog_gdf, data_profile_list) -> None:
-    """Apply each row's declared `offset` (spec 34 §1, generalizing spec 32's
-    `boa_add_offset`) to its loaded image, in place, read-time only.
+    """Apply each row's declared `offset` to its loaded image, in place, read-time only.
 
     `catalog_gdf` is post-filter (kept rows only), `image_index` still indexes
     the full `data_profile_list`. Missing `offset` column (a source with no
@@ -832,7 +796,7 @@ def _stack_datacube(catalog_gdf, data_profile_list, bands, reference_profile,
                     shape_gdf, nodata):
     """Stack aligned images into (timestamps, H, W, bands). Every present band is
     (1, H, W) on the reference grid; a missing (ts, band) is nodata-filled to the
-    same shape (legacy filled (H, W), which could not stack).
+    same shape.
 
     When several granules of the SAME acquisition cover the shape (it straddles an MGRS
     tile boundary) they collide on (timestamp, band). ALL of them are merged onto the
