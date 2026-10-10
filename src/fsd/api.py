@@ -494,8 +494,8 @@ def download(
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
     errs = _check_local_seams(runner, storage) + date_errs
     if not date_errs:
-        # A download has no mosaic: any `mosaic_days >= 1` makes both mosaic checks inert, so
-        # this checks only the dates and `bands`.
+        # A download has no mosaic: any finite `mosaic_days >= 1` makes both mosaic checks
+        # inert, so this checks only the dates and `bands`.
         errs += _check_window(startdate, enddate, 20, bands)
     errs += _check_download_source(
         source, collection, max_tiles,
