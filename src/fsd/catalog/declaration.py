@@ -2,32 +2,23 @@
 
 Spec: specs/34-ingest-normalization-contract.md, specs/58-collection-agnostic-verbs.md
 
-`build_datacube` (fsd.datacube.builder) is a generic engine: it has no
-`if collection == "s2"` anywhere. Instead it reads what it needs from a
-`CollectionDeclaration`, attached to the flattened, band-exploded catalog it is
-given as the JSON-able `GeoDataFrame.attrs["fsd:declaration"]` (`ATTRS_KEY`,
-set by `flatten_catalog` and restored from the catalog Parquet's footer by
-`fsd.storage.fs.read_parquet` — never the dataclass itself), or
-passed explicitly. A new collection that wants a *different*
-mask/reference/mosaic behavior registers its own `CollectionDeclaration`
-(`fsd.collections.register`) — no change to `builder.py` is required. See
-`fsd/docs/adding-a-source.md`.
+`build_datacube` is a generic engine: no `if collection == "s2"` anywhere. It reads what it
+needs from a `CollectionDeclaration`, carried on the flattened catalog as the JSON-able
+`GeoDataFrame.attrs[ATTRS_KEY]` (set by `flatten_catalog`, restored from the Parquet footer
+by `fsd.storage.fs.read_parquet`; never the dataclass itself) or passed explicitly. A
+collection that needs different mask/reference/mosaic behavior registers its own
+declaration (`fsd.collections.register`); see `docs/adding-a-source.md`.
 
-Per-granule/per-band values that genuinely vary row-to-row (the radiometric
-`offset`, the declared `nodata`) are NOT here — they live as catalog columns
-(`fsd.catalog.catalog.COLUMNS`), carried through `flatten_catalog`. This
-module only holds the *collection-level* declaration: which band is the
-mask/reference, how to interpret the mask, whether the collection's grid needs
-the S2-style multi-MGRS-tile collapse, and (spec 58) which bands carry radiometry,
-how bands alias to canonical names, and what must not be mosaicked together.
+Per-row values that vary (the radiometric `offset`, the per-row `nodata`) live in catalog
+columns (`fsd.catalog.catalog.COLUMNS`); the declaration's `nodata` is only the fallback
+when the column is absent.
 
-**Two kinds of fact** (spec 58 D14), documented so a caller knows what is safe to vary
-per build:
+Two kinds of field:
 
 - **Artifact facts** (describe the bytes; stamped at ingest, never vary per build):
   `nodata`, `scale`, `radiometry_bands`, `band_aliases`, `requires_subscription_key`.
 - **Build policy** (bytes -> cube; may vary per build via a different named collection
-  variant, D13): `mask_spec`, `mosaic_method`, `mosaic_partition`, `partition_policy`,
+  variant): `mask_spec`, `mosaic_method`, `mosaic_partition`, `partition_policy`,
   `reference_band`.
 """
 
@@ -56,9 +47,8 @@ __all__ = [
 # which would not survive the round-trip. `fsd.storage.fs` serializes that whole `.attrs`
 # dict to the Parquet footer's `PANDAS_ATTRS` key.
 #
-# v1 -> v2 (spec 58 D7): added `MaskSpec.bits` and the collection-level fields below.
-# Without the bump, an older fsd reading a v2 footer would report "unknown field" instead
-# of the intended "written by a newer fsd -- upgrade" (spec 35 §5a).
+# The version is bumped when fields are added: without it, an older fsd reading a newer
+# footer would report "unknown field" instead of "written by a newer fsd -- upgrade".
 FSD_DECLARATION_VERSION = 2
 ATTRS_KEY = "fsd:declaration"
 
@@ -70,7 +60,7 @@ _DECLARATION_FIELDS = (
 )
 _MASK_SPEC_FIELDS = ("band", "mask_type", "classes", "bits")
 
-# The `CollectionDeclaration` fields that are facts about the stored artifact (spec 58 D14).
+# The `CollectionDeclaration` fields that are facts about the stored artifact.
 ARTIFACT_FACT_FIELDS = (
     "nodata", "scale", "radiometry_bands", "band_aliases", "requires_subscription_key",
 )
@@ -96,7 +86,7 @@ class MaskSpec:
     Fmask cloud/shadow/snow); a separate field from `classes`, never an
     overload of it -- conflating pixel VALUES with bit POSITIONS yields a
     silently wrong mask. `mask_type="bitmask"` is named but not implemented
-    (spec 58 D7) -- `builder.build_datacube` raises `NotImplementedError`.
+    (`builder.build_datacube` raises `NotImplementedError`).
     """
 
     band: str
@@ -110,82 +100,52 @@ class CollectionDeclaration:
     """What `build_datacube` needs to know about a collection, read once per build
     instead of hardcoded.
 
-    `reference_band` — the band whose grid (10 m B08 for S2) every other band
-    is resampled onto; `None` means bands are already grid-uniform (all bands
-    share resolution and shape) -- run no resample step, use the first
-    requested band for the merge geometry. This is independent of
-    `native_grid` (spec 58 D11): S2 needs a reference because its bands are
-    10/20/60 m; HLS and Sentinel-1 RTC do not, despite being tiled/scene-based
-    (`native_grid=False`) rather than one native global grid.
+    `reference_band` — the band whose grid (10 m B08 for S2) every other band is resampled
+    onto. `None` means no resample step; the first requested band gives the merge
+    geometry. Independent of `native_grid`: S2 needs a reference (10/20/60 m bands), HLS and
+    Sentinel-1 RTC do not.
 
-    `native_grid` — `True` means "this collection has one native
-    global/regional grid, skip the multi-MGRS-tile single-CRS collapse" —
-    **designed-for, not implemented** (`[G2]`): `build_datacube` raises
-    `NotImplementedError` when `native_grid=True`, because the non-tiled path
-    needs a real non-tiled collection to build+test against (the ERA5/CHIRPS
-    spec).
+    `native_grid` — `True` means one native global/regional grid, skipping the
+    multi-MGRS-tile single-CRS collapse. Designed-for, not implemented: `build_datacube`
+    raises `NotImplementedError`.
 
-    `mask_spec` — `None` means "no mask" (closes #35: a collection with no
-    cloud/QA band, e.g. CHIRPS, skips both the mask and the mask-band-drop
-    op). A `MaskSpec` whose `band` is not in the build's requested `bands`
-    also results in no masking (the caller opted the mask band out of this
-    particular build) — this is how the S2 declaration's default mask is
-    "closed" for a `bands=["B04"]` build without needing a second
-    declaration. **Never overridden by a verb parameter (spec 58 D3)** — the
-    declaration is the only source of truth; a different mask needs a
-    different named collection variant (`fsd.collections.register`).
+    `mask_spec` — `None` means no mask (e.g. CHIRPS). A `MaskSpec` whose `band` is not in
+    the build's requested `bands` also means no masking. Never overridden by a verb
+    parameter: a different mask is a different named collection variant
+    (`fsd.collections.register`).
 
-    `mask_keep` — default False drops the mask band after masking; True keeps it in the
-    output cube, e.g. for a workflow that wants SCL/QA available downstream.
+    `mask_keep` — `False` drops the mask band after masking; `True` keeps it in the cube.
 
-    `nodata` — the fallback nodata value when the catalog rows being built
-    don't carry a `nodata` column (older/hand-built catalogs); a real
-    ingested catalog carries `nodata` per row and that value
-    wins over this default.
+    `nodata` — fallback when the catalog rows carry no `nodata` column (older or hand-built
+    catalogs); a per-row value wins.
 
-    `mosaic_method` — currently only "median" is implemented by
-    `fsd.datacube.ops.median_mosaic`; kept as a declared field (not a magic
-    string in the builder) for the next mosaic method to slot in without an
-    `if collection ==` branch.
+    `mosaic_method` — only "median" is implemented (`fsd.datacube.ops.median_mosaic`).
 
-    `scale` (spec 58 D5.1) — the declared multiplicative radiometric scale
-    (e.g. `1/10000` for S2 reflectance DN), alongside the per-row `offset`
-    catalog column. **Declared, never applied** by the build path (ADR 0011):
-    pixels stay raw DN through the pipeline; `scale` makes the STAC export
-    and viewer rendering correct. Default `1.0` (no-op scale) for a
-    collection with no such concept.
+    `scale` — the declared multiplicative radiometric scale (e.g. `1/10000` for S2),
+    alongside the per-row `offset` column. Declared, never applied by the build (ADR 0011):
+    pixels stay raw DN. Default `1.0`.
 
-    `radiometry_bands` — which bands carry the declared `offset`/`scale`.
-    `None` means every band does (S2's old `_is_reflectance` default); a
-    tuple names exactly which bands do, for a collection where only some
-    bands are radiometric (mask/QA bands never are). See
-    `CollectionDeclaration.is_radiometry_band`.
+    `radiometry_bands` — which bands carry `offset`/`scale`; `None` means every band, a
+    tuple names exactly which (mask/QA bands never do). See `is_radiometry_band`.
 
-    `band_aliases` — canonical STAC EO `common_name` (spec 58 D8: `"red"`,
-    `"nir"`, `"nir08"`, ...) -> this collection's native asset key (e.g.
-    S2 L2A's `"nir08"` -> `"B8A"`). fsd declares this mapping itself rather
-    than trusting a provider's published `common_name` — MPC's own HLS
-    `common_name` assignments are demonstrably inconsistent (spec 58 D8).
+    `band_aliases` — canonical STAC EO `common_name` (`"red"`, `"nir"`, `"nir08"`, ...) ->
+    this collection's native asset key (S2 L2A `"nir08"` -> `"B8A"`). fsd declares the
+    mapping itself rather than trusting a provider's `common_name` (MPC's HLS assignments
+    are inconsistent).
 
-    `requires_subscription_key` (spec 58 D10) — whether this collection needs
-    `PC_SDK_SUBSCRIPTION_KEY` (or the AML Key Vault equivalent) even though
-    its source (MPC) is otherwise anonymous. A collection capability, not a
-    source fact: MPC as a provider is anonymous, one of its collections is
-    not.
+    `requires_subscription_key` — whether the collection needs `PC_SDK_SUBSCRIPTION_KEY`
+    (or the AML Key Vault equivalent) although MPC is otherwise anonymous. A collection
+    capability, not a source fact.
 
-    `supports_cloud_cover` (spec 58 D6) — whether this collection exposes an
-    `eo:cloud_cover`-shaped discovery filter. Gates `max_cloudcover`: passing
-    it against a collection that declares `supports_cloud_cover=False` (e.g.
-    Sentinel-1, which has no cloud cover at all) raises a `PreflightError`
-    naming the collection, rather than silently being a no-op filter.
+    `supports_cloud_cover` — whether the collection has an `eo:cloud_cover` discovery
+    filter. With `False` (e.g. Sentinel-1), `max_cloudcover` is refused with a
+    `PreflightError` naming the collection rather than silently ignored.
 
-    `mosaic_partition` / `partition_policy` (spec 58 D9) — the catalog
-    property keys (from the generic `properties` column) that must hold a
-    SINGLE value within one build, and what to do when they don't
-    (`"raise"` or `"auto"`). Empty tuple = no enforcement -- the default,
-    and correct for every optical collection in P1. `sentinel-1-rtc` (P2)
-    declares `mosaic_partition=("sat:orbit_state",)`,
-    `partition_policy="raise"`.
+    `mosaic_partition` / `partition_policy` — catalog property keys that must hold a
+    SINGLE value within one build, and what to do when they don't (`"raise"`; `"auto"` is
+    declared but raises `NotImplementedError`). Empty tuple = no enforcement.
+
+    Spec: 58.
     """
 
     reference_band: str | None = None
@@ -208,26 +168,21 @@ class CollectionDeclaration:
 
     def is_radiometry_band(self, band: str) -> bool:
         """Whether `band` carries this collection's declared radiometric
-        `offset`/`scale` -- replaces the old regex-based `_is_reflectance`
-        (spec 58 D5.3). `radiometry_bands=None` means every band does."""
+        `offset`/`scale`. `radiometry_bands=None` means every band does."""
         return self.radiometry_bands is None or band in self.radiometry_bands
 
     def canonical_to_native(self, band: str) -> str:
         """Resolve `band` (a canonical STAC EO `common_name`, or already a
         native asset key) to this collection's native asset key. A name not
         in `band_aliases` is returned unchanged -- it is assumed to already
-        be native (spec 58 D8)."""
+        be native."""
         return dict(self.band_aliases).get(band, band)
 
 
-# The only declaration this spec ships code for: both CDSE and
-# MPC are S2 L2A, so both go through this same declaration/generic path —
-# the "no hollow contract" requirement (spec-32/33 lesson).
-#
-# Kept here (rather than only in `fsd.collections.s2_l2a`) for backward-compat imports
-# and because `builder._resolve_declaration`'s hand-built-GeoDataFrame fallback needs a
-# concrete default without importing the registry package (avoids a
-# declaration<->collections import cycle: `fsd.collections` imports this module).
+# Kept here (rather than only in `fsd.collections.s2_l2a`) for existing imports and because
+# `builder._resolve_declaration`'s hand-built-GeoDataFrame fallback needs a concrete
+# default without importing the registry package (a declaration<->collections import
+# cycle: `fsd.collections` imports this module).
 S2_L2A_DECLARATION = CollectionDeclaration(
     reference_band=config.REFERENCE_BAND,
     native_grid=False,
@@ -240,10 +195,8 @@ S2_L2A_DECLARATION = CollectionDeclaration(
     nodata=config.NODATA,
     mosaic_method="median",
     scale=config.S2_REFLECTANCE_SCALE,
-    # Every S2 L2A band except the mask (SCL) -- matches the old regex-based
-    # `_is_reflectance` (`^B\d` or `B8A`) exactly, but as declared data rather than a
-    # global pattern (spec 58 D5.3). NOT `None` ("all bands"): that would radiometrically
-    # offset SCL too, which is never correct (SCL is a classification, not a DN).
+    # Every S2 L2A band except the mask (SCL). NOT `None` ("all bands"): that would
+    # radiometrically offset SCL too (SCL is a classification, not a DN).
     radiometry_bands=tuple(b for b in config.S2L2A_ALL_BANDS if b != "SCL"),
     band_aliases=(("red", "B04"), ("nir", "B08"), ("nir08", "B8A")),
     requires_subscription_key=False,
@@ -253,14 +206,10 @@ S2_L2A_DECLARATION = CollectionDeclaration(
 )
 
 
-# --- serialization ------------------------------------------------------------
+# --- serialization (pure functions, no I/O) -----------------------------------
 #
-# Pure functions, no I/O. `to_json`/`from_json` convert a `CollectionDeclaration` to
-# and from a plain JSON-able dict (field-for-field, `fsd_declaration_version`
-# required); `to_attrs`/`from_attrs` place that dict under `ATTRS_KEY` on a
-# GeoDataFrame's `.attrs` -- the *typed* representation never goes in `.attrs`
-# directly (a dataclass there is a future crash once a JSON-encoding writer
-# touches it, see §2a).
+# The dataclass never goes in `.attrs` directly: a dataclass there crashes once a
+# JSON-encoding writer touches it.
 
 
 def _mask_spec_to_json(mask_spec: MaskSpec | None) -> dict | None:
@@ -406,7 +355,7 @@ def from_attrs(gdf) -> CollectionDeclaration | None:
 
 
 def digest(decl: CollectionDeclaration) -> str:
-    """A short, stable hash of `decl`'s full JSON form (spec 58 D4) -- used by
+    """A short, stable hash of `decl`'s full JSON form -- used by
     `fsd.workflows.create_datacube.params_key` so any collection-level change
     (mask classes, nodata, reference band, ...) correctly invalidates cached cube
     paths, which a single S2-shaped mask-classes verb parameter never could."""

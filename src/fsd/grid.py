@@ -3,12 +3,11 @@
 Spec: specs/21-roi-inference-verb.md
 
 Cover a region of interest with fixed-size S2 cells — one cell = one inference datacube = one
-task when `run_inference(roi=…)` lands. Cells are scaled up slightly so adjacent cells
-overlap (no seams at mosaic time) and clipped to the ROI so they don't spill outside it.
+task in `run_inference(roi=…)`. Cells are scaled up slightly so adjacent cells overlap (no
+seams at mosaic time) and clipped to the ROI so they don't spill outside it.
 
-Clean-room port of `rsutils.s2_grid_utils.get_s2_grids_gdf` (read-only reference). Needs the
-optional `[grid]` extra (`pip install -e ".[grid]"`: `s2` + `s2cell`) — kept out of fsd core so
-the base install stays lean.
+Needs the optional `[grid]` extra (`pip install -e ".[grid]"`: `s2` + `s2cell`) — kept out of
+fsd core so the base install stays lean.
 """
 
 from __future__ import annotations
@@ -70,14 +69,14 @@ def roi_to_s2_grids(roi, *, grid_size_km: float = 5, scale_fact: float = 1.1,
                     res: int | None = None, clip: bool = True) -> gpd.GeoDataFrame:
     """Split an ROI into overlapping S2 grid cells, clipped to the ROI.
 
-    Steps (per the ROADMAP §4 recipe): S2-`polyfill` the ROI's **convex hull** at the level for
+    Steps: S2-`polyfill` the ROI's **convex hull** at the level for
     `grid_size_km` (5 km → res 11), keep cells that **intersect** the ROI, **scale** each by
     `scale_fact` (1.1 → 10 % overlap per side), then **clip** to the ROI so grids stay inside it
     (`clip=False` keeps the scaled, unclipped cells). Finally, any cell fully `covered_by`
-    another cell in the result is dropped (#69) -- e.g. an ROI that is itself one S2
-    cell polyfills its 8 neighbours too, and after clip+scale those come back as slivers wholly
-    inside the central cell. A dropped cell is always a subset of a kept one, so the union of
-    the returned cells is unchanged, and the drop count is always printed -- never silent.
+    another cell in the result is dropped (#69): an ROI that is itself one S2 cell
+    polyfills its 8 neighbours too, and after clip+scale they come back as slivers inside
+    the central cell. A dropped cell is always a subset of a kept one, so the union of the
+    returned cells is unchanged, and the drop count is always printed -- never silent.
 
     **An ROI is one region, not a list of shapes.** A multi-row `roi` is `unary_union`-ed into a
     single (multi)polygon *first*, and every step — hull, intersect, clip — works against that
@@ -115,38 +114,12 @@ def roi_to_s2_grids(roi, *, grid_size_km: float = 5, scale_fact: float = 1.1,
     grids = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
 
     if clip:
-        # Clip to the ROI's UNION (`shape`), never to its individual rows. This is the
-        # invariant the rest of this function already assumes -- the polyfill and the
-        # `intersects` filter above both go through `shape`.
-        #
-        # It is the UNION that matters here, not the choice of clip call. `gpd.overlay`
-        # against the raw, un-unioned `roi_gdf` emits one row per (cell x roi-polygon)
-        # PAIR, so a multi-polygon ROI silently multiplies rows and REPEATS each cell's
-        # id. `id` is the work-unit key downstream -- one cell = one datacube = one task,
-        # and `create_datacube.setup(id_col="id")` derives `export_folderpath` from it --
-        # so repeated ids mean N tasks writing the SAME folder concurrently. On blob that
-        # is a guaranteed `InvalidBlockList` block-commit collision, and the surviving
-        # `geometry.geojson` is whichever fragment committed last. Measured on
-        # a 900-field ROI: 1167 rows for 172 cells, one cell repeated 43x, each row
-        # ~0.016 km2 of a 49.6 km2 cell.
-        #
-        # `overlay` is NOT inherently unusable -- `overlay(grids, <union as one row>)`
-        # gives the identical result with unique ids. It is simply not faster, which is
-        # the only reason one would switch. Measured (max symmetric difference
-        # 0.0 across all four; only the un-unioned form breaks id uniqueness):
-        #
-        #     clip method                    AT_ROI (1 poly)   900-poly ROI
-        #     intersection(union)  <- this        2.6 ms          80.5 ms
-        #     overlay(vs union)                   9.5 ms          92.6 ms
-        #     overlay(vs raw roi_gdf)             7.1 ms          25.2 ms  <- 1167 rows
-        #     overlay(raw) + dissolve("id")      12.7 ms          50.5 ms
-        #
-        # overlay's speed comes from its STRtree pruning per ROI polygon; the union
-        # collapses the right side to ONE geometry, so the index has one entry and prunes
-        # nothing. The efficiency and the duplicate-id bug had the same cause. `dissolve`
-        # recovers both, but is ~5x slower on the single-geometry ROI -- which is the
-        # documented shape of an ROI ("one region, not a list of shapes"), i.e. the hot
-        # path. So: keep the union, keep the plain intersection.
+        # Clip to the ROI's UNION (`shape`), never per row. `gpd.overlay` against the raw
+        # `roi_gdf` emits one row per (cell x roi-polygon) pair and REPEATS cell ids. `id` is
+        # the work-unit key (`create_datacube` derives `export_folderpath` from it), so N tasks
+        # would write the SAME folder concurrently: `InvalidBlockList` on blob. `overlay`
+        # against the union is equivalent but not faster.
+        # Benchmark: `git show 55fa721`.
         grids["geometry"] = grids.geometry.intersection(shape)
         # A cell that only *touches* the ROI can intersect to a line/point; drop those
         # (and any empties) so every returned row is a real polygonal work unit.
@@ -168,16 +141,10 @@ def roi_to_s2_grids(roi, *, grid_size_km: float = 5, scale_fact: float = 1.1,
     return grids
 
 
-#: Relative-area tolerance for `_covered` below. Two clipped cells that are
-#: geometrically identical or one-subset-of-the-other by construction (both are
-#: `scaled_cell.intersection(shape)` against the SAME `shape`) can still differ by a
-#: few square-degrees of floating-point noise -- measured on the 476da24 case: every
-#: one of the 8 redundant cells has a real (non-boundary) `difference()` area of
-#: relative magnitude 1e-14 to 1e-13, three-to-four orders of magnitude below this
-#: tolerance, while genuinely distinct/overlapping (not one-covering-the-other) cells
-#: differ by orders of magnitude more. shapely's raw `.covered_by()` is an exact GEOS
-#: predicate and does NOT absorb that noise -- it caught only 2 of the 8 redundant
-#: cells in the same measurement, so a tolerant relative-area check is used instead.
+#: Relative-area tolerance for `_covered`. Two cells identical or nested by construction
+#: (both are `scaled_cell.intersection(shape)` against the SAME `shape`) still differ by
+#: float noise (~1e-14 relative). Exact `.covered_by()` misses that, so a relative-area
+#: tolerance is used.
 _COVERED_TOL = 1e-9
 
 
@@ -198,8 +165,7 @@ def _drop_covered_cells(grids: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Drop any cell whose geometry is covered by another cell in the same set (#69).
 
     Covered-by, not `contains`/IoU: a clipped sliver *shares boundary* with the cell
-    that covers it, which `contains` (boundary-exclusive) misses -- measured 2 of 8 on
-    the 476da24 case vs 8 of 8 here (shapely DE-9IM; see `_covered` for why
+    that covers it, which `contains` (boundary-exclusive) misses (see `_covered` for why
     the exact `.covered_by()` predicate itself isn't used directly). A dropped cell is
     always a geometric subset of a kept cell, so the union of the output is unchanged
     -- that's the whole safety argument.

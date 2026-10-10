@@ -1,10 +1,11 @@
-"""Raster primitives (rasterio). See specs/07-raster.md, specs/31-p1-azure-storage-seam.md.
+"""Raster primitives (rasterio).
 
-`rio_open` is the one sanctioned exception to "all I/O via fsd.storage" (specs/10): rasterio
-reads pixels through GDAL's VSI layer, not fsspec. It is a plain passthrough for local paths
-(the regression-safety hinge — zero behavior change to every existing read/write) and routes an
+`rio_open` is the one sanctioned exception to "all I/O via fsd.storage": rasterio reads pixels
+through GDAL's VSI layer, not fsspec. It is a plain passthrough for local paths and routes an
 `abfss://`/`az://` source through GDAL's `/vsiadls/` handler with a fresh access token.
-Writing to a remote path raises, rather than silently attempting a partial write.
+Writing to a remote path raises.
+
+Spec: specs/07-raster.md, specs/31-p1-azure-storage-seam.md, specs/10-storage-and-scale.md.
 """
 
 from __future__ import annotations
@@ -18,29 +19,18 @@ from fsd.storage.azure import account_from_url, storage_token, to_vsi
 __all__ = ["rio_open", "rio_env"]
 
 # Without these, every remote VSI open costs more than one HTTP request: GDAL lists the
-# containing directory looking for sidecars (.aux.xml/.ovr/.msk). fsd writes plain COGs with
-# statistics inline and no sidecars, so nothing in-repo depends on one.
+# containing directory looking for sidecars (.aux.xml/.ovr/.msk). fsd writes no sidecars,
+# so nothing in-repo depends on one.
+# Source: gdal.org/en/stable/user/configoptions.html.
 #
-# ⚠️ The named risk: EMPTY_DIR means a sidecar that DOES exist stops being read. This applies
-# to every remote raster open (download, datacube, merge, collect), not just one call site --
-# both `rio_env` (N datasets) and `rio_open` (one) spread this same `_REMOTE_OPEN_CONFIG`
-# into their env_kwargs. The token/account assembly around it is written out in each, so
-# a change to it must be made in both.
+# ⚠️ EMPTY_DIR hides a sidecar that DOES exist. This applies to every remote raster open.
+# Both `rio_env` and `rio_open` spread `_REMOTE_OPEN_CONFIG` into their env_kwargs, and the
+# token/account assembly around it is written out in each, so change both.
 #
-# Sources (GDAL config docs, gdal.org/en/stable/user/configoptions.html):
-# GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR -- "only the target file is visible; side-car/auxiliary
-# files aren't loaded". CPL_VSIL_CURL_ALLOWED_EXTENSIONS -- "Consider that only the files whose
-# extension ends up with one that is listed in CPL_VSIL_CURL_ALLOWED_EXTENSIONS exist on the
-# server. This can speed up dramatically open experience, in case the server cannot return a
-# file list."
-#
-# ⚠️ That second option is a WHITELIST, not a hint: a remote file whose
-# extension is not listed is reported as NOT EXISTING, so the list must cover every extension fsd
-# can open remotely -- not just the one at the call site that motivated it. Remote here is always
-# `abfss://`/`az://` -> `/vsiadls/` (`storage.to_vsi`), i.e. fsd's own run folders and staged
-# imagery: output/mosaic COGs (`.tif`), plus band files, which are `.jp2` whenever imagery was
-# downloaded with `cog=False` (`sources.cdse.download`) and `.tiff` for a foreign COG. Keep this
-# in sync with `datacube.builder._RASTER_EXTS` -- the set the cube builder hands to `rio_open`.
+# ⚠️ CPL_VSIL_CURL_ALLOWED_EXTENSIONS is a WHITELIST: a remote file whose extension is not
+# listed reads as NOT EXISTING. It must cover every extension fsd opens remotely (`.tif`
+# outputs, `.jp2` bands from `cog=False` downloads, `.tiff` foreign COGs) and match
+# `datacube.builder._RASTER_EXTS`.
 _REMOTE_OPEN_CONFIG = {
     "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
     "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff,.jp2",
@@ -59,7 +49,8 @@ def rio_env(paths):
     `EnvError: No GDAL environment exists`. With 300 merge inputs that is a hard failure.
     `rio_open` is for ONE scoped dataset (`with rio_open(p) as src:`); this is for N.
 
-    Returns a null context for all-local `paths` — same zero-behaviour-change hinge as `rio_open`.
+    Returns a null context for all-local `paths` (no `rasterio.Env`, as `rio_open`'s local
+    passthrough).
     Open the datasets with `rasterio.open(to_vsi(fp))` *inside* the `with`, and keep every pixel
     read inside it too: the env carries the credentials.
     """
@@ -84,11 +75,9 @@ def rio_env(paths):
 def rio_open(path: str, mode: str = "r", **kwargs):
     """`rasterio.open`, transparently routed to `/vsiadls/` for an `abfss://`/`az://` `path`.
 
-    Local paths (the overwhelming common case) are a straight passthrough — no VSI translation,
-    no `rasterio.Env`, no token fetch. A remote `path` opened with `mode="w"` raises: P1 writes
-    stay local everywhere (MPC-to-blob would be a byte-copy via `fs.transfer`, never a GDAL
-    write; CDSE-to-blob is out of P1 scope) — silently attempting one would half-work and fail
-    late.
+    Local paths are a straight passthrough — no VSI translation, no `rasterio.Env`, no token
+    fetch. A remote `path` with `mode="w"` raises: GDAL writes stay local, and a remote
+    attempt would half-work and fail late.
 
     ⚠️ **One dataset at a time.** This owns a `rasterio.Env` per handle, so N of them held open
     and closed in creation order breaks the LIFO env stack. To hold several open at once, use

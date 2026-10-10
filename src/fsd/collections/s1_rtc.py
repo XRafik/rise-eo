@@ -1,10 +1,9 @@
-"""The `sentinel-1-rtc` collection declaration -- spec 58 P2.
+"""The `sentinel-1-rtc` collection declaration.
+
+Values verified against the live MPC `sentinel-1-rtc` collection and item JSONs.
 
 Spec: specs/58-collection-agnostic-verbs.md D17. ADR 0028 (why RTC, not GRD).
 Granule naming: specs/59 D3/D4/D8.
-
-Values verified against the live MPC `sentinel-1-rtc` collection + item JSONs,
-2026-09-07 (spec 58 D17's table + "Window A coverage is confirmed, anonymously").
 """
 
 from __future__ import annotations

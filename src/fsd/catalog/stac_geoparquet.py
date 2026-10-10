@@ -1,24 +1,15 @@
-"""stac-geoparquet export — the #26 north-star catalog interchange.
+"""stac-geoparquet export: a list of `pystac.Item` -> one GeoParquet file, and back.
 
 Spec: specs/30-tier2-mini-mpc-validation.md
 
-Additive: a list of `pystac.Item` (e.g. from `catalog.stac.cog_outputs_to_items`) -> one compact
-GeoParquet file via the **`stac-geoparquet`** library (optional `[serving]` extra, isolated here
-like `grid.py` so the core `.venv` stays lean). Not wired into any default write path — the
-full catalog-format migration (`run_inference` writing this instead of the JSON STAC catalog) is
-the #26 follow-on.
+Uses the `stac-geoparquet` library (optional `[serving]` extra, isolated here like
+`grid.py` so the core `.venv` stays lean). Not wired into any default write path (#26).
+Written against `stac-geoparquet` 0.8.1 (unpinned in the extra):
+`stac_geoparquet.arrow.parse_stac_items_to_parquet` and `stac_table_to_items`.
 
-Pinned API (the installed `stac-geoparquet==0.8.1` is the source of truth):
-`stac_geoparquet.arrow.parse_stac_items_to_parquet(items, output_path=...)` takes
-`Iterable[pystac.Item | dict]` and writes local GeoParquet directly (it opens `output_path` itself
-via `pyarrow.parquet.ParquetWriter`, so there is no in-memory bytes handle to hand to
-`fsd.storage`); `stac_geoparquet.arrow.stac_table_to_items(table)` is the inverse, yielding STAC
-Item `dict`s from a `pyarrow.Table`/`RecordBatchReader` read off a GeoParquet file.
-
-Both directions go through the `fsd.storage` seam by **staging a local tmp file**: the lib always
-wants a real filesystem path, so we write/read that local path and `storage.put`/read-bytes it to
-the (possibly remote) `dst_filepath`/`src_filepath` — the same stage-local pattern used for
-rio-tiler's COG reads.
+Writing stages a local tmp file: the library wants a real filesystem path (it opens
+`output_path` itself), so the result is moved to the possibly remote path with `fs.put`.
+Reading goes the other way through `fs.open` bytes, never a tmp file.
 """
 
 from __future__ import annotations

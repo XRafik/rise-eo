@@ -6,8 +6,8 @@ the layout does not have to change when it lands.
 
 An HLS id is `HLS.S30.T33UWP.2021123T100031.v2.0`: the sensing time is `YYYYDDDThhmmss`
 (**day of year**), the trailing `.v2.0` is the processing version. STAC `datetime` can
-fall on a different UTC date from the id's sensing time (MPC, fetched 2026-09-29), so the
-date level comes from the id (spec 59 D2).
+fall on a different UTC date from the id's sensing time, so the date level comes from the
+id (spec 59 D2).
 """
 
 from __future__ import annotations
