@@ -1007,3 +1007,76 @@ def test_setup_writes_a_window_scoped_declaration_control_file(tmp_path):
             assert declaration_module.from_json(json.load(f)) == variant
     finally:
         _collections.REGISTRY.pop(variant_id, None)
+
+
+# --- P11 (#145 E4/E11): pin the geometry read and the manifest readers ---------------
+
+def _memory_copy(local_path):
+    """Copy a local GeoJSON to `memory://` (GDAL cannot read it, so a pin there fails if
+    anyone hands the URL to `gpd.read_file`)."""
+    import uuid
+
+    url = f"memory://{uuid.uuid4()}/shapes.geojson"
+    with open(local_path) as f:
+        fs.write_text(url, f.read())
+    return url
+
+
+def test_build_shortfall_only_reads_a_memory_shapefile_like_a_local_one(tmp_path):
+    cat = tmp_path / "sentinel-2-l2a" / "catalog.parquet"
+    _make_catalog(cat, tmp_path)
+    shapes = tmp_path / "shapes.geojson"
+    _shapes(shapes, [0, 1, 2])
+    url = _memory_copy(shapes)
+
+    out = {}
+    for tag, shp in (("local", str(shapes)), ("memory", url)):
+        run_folder = tmp_path / f"run_{tag}"
+        csv_fp = str(run_folder / "input.csv")
+        counts = create_datacube.build_shortfall_only(
+            shapefilepath=shp, **_walk_kwargs(cat, run_folder, csv_fp))
+        out[tag] = (counts, pd.read_csv(csv_fp))
+    assert out["local"][0] == out["memory"][0] == (0, 3, 0)
+    assert list(out["local"][1].columns) == list(out["memory"][1].columns)
+    assert sorted(out["local"][1]["id"]) == sorted(out["memory"][1]["id"]) == [0, 1, 2]
+
+
+_SEG = "seg"
+
+
+def _write_manifest(run_folder, text):
+    os.makedirs(run_folder, exist_ok=True)
+    with open(os.path.join(run_folder, "_manifest.json"), "w") as f:
+        f.write(text)
+
+
+@pytest.mark.parametrize("text", [
+    None, "{not json", "[1, 2]", '{"other": {"ids": [1]}}', '{"seg": [1]}', '{"seg": {}}',
+])
+def test_read_known_empty_is_empty_for_missing_or_unusable_manifests(tmp_path, text):
+    run_folder = str(tmp_path / "run")
+    os.makedirs(run_folder)
+    if text is not None:
+        _write_manifest(run_folder, text)
+    assert create_datacube._read_known_empty(run_folder, _SEG) == set()
+
+
+def test_read_known_empty_returns_the_ids_as_strings(tmp_path):
+    run_folder = str(tmp_path / "run")
+    _write_manifest(run_folder, '{"seg": {"ids": [1, "2"]}}')
+    assert create_datacube._read_known_empty(run_folder, _SEG) == {"1", "2"}
+
+
+@pytest.mark.parametrize("text", [None, "{not json", "[1, 2]"])
+def test_load_manifest_is_empty_for_missing_or_unusable_manifests(tmp_path, text):
+    run_folder = str(tmp_path / "run")
+    os.makedirs(run_folder)
+    if text is not None:
+        _write_manifest(run_folder, text)
+    assert create_datacube._load_manifest(run_folder) == {}
+
+
+def test_load_manifest_returns_a_dict_manifest_as_is(tmp_path):
+    run_folder = str(tmp_path / "run")
+    _write_manifest(run_folder, '{"seg": {"ids": [1]}}')
+    assert create_datacube._load_manifest(run_folder) == {"seg": {"ids": [1]}}

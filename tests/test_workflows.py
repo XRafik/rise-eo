@@ -570,3 +570,50 @@ def test_run_local_dry_run_plans_jobs(tmp_path):
     )
     result = runners.run_local(str(csv), cores=1, dry_run=True)
     assert result.returncode == 0
+
+
+# --- P11 (#145 E4/E19): pin the geometry read in `setup` and the CSV read in infer-only ---
+
+def test_setup_reads_a_memory_shapefile_like_a_local_one(tmp_path):
+    import uuid
+
+    cat = tmp_path / "catalog.parquet"
+    _make_catalog(cat, tmp_path)
+    shapes = tmp_path / "shapes.geojson"
+    _two_shapes(shapes)
+    url = f"memory://{uuid.uuid4()}/shapes.geojson"
+    fs.write_text(url, shapes.read_text())
+
+    dfs = {}
+    for tag, shp in (("local", str(shapes)), ("memory", url)):
+        csv = tmp_path / f"run_{tag}" / "input.csv"
+        create_datacube.setup(
+            catalog_filepath=str(cat), timestamp_col="timestamp",
+            shapefilepath=shp, id_col="id", run_folderpath=str(tmp_path / f"run_{tag}"),
+            startdate=datetime.datetime(2018, 1, 1), enddate=datetime.datetime(2019, 1, 1),
+            bands=["B04", "B08", "SCL"], mosaic_days=20,
+            csv_filepath=str(csv), label_col="label",
+        )
+        dfs[tag] = pd.read_csv(csv)
+    assert list(dfs["local"].columns) == list(dfs["memory"].columns)
+    assert list(dfs["local"]["id"]) == list(dfs["memory"]["id"]) == ["s1", "s2"]
+    assert list(dfs["local"]["label"]) == list(dfs["memory"]["label"])
+
+
+def test_infer_only_task_reads_a_memory_csv(tmp_path):
+    import uuid
+
+    d0 = _write_prebuilt_cube(str(tmp_path / "c0"))
+    d1 = _write_prebuilt_cube(str(tmp_path / "c1"))
+    bundle_dir = bundle.save(_NDVIUp(), {}, str(tmp_path / "bundle"))
+    o0, o1 = str(tmp_path / "o0.tif"), str(tmp_path / "o1.tif")
+    url = f"memory://{uuid.uuid4()}/input.csv"
+    fs.write_text(url, pd.DataFrame({"datacube_filepath": [d0, d1],
+                                     "output_filepath": [o0, o1]}).to_csv(index=False))
+
+    written = infer_only_task.run_infer_only(url, (0, 2), bundle_dir)
+    assert set(written) == {o0, o1}
+    for o in (o0, o1):
+        with rasterio.open(o) as s:
+            assert s.count == 1 and s.read(1)[0, 0] == 1
+    assert infer_only_task.run_infer_only(url, (0, 2), bundle_dir) == []
