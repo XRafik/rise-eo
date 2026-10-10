@@ -245,7 +245,7 @@ def _run_snakemake(snakefile_rel, cores, conf, *, overwrite=False, dry_run=False
     return subprocess.CompletedProcess(args=cmd, returncode=returncode, stderr=tail)
 
 
-# --- The Azure ML runner -------------------------------------------------
+# --- The Azure ML runner -----------------------------------------------------
 
 _TERMINAL_JOB_STATUSES = {"Completed", "Failed", "Canceled"}
 
@@ -736,7 +736,7 @@ def run_aml(
             "job_statuses": result["job_statuses"], "shards": result["reports"]}
 
 
-# --- The Azure ML flatten reduce dispatcher -------------------------------
+# --- The Azure ML flatten reduce dispatcher -----------------------------------
 
 
 def _aml_flatten_preflight(
@@ -835,7 +835,7 @@ def run_aml_flatten(
             "job_statuses": result["job_statuses"], "reports": result["reports"]}
 
 
-# --- The Azure ML inference dispatcher ------------------------------------
+# --- The Azure ML inference dispatcher ----------------------------------------
 
 
 def _stage_bundle(bundle_path: str, dst_url: str) -> str:
@@ -1022,7 +1022,7 @@ def run_aml_inference(
             "job_statuses": result["job_statuses"], "shards": result["reports"]}
 
 
-# --- The Azure ML download dispatcher ------------------------------------
+# --- The Azure ML download dispatcher ----------------------------------------
 
 
 def _import_command_job_limits():

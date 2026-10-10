@@ -58,9 +58,9 @@ def run_task(
     JSON **on the driver**, before this task was dispatched. This node reads that file and
     nothing else -- it never imports `fsd.collections` to resolve a collection string, because
     that registry is a plain in-process dict that does not exist inside a fresh AML job
-    container. The declaration is validated against the catalog's own stamp on ARTIFACT facts:
-    a build-policy difference (mask, reference band, mosaic method) is fine; an artifact-fact
-    difference raises.
+    container (ADR 0031). The declaration is validated against the catalog's own stamp on
+    ARTIFACT facts: a build-policy difference (mask, reference band, mosaic method) is fine;
+    an artifact-fact difference raises.
 
     `write_timings` asks the builder to drop a `timings.json` sidecar (benchmark
     seam); `write_read_log` asks for a `reads.jsonl` per-read log.

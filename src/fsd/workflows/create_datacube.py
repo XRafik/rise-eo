@@ -126,7 +126,8 @@ def params_key(
 
     `properties_filter` and `processing` are appended ONLY when set, so an empty one
     contributes NOTHING (not even an empty component) and a build that does not use them
-    keeps its cube path; `processing=` is namespaced so it never collides with a filter.
+    keeps its cube path, while two builds differing only in `processing` never share a cube;
+    `processing=` is namespaced so it never collides with a filter.
 
     Same string form `setup` writes to `input.csv`, so a digest from a read-back row agrees.
 
@@ -618,9 +619,9 @@ def _row_matches_path(row, *, run_folderpath: str, window_segment: str) -> bool:
     ⚠️ `_row_matches_window` compares the run PARAMETERS, and that is NOT sufficient on its
     own. Change the path shape (e.g. the `_<params_key>` digest in the `<window>` segment)
     and a row written before the change still matches on every parameter while pointing at
-    the OLD folder. Adopt such a row and the new addressing silently never
-    takes effect: the plan announces a full rebuild, while the build leg reads the row's own
-    stale `datacube_filepath`, finds the old cube present, and dispatches nothing. Worse,
+    the OLD folder. Adopt such a row and the new addressing silently never takes effect: the
+    plan announces a full rebuild, while the build leg reads the row's own stale
+    `datacube_filepath`, finds the old cube present, and dispatches nothing. Worse,
     the flatten stamp then records old paths the request-derived identity can never
     reproduce, so the top-level short-circuit is dead for that request forever.
 
