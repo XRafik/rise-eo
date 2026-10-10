@@ -448,6 +448,8 @@ def download(
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
     errs = _check_local_seams(runner, storage) + date_errs
     if not date_errs:
+        # A download has no mosaic: any `mosaic_days >= 1` makes both mosaic checks inert, so
+        # this checks only the dates and `bands`.
         errs += _check_window(startdate, enddate, 20, bands)
     if source not in ("cdse", "mpc"):
         errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
@@ -1119,9 +1121,9 @@ def flatten_training_data(
                 input_csv, blob_export, id_col=id_col, label_col=label_col,
                 filepath_col=filepath_col, nodata=nodata, root=aml_root, run_id=run_id, **rk,
             )
-            files = ["data.npy", "coords.npy", "ids.npy", "metadata.pickle.npy"]
-            if label_col is not None:
-                files.append("labels.npy")
+            # The reduce lands the raw arrays only; the feature arrays are written later, on
+            # the driver.
+            files = _flatten_output_names(label_col=label_col, want_features=False)
             # force=True: this branch only runs when the flatten stamp did NOT match (a
             # genuine re-run), so stale local arrays from a prior, different identity must
             # be overwritten -- not mistaken for "already landed".
