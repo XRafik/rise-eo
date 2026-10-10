@@ -54,6 +54,7 @@ from fsd.sources.mpc import SERVED_COLLECTIONS as _MPC_SERVED_COLLECTIONS
 from fsd.sources.mpc import download as _mpc_download
 from fsd.storage import fs
 from fsd.storage.azure import configure_storage as _configure_storage
+from fsd.storage.azure import storage_backend
 from fsd.workflows import create_datacube as _create_datacube
 from fsd.workflows import infer_only_task as _infer_only_task
 from fsd.workflows import stamp as _stamp
@@ -147,12 +148,7 @@ def _check_local_seams(runner: str, storage, *, storage_allowed: bool = True) ->
                 "P4/P5; storage= is wired for download/create_training_data in P1)."
             )
         else:
-            if isinstance(storage, str):
-                backend = storage
-            elif isinstance(storage, dict):
-                backend = storage.get("backend")
-            else:
-                backend = None
+            backend = storage_backend(storage)
             if backend != "azure":
                 errs.append(f"storage backend {backend!r} not supported (only 'azure' in P1).")
     return errs
@@ -222,6 +218,28 @@ def _check_source_collection(source: str, collection: str) -> list[str]:
     return []
 
 
+def _check_download_source(
+    source: str, collection: str, max_tiles: int | None, *,
+    runner: str, creds, max_tiles_required: bool,
+) -> list[str]:
+    """The source, `max_tiles` and CDSE-credentials rules, in that order, for `download` and
+    `create_training_data`'s download leg. `max_tiles_required` is the latter: its
+    `max_tiles` defaults to `None` and must be given when it downloads."""
+    errs = []
+    if source not in ("cdse", "mpc"):
+        errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
+    else:
+        errs += _check_source_collection(source, collection)
+    if max_tiles_required:
+        if max_tiles is None or max_tiles < 1:
+            errs.append(f"max_tiles (>= 1) is required when download=True (got {max_tiles!r}).")
+    elif max_tiles < 1:
+        errs.append(f"max_tiles ({max_tiles}) must be >= 1.")
+    if runner == "local" and source == "cdse" and creds is None:
+        errs.append("creds (CdseCredentials) required for source='cdse' with runner='local'.")
+    return errs
+
+
 def _check_cloudcover_capability(collection: str, max_cloudcover: float) -> list[str]:
     """`max_cloudcover` requires the collection to declare `supports_cloud_cover=True`
     -- passing it against a collection with no cloud-cover concept (e.g. Sentinel-1) would
@@ -235,6 +253,30 @@ def _check_cloudcover_capability(collection: str, max_cloudcover: float) -> list
             "declares supports_cloud_cover=False (spec 58 D6) -- this collection has no "
             "cloud-cover concept, so the filter would silently do nothing."
         ]
+    return []
+
+
+def _native_bands(collection: str, bands) -> list[str]:
+    """`bands` as `collection`'s native asset keys; an unknown `collection` raises even when
+    `bands` is empty."""
+    declaration = _collections.get(collection)
+    return [declaration.canonical_to_native(b) for b in bands]
+
+
+def _check_one_feature_transform(adapter, feature_sequence) -> None:
+    """Raise `PreflightError` when both feature transforms are given."""
+    if adapter is not None and feature_sequence is not None:
+        raise PreflightError(
+            "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
+        )
+
+
+def _aggregate_errors(aggregate) -> list[str]:
+    """The error for an unknown `aggregate`, or none."""
+    try:
+        _resolve_aggregate(aggregate)
+    except ValueError as exc:
+        return [str(exc)]
     return []
 
 
@@ -452,15 +494,13 @@ def download(
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
     errs = _check_local_seams(runner, storage) + date_errs
     if not date_errs:
+        # A download has no mosaic: any finite `mosaic_days >= 1` makes both mosaic checks
+        # inert, so this checks only the dates and `bands`.
         errs += _check_window(startdate, enddate, 20, bands)
-    if source not in ("cdse", "mpc"):
-        errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
-    else:
-        errs += _check_source_collection(source, collection)
-    if max_tiles < 1:
-        errs.append(f"max_tiles ({max_tiles}) must be >= 1.")
-    if runner == "local" and source == "cdse" and creds is None:
-        errs.append("creds (CdseCredentials) required for source='cdse' with runner='local'.")
+    errs += _check_download_source(
+        source, collection, max_tiles,
+        runner=runner, creds=creds, max_tiles_required=False,
+    )
     if max_cloudcover is not None and not errs:
         errs += _check_cloudcover_capability(collection, max_cloudcover)
     if properties_filter and source != "mpc":
@@ -615,10 +655,7 @@ def create_training_data(
 
     Spec: 49, 58, 59.
     """
-    if adapter is not None and feature_sequence is not None:
-        raise PreflightError(
-            "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
-        )
+    _check_one_feature_transform(adapter, feature_sequence)
     if overwrite not in _VALID_OVERWRITE:
         raise PreflightError(
             f"overwrite={overwrite!r} must be one of {list(_VALID_OVERWRITE)} (spec 49 D4)."
@@ -628,16 +665,14 @@ def create_training_data(
     # downstream use -- the adapter check, the flatten identity, the cube digest -- must
     # see one spelling, or `bands=["B8A"]` and `bands=["nir08"]` would behave differently
     # despite naming the identical band.
-    _declaration = _collections.get(collection)
-    bands = [_declaration.canonical_to_native(b) for b in bands]
+    bands = _native_bands(collection, bands)
 
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
     errs = _check_local_seams(runner, storage) + date_errs
     if not date_errs:
         errs += _check_window(startdate, enddate, mosaic_days, bands)
     if adapter is not None:
-        req = [_declaration.canonical_to_native(b)
-               for b in (getattr(adapter, "required_bands", []) or [])]
+        req = _native_bands(collection, getattr(adapter, "required_bands", []) or [])
         missing = [b for b in req if b not in bands]
         if missing:
             errs.append(f"adapter.required_bands not in requested bands: {missing}")
@@ -645,10 +680,7 @@ def create_training_data(
         # window/mosaic_days, and an adapter is expected to fit whatever T they pick.
         # The cross-cube invariant is still enforced -- flatten raises if two cubes
         # disagree on the timestamps axis.
-    try:
-        _resolve_aggregate(aggregate)
-    except ValueError as exc:
-        errs.append(str(exc))
+    errs += _aggregate_errors(aggregate)
     errs += _processing.processing_errors(processing, collection=collection, allow_none=True)
     errs += _check_catalog_collection_dir(catalog_filepath, collection)
 
@@ -750,18 +782,10 @@ def create_training_data(
     # exist no more than it needs `setup` to run.
     catalog_errs: list[str] = []
     if download:
-        if source not in ("cdse", "mpc"):
-            catalog_errs.append(f"source={source!r} must be one of 'cdse', 'mpc'.")
-        else:
-            catalog_errs += _check_source_collection(source, collection)
-        if max_tiles is None or max_tiles < 1:
-            catalog_errs.append(
-                f"max_tiles (>= 1) is required when download=True (got {max_tiles!r})."
-            )
-        if runner == "local" and source == "cdse" and creds is None:
-            catalog_errs.append(
-                "creds (CdseCredentials) required for source='cdse' with runner='local'."
-            )
+        catalog_errs += _check_download_source(
+            source, collection, max_tiles,
+            runner=runner, creds=creds, max_tiles_required=True,
+        )
         if max_cloudcover is not None and not catalog_errs:
             catalog_errs += _check_cloudcover_capability(collection, max_cloudcover)
     else:
@@ -1068,16 +1092,10 @@ def flatten_training_data(
     under the same id/path is caught only if the id/path SET or the run parameters differ --
     see `_flatten_identity`.
     """
-    if adapter is not None and feature_sequence is not None:
-        raise PreflightError(
-            "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
-        )
+    _check_one_feature_transform(adapter, feature_sequence)
 
     errs = _check_local_seams(runner, storage)
-    try:
-        _resolve_aggregate(aggregate)
-    except ValueError as exc:
-        errs.append(str(exc))
+    errs += _aggregate_errors(aggregate)
     if runner == "aml":
         rk = runner_kwargs or {}
         for key in ("cluster", "environment", "root", "identity_client_id"):
@@ -1123,9 +1141,9 @@ def flatten_training_data(
                 input_csv, blob_export, id_col=id_col, label_col=label_col,
                 filepath_col=filepath_col, nodata=nodata, root=aml_root, run_id=run_id, **rk,
             )
-            files = ["data.npy", "coords.npy", "ids.npy", "metadata.pickle.npy"]
-            if label_col is not None:
-                files.append("labels.npy")
+            # The reduce lands the raw arrays only; the feature arrays are written later, on
+            # the driver.
+            files = _flatten_output_names(label_col=label_col, want_features=False)
             # force=True: this branch only runs when the flatten stamp did NOT match (a
             # genuine re-run), so stale local arrays from a prior, different identity must
             # be overwritten -- not mistaken for "already landed".
@@ -1875,10 +1893,9 @@ def _run_inference_roi(
     # Canonicalize bands and the adapter's required_bands to native asset keys before
     # comparing -- one may be spelled canonically ("nir08"), the other natively ("B8A"), and
     # both must resolve to the same set for this check to mean anything.
-    _declaration = _collections.get(collection)
     if bands is not None:
-        bands = [_declaration.canonical_to_native(b) for b in bands]
-    required = {_declaration.canonical_to_native(b) for b in (spec.get("required_bands") or [])}
+        bands = _native_bands(collection, bands)
+    required = set(_native_bands(collection, spec.get("required_bands") or []))
     want_t = int(spec.get("n_timestamps") or 0)
     if bands is not None:
         missing = required - set(bands)
@@ -2185,9 +2202,8 @@ def verify_adapter(
     model = _resolve_model_ref(model, registry, why="verify_adapter")
     spec = _model_spec(model)
     # Canonicalize before comparing -- see `_run_inference_roi`.
-    _declaration = _collections.get(collection)
-    bands = [_declaration.canonical_to_native(b) for b in bands]
-    required = {_declaration.canonical_to_native(b) for b in (spec.get("required_bands") or [])}
+    bands = _native_bands(collection, bands)
+    required = set(_native_bands(collection, spec.get("required_bands") or []))
     missing = required - set(bands)
     if missing:
         errs.append(f"bands is missing model-required {sorted(missing)}.")

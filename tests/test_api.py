@@ -220,3 +220,150 @@ def test_create_training_data_orchestration(tmp_path, monkeypatch):
     loaded = td.load()
     assert loaded["data"].shape == (n_px, T, len(bands))
     assert set(loaded) == {"data", "ids", "coords", "metadata", "labels"}
+
+
+# --- characterisation of the shared preflight messages (#145 P10) ---------------
+# Full `str(exc)` pinned: text and line order must survive the helper extraction.
+
+def _download_kw(tmp_path, **over):
+    kw = dict(
+        roi=None, startdate=JAN1, enddate=JAN1_NEXT, bands=["B04"],
+        dst_folderpath=str(tmp_path / "archive"), source="mpc", max_tiles=1,
+    )
+    kw.update(over)
+    return kw
+
+
+def _preflight_text(fn, *args, **kwargs) -> str:
+    with pytest.raises(api.PreflightError) as ei:
+        fn(*args, **kwargs)
+    return str(ei.value)
+
+
+def test_download_unknown_source_then_max_tiles(tmp_path):
+    text = _preflight_text(fsd.download, **_download_kw(tmp_path, source="nope", max_tiles=0))
+    assert text == (
+        "preflight failed:\n"
+        "  - source='nope' must be one of 'cdse', 'mpc'.\n"
+        "  - max_tiles (0) must be >= 1."
+    )
+
+
+def test_download_cdse_max_tiles_then_creds(tmp_path):
+    text = _preflight_text(
+        fsd.download, **_download_kw(tmp_path, source="cdse", max_tiles=0, creds=None)
+    )
+    assert text == (
+        "preflight failed:\n"
+        "  - max_tiles (0) must be >= 1.\n"
+        "  - creds (CdseCredentials) required for source='cdse' with runner='local'."
+    )
+
+
+def test_download_unserved_collection_comes_first(tmp_path):
+    text = _preflight_text(
+        fsd.download,
+        **_download_kw(tmp_path, source="cdse", collection="sentinel-1-rtc", max_tiles=0),
+    )
+    assert text == (
+        "preflight failed:\n"
+        "  - source='cdse' does not serve collection='sentinel-1-rtc'; "
+        "source='cdse' serves: ['sentinel-2-l2a'].\n"
+        "  - max_tiles (0) must be >= 1.\n"
+        "  - creds (CdseCredentials) required for source='cdse' with runner='local'."
+    )
+
+
+def test_create_training_data_wave2_max_tiles_required_then_creds(tmp_path):
+    cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
+    text = _preflight_text(
+        fsd.create_training_data,
+        label_polygons=_polys(tmp_path), catalog_filepath=cat,
+        startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
+        id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
+        download=True, source="cdse", max_tiles=None, creds=None,
+    )
+    assert text == (
+        "preflight failed:\n"
+        "  - max_tiles (>= 1) is required when download=True (got None).\n"
+        "  - creds (CdseCredentials) required for source='cdse' with runner='local'."
+    )
+
+
+_NOT_BOTH = (
+    "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
+)
+
+
+def test_create_training_data_not_both_exact_text(tmp_path):
+    cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
+    text = _preflight_text(
+        fsd.create_training_data,
+        label_polygons=_polys(tmp_path), catalog_filepath=cat,
+        startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
+        id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
+        adapter=object(), feature_sequence=[("x", {})], runner="batch",
+    )
+    assert text == _NOT_BOTH   # raised alone, before the seam errors are collected
+
+
+def test_flatten_training_data_not_both_exact_text(tmp_path):
+    text = _preflight_text(
+        fsd.flatten_training_data, str(tmp_path / "missing.csv"), str(tmp_path / "e"),
+        adapter=object(), feature_sequence=[("x", {})], runner="batch",
+    )
+    assert text == _NOT_BOTH
+
+
+class _NeedsB04:
+    required_bands = ["B04"]
+
+
+def test_create_training_data_aggregate_error_follows_adapter_error(tmp_path):
+    cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
+    text = _preflight_text(
+        fsd.create_training_data,
+        label_polygons=_polys(tmp_path), catalog_filepath=cat,
+        startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B08"],
+        id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
+        adapter=_NeedsB04(), aggregate="bogus", runner="batch",
+    )
+    assert text == (
+        "preflight failed:\n"
+        "  - runner='batch' not supported (valid: ['local', 'aml']).\n"
+        "  - adapter.required_bands not in requested bands: ['B04']\n"
+        "  - unknown aggregate 'bogus'; use None, 'median_per_id', or a callable."
+    )
+
+
+def test_flatten_training_data_aggregate_error_follows_seam_errors(tmp_path):
+    text = _preflight_text(
+        fsd.flatten_training_data, str(tmp_path / "missing.csv"), str(tmp_path / "e"),
+        aggregate="bogus", runner="batch",
+    )
+    assert text == (
+        "preflight failed:\n"
+        "  - runner='batch' not supported (valid: ['local', 'aml']).\n"
+        "  - unknown aggregate 'bogus'; use None, 'median_per_id', or a callable.\n"
+        f"  - input_csv does not exist: {str(tmp_path / 'missing.csv')!r}"
+    )
+
+
+@pytest.mark.parametrize("required, bands", [(["B8A"], ["nir08"]), (["nir08"], ["B8A"])])
+def test_create_training_data_alias_spelling_is_not_a_missing_band(tmp_path, required, bands):
+    cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
+
+    class _Adapter:
+        required_bands = required
+
+    text = _preflight_text(
+        fsd.create_training_data,
+        label_polygons=_polys(tmp_path), catalog_filepath=cat,
+        startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=bands,
+        id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
+        adapter=_Adapter(), aggregate="bogus",
+    )
+    assert text == (
+        "preflight failed:\n"
+        "  - unknown aggregate 'bogus'; use None, 'median_per_id', or a callable."
+    )

@@ -481,3 +481,23 @@ def test_verify_adapter_forwards_skip_nan_and_batch_size_to_run_infer_only(tmp_p
         skip_nan=False, predict_batch_size=16,
     )
     assert (seen["skip_nan"], seen["predict_batch_size"]) == (False, 16)
+
+
+# --- #145 P10: alias spelling of a band is not a missing band ----------------
+
+@pytest.mark.parametrize("required, bands", [(["B8A"], ["nir08"]), (["nir08"], ["B8A"])])
+def test_alias_spelling_is_not_a_missing_band(tmp_path, monkeypatch, required, bands):
+    _patch_grid(monkeypatch)
+    _patch_build_and_infer(monkeypatch)
+    cat = _catalog(tmp_path)
+
+    class _Alias(_FakeAdapter):
+        required_bands = required
+
+    with pytest.raises(api.PreflightError) as ei:
+        fsd.verify_adapter(
+            _Alias(), roi=ROI, catalog_filepath=cat,
+            startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=bands,
+            export_folderpath="",
+        )
+    assert str(ei.value) == "preflight failed:\n  - export_folderpath is required."
