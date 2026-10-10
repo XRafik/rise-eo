@@ -256,6 +256,23 @@ def _check_cloudcover_capability(collection: str, max_cloudcover: float) -> list
     return []
 
 
+def _check_one_feature_transform(adapter, feature_sequence) -> None:
+    """Raise `PreflightError` when both feature transforms are given."""
+    if adapter is not None and feature_sequence is not None:
+        raise PreflightError(
+            "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
+        )
+
+
+def _aggregate_errors(aggregate) -> list[str]:
+    """The error for an unknown `aggregate`, or none."""
+    try:
+        _resolve_aggregate(aggregate)
+    except ValueError as exc:
+        return [str(exc)]
+    return []
+
+
 def _check_resume_identity(csv_filepath: str, grids: gpd.GeoDataFrame, output_folderpath: str) -> None:
     """Refuse to resume when `output_folderpath`'s cached `input.csv` names a different id
     set than the freshly tiled grids.
@@ -631,10 +648,7 @@ def create_training_data(
 
     Spec: 49, 58, 59.
     """
-    if adapter is not None and feature_sequence is not None:
-        raise PreflightError(
-            "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
-        )
+    _check_one_feature_transform(adapter, feature_sequence)
     if overwrite not in _VALID_OVERWRITE:
         raise PreflightError(
             f"overwrite={overwrite!r} must be one of {list(_VALID_OVERWRITE)} (spec 49 D4)."
@@ -661,10 +675,7 @@ def create_training_data(
         # window/mosaic_days, and an adapter is expected to fit whatever T they pick.
         # The cross-cube invariant is still enforced -- flatten raises if two cubes
         # disagree on the timestamps axis.
-    try:
-        _resolve_aggregate(aggregate)
-    except ValueError as exc:
-        errs.append(str(exc))
+    errs += _aggregate_errors(aggregate)
     errs += _processing.processing_errors(processing, collection=collection, allow_none=True)
     errs += _check_catalog_collection_dir(catalog_filepath, collection)
 
@@ -1076,16 +1087,10 @@ def flatten_training_data(
     under the same id/path is caught only if the id/path SET or the run parameters differ --
     see `_flatten_identity`.
     """
-    if adapter is not None and feature_sequence is not None:
-        raise PreflightError(
-            "pass either `adapter` or `feature_sequence`, not both (ambiguous feature transform)."
-        )
+    _check_one_feature_transform(adapter, feature_sequence)
 
     errs = _check_local_seams(runner, storage)
-    try:
-        _resolve_aggregate(aggregate)
-    except ValueError as exc:
-        errs.append(str(exc))
+    errs += _aggregate_errors(aggregate)
     if runner == "aml":
         rk = runner_kwargs or {}
         for key in ("cluster", "environment", "root", "identity_client_id"):
