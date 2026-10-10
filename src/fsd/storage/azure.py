@@ -21,7 +21,8 @@ from typing import Any
 
 import fsspec
 
-__all__ = ["to_vsi", "account_from_url", "storage_token", "configure_storage"]
+__all__ = ["to_vsi", "account_from_url", "storage_token", "storage_backend",
+           "configure_storage"]
 
 # abfss://<filesystem>@<account>.dfs.core.windows.net/<path>
 _ABFSS_RE = re.compile(r"^abfss://([^@/]+)@([^./]+)\.dfs\.core\.windows\.net/(.*)$")
