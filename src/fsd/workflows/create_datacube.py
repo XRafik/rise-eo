@@ -654,7 +654,7 @@ def _load_manifest(run_folderpath: str) -> dict:
     try:
         with fs.open(path, "r") as f:
             loaded = json.load(f)
-    except Exception:  # noqa: BLE001 - a corrupt manifest reads as empty: no information for readers; writers replace it
+    except Exception:  # noqa: BLE001 - corrupt reads as "no information"; writers replace it
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
