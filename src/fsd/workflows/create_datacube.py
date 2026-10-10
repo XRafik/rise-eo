@@ -641,15 +641,7 @@ def _read_known_empty(run_folderpath: str, window_segment: str) -> set[str]:
     granularity for both the cube path and the known-empty record -- which is what makes a
     changed window or band set clear the record automatically, since the key itself changes.
     """
-    path = _manifest_filepath(run_folderpath)
-    if not fs.exists(path):
-        return set()
-    try:
-        with fs.open(path, "r") as f:
-            manifest = json.load(f)
-    except Exception:  # noqa: BLE001 - a corrupt manifest is "no information", not a crash
-        return set()
-    entry = manifest.get(window_segment) if isinstance(manifest, dict) else None
+    entry = _load_manifest(run_folderpath).get(window_segment)
     if not isinstance(entry, dict):
         return set()
     return {str(v) for v in entry.get("ids", [])}
@@ -662,7 +654,7 @@ def _load_manifest(run_folderpath: str) -> dict:
     try:
         with fs.open(path, "r") as f:
             loaded = json.load(f)
-    except Exception:  # noqa: BLE001 - a corrupt manifest is replaced, not fatal
+    except Exception:  # noqa: BLE001 - a corrupt manifest reads as empty: no information for readers; writers replace it
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
