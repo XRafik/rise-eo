@@ -256,6 +256,13 @@ def _check_cloudcover_capability(collection: str, max_cloudcover: float) -> list
     return []
 
 
+def _native_bands(collection: str, bands) -> list[str]:
+    """`bands` as `collection`'s native asset keys; an unknown `collection` raises even when
+    `bands` is empty."""
+    declaration = _collections.get(collection)
+    return [declaration.canonical_to_native(b) for b in bands]
+
+
 def _check_one_feature_transform(adapter, feature_sequence) -> None:
     """Raise `PreflightError` when both feature transforms are given."""
     if adapter is not None and feature_sequence is not None:
@@ -658,16 +665,14 @@ def create_training_data(
     # downstream use -- the adapter check, the flatten identity, the cube digest -- must
     # see one spelling, or `bands=["B8A"]` and `bands=["nir08"]` would behave differently
     # despite naming the identical band.
-    _declaration = _collections.get(collection)
-    bands = [_declaration.canonical_to_native(b) for b in bands]
+    bands = _native_bands(collection, bands)
 
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
     errs = _check_local_seams(runner, storage) + date_errs
     if not date_errs:
         errs += _check_window(startdate, enddate, mosaic_days, bands)
     if adapter is not None:
-        req = [_declaration.canonical_to_native(b)
-               for b in (getattr(adapter, "required_bands", []) or [])]
+        req = _native_bands(collection, getattr(adapter, "required_bands", []) or [])
         missing = [b for b in req if b not in bands]
         if missing:
             errs.append(f"adapter.required_bands not in requested bands: {missing}")
@@ -1888,10 +1893,9 @@ def _run_inference_roi(
     # Canonicalize bands and the adapter's required_bands to native asset keys before
     # comparing -- one may be spelled canonically ("nir08"), the other natively ("B8A"), and
     # both must resolve to the same set for this check to mean anything.
-    _declaration = _collections.get(collection)
     if bands is not None:
-        bands = [_declaration.canonical_to_native(b) for b in bands]
-    required = {_declaration.canonical_to_native(b) for b in (spec.get("required_bands") or [])}
+        bands = _native_bands(collection, bands)
+    required = set(_native_bands(collection, spec.get("required_bands") or []))
     want_t = int(spec.get("n_timestamps") or 0)
     if bands is not None:
         missing = required - set(bands)
@@ -2198,9 +2202,8 @@ def verify_adapter(
     model = _resolve_model_ref(model, registry, why="verify_adapter")
     spec = _model_spec(model)
     # Canonicalize before comparing -- see `_run_inference_roi`.
-    _declaration = _collections.get(collection)
-    bands = [_declaration.canonical_to_native(b) for b in bands]
-    required = {_declaration.canonical_to_native(b) for b in (spec.get("required_bands") or [])}
+    bands = _native_bands(collection, bands)
+    required = set(_native_bands(collection, spec.get("required_bands") or []))
     missing = required - set(bands)
     if missing:
         errs.append(f"bands is missing model-required {sorted(missing)}.")
