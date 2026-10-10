@@ -87,6 +87,16 @@ def account_from_url(url: str) -> str | None:
     return m.group(2) if m else None
 
 
+def storage_backend(storage: Any) -> str | None:
+    """The backend name a `storage=` kwarg names: a string is itself, a dict gives its
+    `"backend"` key, anything else is `None`."""
+    if isinstance(storage, str):
+        return storage
+    if isinstance(storage, dict):
+        return storage.get("backend")
+    return None
+
+
 def configure_storage(storage: Any) -> None:
     """Apply a verb's `storage=` kwarg. `None`/`"local"` are no-ops; `"azure"` (or
     `{"backend": "azure", ...}`) enables authenticated adlfs; anything else raises.
@@ -103,12 +113,7 @@ def configure_storage(storage: Any) -> None:
     """
     if storage is None or storage == "local":
         return
-    if isinstance(storage, str):
-        backend = storage
-    elif isinstance(storage, dict):
-        backend = storage.get("backend")
-    else:
-        backend = None
+    backend = storage_backend(storage)
     if backend != "azure":
         raise ValueError(f"storage backend {backend!r} not supported (only 'azure' in P1).")
     os.environ["FSSPEC_ABFSS_ANON"] = "false"

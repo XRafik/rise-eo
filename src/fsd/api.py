@@ -54,6 +54,7 @@ from fsd.sources.mpc import SERVED_COLLECTIONS as _MPC_SERVED_COLLECTIONS
 from fsd.sources.mpc import download as _mpc_download
 from fsd.storage import fs
 from fsd.storage.azure import configure_storage as _configure_storage
+from fsd.storage.azure import storage_backend
 from fsd.workflows import create_datacube as _create_datacube
 from fsd.workflows import infer_only_task as _infer_only_task
 from fsd.workflows import stamp as _stamp
@@ -147,12 +148,7 @@ def _check_local_seams(runner: str, storage, *, storage_allowed: bool = True) ->
                 "P4/P5; storage= is wired for download/create_training_data in P1)."
             )
         else:
-            if isinstance(storage, str):
-                backend = storage
-            elif isinstance(storage, dict):
-                backend = storage.get("backend")
-            else:
-                backend = None
+            backend = storage_backend(storage)
             if backend != "azure":
                 errs.append(f"storage backend {backend!r} not supported (only 'azure' in P1).")
     return errs
