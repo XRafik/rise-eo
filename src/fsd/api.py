@@ -131,6 +131,11 @@ def _check_local_seams(runner: str, storage, *, storage_allowed: bool = True) ->
     `roi_mode and runner == "aml"`, `verify_adapter` passes `runner == "aml"`; the other
     verbs (`download`, `create_training_data`, `flatten_training_data`, `deploy`) use the
     default `True`.
+
+    Every caller raises these errors BEFORE `_configure_storage`, for two reasons:
+    `_configure_storage` raises a bare `ValueError` for an unsupported backend, which would
+    replace the verb's collected `PreflightError` and discard every other error with it; and
+    it mutates process-global fsspec state, which a call about to be rejected must not touch.
     """
     errs = []
     if runner not in _VALID_RUNNERS:
@@ -1244,11 +1249,10 @@ def _resolve_model_ref(model, registry, *, why):
     it collides with URL schemes and Windows drive letters -- so a `"name:N"`-shaped path with
     no `registry=` passes through unchanged.
 
-    Prints `[model] <ref> -> v<N> (verified against <env>)` here, once per verb call: this is
-    the only branch where a ref actually resolves, and after it `model` is a version path,
-    which is not ref-shaped, so a second call returns early above. The extra `_deploy.json`
-    read is affordable only because this runs on the driver, once, before dispatch -- no
-    runner or node calls it. It must never raise: a missing, empty or malformed
+    Prints `[model] <ref> -> v<N> (verified against <env>)` once per verb call, at the only
+    branch where a ref resolves (the result is a version path, so a second call returns
+    early). The extra `_deploy.json` read is affordable because this runs once on the driver
+    before dispatch, never on a node. It must never raise: a missing, empty or malformed
     `_deploy.json` degrades to the shorter line, never to a failed run.
     """
     if not isinstance(model, str):
@@ -1581,6 +1585,15 @@ def run_inference(
       datacube subfolders, or a list of ``datacube.npy`` filepaths. ``cores=1`` infers in-process
       (sequential); ``cores>1`` fans out via the Snakemake **infer-only** runner — fsd has no
       in-process pool; ``cubes_per_task`` groups cubes per job to amortise the bundle load.
+    - **ROI**: pass ``roi`` (+ ``catalog_filepath``,
+      ``startdate``/``enddate``/``mosaic_days``/``bands``). fsd splits the ROI into S2 grid cells
+      (``fsd.grid``), then fans out a per-cell **build-datacube + infer -> COG** task through the
+      **runner seam** (Snakemake locally, Azure ML with ``runner="aml"``). Imagery is assumed
+      already present in ``catalog_filepath`` — inference never touches CDSE (conserve quota).
+      **``output_folderpath`` is the identity of the run**: re-running ROI mode into
+      the same ``output_folderpath`` resumes the cached per-cell work list, so it must name this
+      exact ``roi``/``grid_size_km``/``scale_fact`` — reusing it for a different roi raises
+      ``PreflightError`` rather than silently mixing work lists.
 
     ``cores``/``cubes_per_task`` default to ``None`` = **auto**: for the local/pre-built paths that
     means ``1`` (sequential, one cube per job); for **ROI mode + ``runner="aml"``** it means
@@ -1588,21 +1601,12 @@ def run_inference(
     loads once per core rather than once per cell (TODO #25), computed on the node from the shard
     size (`workflows.infer_shard`). Pass ``cores=1`` there for the heavy-model
     *load-once-per-node* opt-out (one whole-shard group, one bundle load).
-    - **ROI**: pass ``roi`` (+ ``catalog_filepath``,
-      ``startdate``/``enddate``/``mosaic_days``/``bands``). fsd splits the ROI into S2 grid cells
-      (``fsd.grid``), then fans out a per-cell **build-datacube + infer -> COG** task through the
-      **runner seam** (Snakemake locally; Batch swaps in unchanged). Imagery is assumed
-      already present in ``catalog_filepath`` — inference never touches CDSE (conserve quota).
-      **``output_folderpath`` is the identity of the run**: re-running ROI mode into
-      the same ``output_folderpath`` resumes the cached per-cell work list, so it must name this
-      exact ``roi``/``grid_size_km``/``scale_fact`` — reusing it for a different roi raises
-      ``PreflightError`` rather than silently mixing work lists.
 
     `model` is a live `ModelAdapter`, a **bundle path**, or a **registry ref** (``"name:N"`` /
     ``"name@alias"``) resolved against ``registry=`` — a ref given without
     ``registry=`` raises ``PreflightError`` naming the missing argument, never a silent fallback to
-    treating it as a path. A bundle is required for ROI mode and for
-    ``cores>1`` (both cross a subprocess) — a live adapter is auto-saved to a temp bundle. Preflight
+    treating it as a path. A bundle is required for ROI mode and for ``cores>1`` (both cross
+    a subprocess) — a live adapter is auto-saved to ``<output_folderpath>/_bundle``. Preflight
     (before any build) asserts bands ⊇ ``required_bands`` and ``T == n_timestamps``. Inference is
     **idempotent**: existing outputs are skipped unless ``overwrite=True``. ``merge``:
     ``False`` | ``True`` (strict single-CRS) | ``"reproject"`` (cross-UTM-zone-safe merge to one
@@ -1616,16 +1620,11 @@ def run_inference(
     # Non-local storage is accepted for ROI mode + runner="aml" only; the pre-built-cubes
     # path and local ROI mode stay local.
     roi_mode = roi is not None
-    # The seam check is raised on its own, BEFORE `_configure_storage`, for two reasons:
-    # `_configure_storage` raises a bare `ValueError` for an unsupported backend, which
-    # would replace this verb's collected `PreflightError` and discard every other error
-    # with it; and it mutates process-global fsspec state, which a call that is about to be
-    # rejected for using storage at all must not do.
+    # Seam errors first, before `_configure_storage` (see `_check_local_seams`).
     _raise_preflight(_check_local_seams(runner, storage,
                                         storage_allowed=(roi_mode and runner == "aml")))
-    # ...and now, before the first storage access -- `_resolve_model_ref` below can resolve a
-    # registry ref (a read against `registry=`), and ROI mode reads `roi` itself off storage,
-    # both of which happen before this verb's own `_raise_preflight(errs)`.
+    # Before the first storage access: `_resolve_model_ref` reads `registry=` and ROI mode
+    # reads `roi`, both ahead of this verb's own `_raise_preflight(errs)`.
     _configure_storage(storage)
     errs: list[str] = []
     if output_folderpath is None:
@@ -1750,11 +1749,9 @@ def _stage_local_bundle(model, output_folderpath):
         return model
     from fsd.workflows.infer_shard import fetch_bundle_to_scratch
 
-    # Announce destination and total size BEFORE the transfer starts. `fetch_bundle_to_scratch`
-    # is itself silent -- tolerable on an AML node, but this call is on the DRIVER, between
-    # `[model] <ref> -> vN` and the first `[inference]` line, where the user is watching a
-    # prompt that does nothing for as long as the download takes (13 MB has measured 627 s
-    # over VPN). Costs one `bundle.json` read + one `size` per file.
+    # Announce destination and total size BEFORE the transfer starts: `fetch_bundle_to_scratch`
+    # is silent, and on the DRIVER the user would watch a prompt that does nothing for as
+    # long as the download takes. Costs one `bundle.json` read + one `size` per file.
     manifest = _bundle.read_spec(model)
     rels = list(manifest.get("artifacts", {}).values()) + _bundle.manifest_code_files(manifest)
     total_bytes = sum(fs.size(os.path.join(model, rel)) for rel in rels)
@@ -1800,12 +1797,9 @@ def _output_key(path: str) -> str:
 
 
 def _existing_outputs(candidates, *, run_folderpath: str) -> list[str]:
-    """Which of `candidates` (per-cell `output.tif` urls) exist — in ONE listing rather
-    than one `fs.exists` per cell (TODO #61).
+    """Which of `candidates` (per-cell `output.tif` urls) exist.
 
-    Worth the indirection: at ~3 sequential blob round-trips per cell over VPN, the
-    per-cell `fs.exists` comprehension this replaces cost **729 s of a 2067 s wall**.
-    Order follows `candidates`, as that comprehension did.
+    One listing instead of a blob round trip per cell (TODO #61). Order follows `candidates`.
 
     A pattern that matches nothing yields an empty list, and the caller already raises
     "no per-cell outputs were produced" on that — a loud failure, not a silent one.
@@ -1821,12 +1815,8 @@ def _existing_outputs(candidates, *, run_folderpath: str) -> list[str]:
     outputs of another window in the same run folder are never counted. A change to the
     `run_folderpath/<window>/<id>` depth must change this pattern too.
     """
-    # One `fs.glob` round trip, so there is no per-candidate loop left to tick against:
-    # print before/after in the same `[label] done/total | elapsed` shape instead. `done`
-    # counts candidates PROBED, not outputs found -- the whole leg completes in one glob, so
-    # reporting hits as progress makes a finished collect read as "stuck at 0%" on a fresh
-    # run. Hits ride along as the suffix. No eta: there is no intermediate rate to
-    # extrapolate from.
+    # `done` counts candidates PROBED, not hits: the leg completes in one glob, so counting
+    # hits would read as stuck at 0%. Hits ride along as the suffix; no eta (one glob).
     tick = _progress.ticker(len(candidates), "collect", unit="candidates",
                             show_rate=False, show_eta=False)
     tick(0, force=True)
@@ -1882,10 +1872,9 @@ def _run_inference_roi(
     if startdate is not None and enddate is not None:
         startdate, enddate, date_errs = _normalize_window(startdate, enddate)
         errs += date_errs
-    # Canonicalize bands and the adapter's required_bands to native asset keys (spec 58
-    # D8) before comparing -- one may be spelled canonically ("nir08"), the other
-    # natively ("B8A"), and both must resolve to the same set for this check to mean
-    # anything.
+    # Canonicalize bands and the adapter's required_bands to native asset keys before
+    # comparing -- one may be spelled canonically ("nir08"), the other natively ("B8A"), and
+    # both must resolve to the same set for this check to mean anything.
     _declaration = _collections.get(collection)
     if bands is not None:
         bands = [_declaration.canonical_to_native(b) for b in bands]
@@ -1914,8 +1903,8 @@ def _run_inference_roi(
 
     # Split the ROI into S2 grid cells INSIDE preflight. Splitting is local, CPU-only work, so
     # doing it here rather than after `_ensure_bundle` means a bad ROI costs seconds instead
-    # of a blob `makedirs`, a bundle upload (627 s for 13 MB over VPN), setup's N per-cell
-    # blob writes, and an AML dispatch.
+    # of a blob `makedirs`, a bundle upload, setup's N per-cell blob writes, and an AML
+    # dispatch.
     #
     # What it catches: an ROI that yields no grid cells, and DUPLICATE CELL IDS. `id` is the
     # work-unit key -- `setup` derives `export_folderpath` from it -- so duplicates put N
@@ -2113,8 +2102,7 @@ def verify_adapter(
     adapter's ACTUAL inference code -- so `output.tif` can be eyeballed in QGIS before
     trusting a bundle for a many-cell fan-out.
 
-    Where this sits in the workflow. It is NOT a substitute for either neighbour, and
-    answers a different question from both:
+    Where this sits: NOT a substitute for either neighbour; each answers a different question.
 
     1. **`verify_adapter`** (here) -- is my adapter's LOGIC right? Local, minutes, iterate
        here. Checks the cube shape/`T` against the adapter's declared `n_timestamps`, the
@@ -2129,35 +2117,30 @@ def verify_adapter(
     `model` is a live adapter, a bundle path, or a registry ref (``"name:N"`` / ``"name@alias"``)
     resolved against ``registry=`` -- a ref given without ``registry=`` raises
     ``PreflightError`` naming the missing argument. A live adapter is auto-saved by
-    `_ensure_bundle` (the same call `run_inference` makes) to `export_folderpath/_bundle`
-    -- a real, persistent bundle, **not** a temp one: `code=None` auto-detects and embeds
-    the adapter's local module, so it is cluster-loadable, and its path comes back as
-    `metrics["bundle_path"]`.
-
-    It is still not a substitute for your own `bundle.save`. `_ensure_bundle` passes no
-    `requirements=`, and those are what `verify_image` checks the image against at gate 2
-    -- which this verb never reaches, since its inference leg runs in-process on the
-    driver. Bundle deliberately for anything you intend to deploy; this one exists so
-    gate 1 can run at all, and it lives inside a verify output folder that is safe to
-    delete.
+    `_ensure_bundle` (as in `run_inference`) to `export_folderpath/_bundle` -- a real,
+    persistent bundle, **not** a temp one: `code=None` auto-detects and embeds the adapter's
+    local module, so it is cluster-loadable; its path comes back as `metrics["bundle_path"]`.
+    It is still not a substitute for your own `bundle.save`: `_ensure_bundle` passes no
+    `requirements=`, which `verify_image` checks the image against at gate 2 -- never reached
+    here, since the inference leg runs in-process on the driver. Bundle deliberately for
+    anything you intend to deploy; this one lives inside a verify output folder that is safe
+    to delete.
 
     `cell=`: an explicit grid-cell id uses it (`PreflightError`, naming the available ids
     bounded, if it is not in this roi); `None` (default) picks DETERMINISTICALLY -- largest
-    in-window catalog coverage, tie-broken by id -- and prints which cell and why, so two
-    runs over the same roi/window pick the same cell; `"random"` opts in to a random pick
-    and prints the chosen id so a run worth keeping can be pinned by pasting that id back as
-    `cell=`. `grids.geojson` (every cell in the roi) is ALWAYS written next to the
-    output and its path printed -- open it in QGIS, pick an id, re-run with `cell=`.
+    in-window catalog coverage, tie-broken by id -- and prints which cell and why, so two runs
+    over the same roi/window pick the same cell; `"random"` opts in to a random pick and
+    prints the chosen id so a run worth keeping can be pinned by pasting that id back as
+    `cell=`. `grids.geojson` (every cell in the roi) is ALWAYS written next to the output and
+    its path printed -- open it in QGIS, pick an id, re-run with `cell=`.
 
     `export_folderpath` is where everything lands, LOCALLY, no hidden cache: the cube
     (`datacube.npy` + `metadata.pickle.npy`), `output.tif`, `grids.geojson`, `cell.geojson`,
-    `_result.json`. No flattened/feature array is written -- the adapter is for inference,
-    inference output is the grid cell's raster, and `output.tif` is what gets checked. A
-    second call with the SAME roi/window/bands/mosaic_days/cell and the cube already landed
-    skips the build+land entirely and goes straight to inference; the resume keys on the
-    REQUEST's identity (`fsd.workflows.stamp`), never on file age. A call whose
-    `export_folderpath` already holds a cube for a DIFFERENT request raises rather than
-    silently reusing it.
+    `_result.json`. No flattened/feature array is written. A second call with the SAME
+    roi/window/bands/mosaic_days/cell and the cube already landed skips the build+land and
+    goes straight to inference; the resume keys on the REQUEST's identity
+    (`fsd.workflows.stamp`), never on file age, and a call whose `export_folderpath` holds a
+    cube for a DIFFERENT request raises rather than silently reusing it.
 
     `runner="local"` (default) builds from a local catalog end-to-end, no network -- what the
     test suite uses. `runner="aml"` (the case that matters in practice) builds the ONE
@@ -2165,9 +2148,8 @@ def verify_adapter(
     (`fsd.workflows.create_datacube.run_create_datacube`), under
     `runner_kwargs["root"]/runs/<run_id>/_verify_adapter` on blob -- required, because the
     node has to be able to write the cube and a local build folder would name a driver path
-    it cannot reach. The cube is then transferred DOWN into the local
-    `export_folderpath`. No new build path, and the
-    inference leg is a one-row call into `fsd.workflows.infer_only_task.run_infer_only`
+    it cannot reach. The cube is then transferred DOWN into the local `export_folderpath`.
+    The inference leg is a one-row call into `fsd.workflows.infer_only_task.run_infer_only`
     -- the SAME unit the cluster runs, so no branch anywhere may special-case this verb.
 
     Returns a `_result.json`-shaped dict: `{"step", "status", "pass", "metrics",
@@ -2176,19 +2158,16 @@ def verify_adapter(
     output dtype vs `output_dtype`, output value range, nodata fraction, and the cube/COG/
     grids paths. A `T` mismatch is reported as `pass: False` (never raised) -- only CALLER
     misuse (a bad `cell=`, an unreadable roi, a mismatched export_folderpath) raises
-    `PreflightError`; every statement ABOUT the adapter comes back in the dict. This run
-    says nothing about the image, nothing about scale, and nothing about any cell but the
-    one it ran.
+    `PreflightError`; every statement ABOUT the adapter comes back in the dict.
     """
     from fsd import grid as _grid
 
     startdate, enddate, date_errs = _normalize_window(startdate, enddate)
-    # Seam errors raise on their own, before `_configure_storage` -- see the same comment in
-    # `run_inference` for why. Not batched with the date errors: a seam misconfiguration is
-    # fatal by itself.
+    # Seam errors first, before `_configure_storage` (see `_check_local_seams`), and not
+    # batched with the date errors: a seam misconfiguration is fatal by itself.
     _raise_preflight(_check_local_seams(runner, storage, storage_allowed=(runner == "aml")))
-    # ...and now, before the first storage access -- `_resolve_model_ref` and `fs.read_geo`
-    # below both touch storage, ahead of this verb's own `_raise_preflight(errs)`.
+    # Before the first storage access: `_resolve_model_ref` and `fs.read_geo` below, ahead of
+    # this verb's own `_raise_preflight(errs)`.
     _configure_storage(storage)
     errs = list(date_errs)
     errs += _processing.processing_errors(processing, collection=collection, allow_none=True)
@@ -2205,8 +2184,7 @@ def verify_adapter(
     # as in `run_inference`: resolve before `_model_spec` reads `bundle.json` off it.
     model = _resolve_model_ref(model, registry, why="verify_adapter")
     spec = _model_spec(model)
-    # Canonicalize (spec 58 D8) before comparing -- see the identical comment in
-    # `_run_inference_roi`.
+    # Canonicalize before comparing -- see `_run_inference_roi`.
     _declaration = _collections.get(collection)
     bands = [_declaration.canonical_to_native(b) for b in bands]
     required = {_declaration.canonical_to_native(b) for b in (spec.get("required_bands") or [])}
@@ -2287,8 +2265,7 @@ def verify_adapter(
         "grid_size_km": grid_size_km, "scale_fact": scale_fact, "cell": chosen_cell,
     }
     if processing is not None:
-        # Only when used, so a stamp written before spec 59 still matches a request that
-        # does not use it.
+        # Only when used, so an older stamp still matches a request that does not use it.
         identity["processing"] = _create_datacube._canonicalize_processing(processing)
     cube_filepath = os.path.join(export_folderpath, "datacube.npy")
     metadata_filepath = os.path.join(export_folderpath, "metadata.pickle.npy")
@@ -2560,9 +2537,9 @@ def deploy(
     the storage seam and may itself be a URL.
     """
     errs = _check_local_seams(runner, storage)
-    _raise_preflight(errs)
-    # Before the first storage access -- `_bundle.read_spec` below reads `bundle_path`, and
-    # `publish` writes into `registry` further down.
+    _raise_preflight(errs)  # seam errors first, before `_configure_storage`
+    # Before the first storage access: `_bundle.read_spec` below reads `bundle_path`, and
+    # `publish` writes into `registry`.
     _configure_storage(storage)
 
     if not isinstance(bundle_path, str):
