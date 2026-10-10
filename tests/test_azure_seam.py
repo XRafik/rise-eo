@@ -570,3 +570,19 @@ def test_memory_scheme_roundtrip_parquet_and_npy():
 def test_os_path_join_is_url_safe_on_abfss():
     joined = os.path.join("abfss://fs@acct.dfs.core.windows.net/a", "b.tif")
     assert joined == "abfss://fs@acct.dfs.core.windows.net/a/b.tif"
+
+
+# --- #145 P10: both backend parses reject the same shapes with the same text --------
+
+@pytest.mark.parametrize(
+    "storage, shown",
+    [("s3", "'s3'"), ({"backend": "gcs"}, "'gcs'"), ({}, "None"), (123, "None")],
+)
+def test_unsupported_backend_text_in_both_places(_clean_fsspec_conf, storage, shown):
+    from fsd import api
+
+    line = f"storage backend {shown} not supported (only 'azure' in P1)."
+    assert api._check_local_seams("local", storage) == [line]
+    with pytest.raises(ValueError) as ei:
+        fsd_azure.configure_storage(storage)
+    assert str(ei.value) == line

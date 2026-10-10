@@ -634,3 +634,23 @@ def test_run_inference_roi_forwards_options_to_tiling_runner_and_finalize(
     assert (tiled["grid_size_km"], tiled["scale_fact"]) == (7, 1.3)
     assert (ran["skip_nan"], ran["predict_batch_size"], ran["overwrite"]) == (False, 16, True)
     assert finalized == {"collection_id": "my-coll", "dt": dt}
+
+
+# --- #145 P10: alias spelling of a band is not a missing band ---
+
+@pytest.mark.parametrize("required, bands", [(["B8A"], ["nir08"]), (["nir08"], ["B8A"])])
+def test_roi_preflight_alias_spelling_is_not_a_missing_band(tmp_path, required, bands):
+    class _Alias(_Tiny):
+        required_bands = required
+
+    with pytest.raises(fsd.PreflightError) as ei:
+        fsd.run_inference(
+            _Alias(), output_folderpath=str(tmp_path), roi=ROI,
+            catalog_filepath="sentinel-2-l2a/c.parquet",
+            startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 6, 11),
+            mosaic_days=20, bands=bands,
+        )
+    assert str(ei.value) == (
+        "preflight failed:\n"
+        "  - startdate/enddate/mosaic_days give T=1 but the model needs T=2."
+    )
