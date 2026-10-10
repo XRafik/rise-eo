@@ -165,7 +165,7 @@ def run_local_inference(
     cell (TODO #25); default 1. `overwrite` forces a recompute of every cell (`--forceall`
     **and** `infer_task`'s own per-cell skip is bypassed, config `overwrite=1`); otherwise
     each cell's `output.tif` existence makes it resumable, decoupled from group size. Azure
-    Batch dispatches this same task; only this runner is swapped.
+    ML runs this same task on each node (`runner="aml"`, through `fsd.workflows.shard`).
 
     Raises before dispatch if `input_csv` has two distinct-content rows sharing an
     `export_folderpath` -- a malformed manifest, the same exposure as
@@ -210,8 +210,8 @@ def run_local_infer_only(
     `input_csv` has `datacube_filepath`, `output_filepath`. `cores` = how many groups run at once
     (Snakemake — the only parallel primitive); `cubes_per_task` groups K cubes per sequential job to
     amortise the one-per-job bundle load. `overwrite` forces recompute (`--forceall`); otherwise
-    per-group sentinels + the task's skip-existing make it resumable. Azure Batch dispatches
-    this same task.
+    per-group sentinels + the task's skip-existing make it resumable. Azure ML runs this same
+    task on each node (`runner="aml"`, through `fsd.workflows.shard`).
     """
     conf = {
         "input_csv": input_csv,
@@ -245,7 +245,7 @@ def _run_snakemake(snakefile_rel, cores, conf, *, overwrite=False, dry_run=False
     return subprocess.CompletedProcess(args=cmd, returncode=returncode, stderr=tail)
 
 
-# --- P2: the Azure ML runner -------------------------------------------------
+# --- The Azure ML runner -------------------------------------------------
 
 _TERMINAL_JOB_STATUSES = {"Completed", "Failed", "Canceled"}
 
@@ -274,11 +274,9 @@ def _derive_timing(
     `submitted_at`/`returned_at` stamps and each job's in-job stamps (already read into
     `reports[k]` from `_status/<k>.json`).
 
-    A pure function, kept separate from `_aml_submit_and_wait` so it is unit-testable on
-    hand-written stamps without a fake `ml_client`'s polling loop.
+    Pure, so it is unit-testable on hand-written stamps without a fake `ml_client`'s polling loop.
 
-    The wall-clock split is five contiguous, non-overlapping legs that telescope back to
-    `t_end - t_start` by construction:
+    The wall-clock split is five legs that telescope back to `t_end - t_start`:
       driver_prep         t_start          -> t_first_submit  (building jobs, before any submit)
       first_admission     t_first_submit   -> earliest process_start_at (time to the first node)
       execution_window    earliest process_start_at -> latest ended_at (the fleet finishing)
@@ -286,18 +284,16 @@ def _derive_timing(
       post_collect        latest returned_at -> t_end (aggregating `_status/*.json`)
 
     ⚠️ **`first_admission` is measured from the FIRST submission, never the last.**
-    Submitting N jobs is sequential and takes real time (40 s for 32 jobs was measured),
-    while admission of the *early* jobs is already happening. Submission and admission
-    overlap, so they cannot be adjacent legs: anchor on `t_last_submit` and the leg goes
-    negative whenever a node starts before the final job is submitted. Those numbers still
-    telescope correctly, so nothing catches it -- but neither leg means what its name says,
-    and worse, a negative here is RESERVED as the signal that the clock-skew bound was
-    exceeded. The submission span is not lost; it is reported as `submission_span_seconds`,
-    deliberately **outside** the additive split, because it overlaps `first_admission`
-    rather than partitioning it.
+    Submitting N jobs is sequential and takes real time, while admission of the *early* jobs is
+    already happening. Submission and admission overlap, so they cannot be adjacent legs: anchor
+    on `t_last_submit` and the leg goes negative whenever a node starts before the final job is
+    submitted. Those numbers still telescope correctly, so nothing catches it -- but neither leg
+    means what its name says, and a negative here is RESERVED as the signal that the clock-skew
+    bound was exceeded. The submission span is reported as `submission_span_seconds`,
+    deliberately **outside** the additive split, because it overlaps `first_admission`.
 
-    `t_first_submit` defaults to `t_last_submit` so a caller that has only the old stamp
-    still gets the old (contiguous, additive) behaviour rather than an error.
+    `t_first_submit` defaults to `t_last_submit`: a caller passing only `t_last_submit` gets
+    the contiguous split rather than an error.
     """
     if t_first_submit is None:
         t_first_submit = t_last_submit
@@ -356,7 +352,7 @@ def _derive_timing(
             # NOT one of the five legs: submitting overlaps the admission of jobs already
             # submitted, so it partitions nothing. Reported because it answers the obvious
             # follow-up to a large first_admission -- "how much of that was us still
-            # submitting?" -- which is 40 s of it at 32 jobs.
+            # submitting?"
             "submission_span_seconds": _seconds_between(t_first_submit, t_last_submit),
         },
     }
@@ -484,7 +480,7 @@ def _aml_download_preflight(
     Cluster/environment/root (shared, `_aml_preflight_common`) + discovery non-emptiness +
     the `max_tiles` guardrail + (CDSE-only) that the supplied creds source resolves/parses
     and its S3 keys are not expired. Raises on any hard failure; returns a possibly-empty
-    list of non-fatal **warnings** -- today just the CDSE quota estimate.
+    list of non-fatal **warnings** -- just the CDSE quota estimate.
 
     CDSE creds come from **exactly one** of two mutually exclusive sources: Key Vault
     (`vault_url`+`secret_name`) or a blob JSON (`creds_url`). Neither or both is a hard
@@ -545,8 +541,7 @@ def _aml_download_preflight(
         # MPC is anonymous: it reads no credentials at all, so a creds
         # argument here is not merely inert -- `creds_url` would put the secret on
         # blob for the whole run in exchange for nothing. Refuse it rather than
-        # ignore it (TODO #49; found when a hand-written Phase 3 script did exactly
-        # this against a full-year archive run).
+        # ignore it (TODO #49).
         supplied = [
             name for name, value in (
                 ("creds_url", creds_url), ("vault_url", vault_url), ("secret_name", secret_name),
@@ -588,9 +583,9 @@ def _aml_submit_and_wait(
     t_start = _now_iso()
     job_names: dict[int, str] = {}
     submitted_at: dict[int, str] = {}
-    # Both ends of the submission loop: it takes ~40 s for 32 jobs, and the early ones are
-    # already being admitted while the late ones are still going out, so `first_admission`
-    # anchors on the first (see `_derive_timing`).
+    # Both ends of the submission loop: the early jobs are already being admitted while the
+    # late ones are still going out, so `first_admission` anchors on the first (see
+    # `_derive_timing`).
     t_first_submit = t_start
     t_last_submit = t_start
     for k, job in jobs.items():
@@ -672,8 +667,8 @@ def run_aml(
     workspace_name: str | None = None,
     poll_interval_seconds: int = 30,
 ) -> dict:
-    """AML runner: shard `input_csv`, submit one command job per
-    shard onto `cluster`, wait, aggregate `_status/<k>.json`, raise on any failure.
+    """AML runner: shard `input_csv`, submit one command job per shard onto `cluster`, wait,
+    aggregate `_status/<k>.json`, raise on any failure.
 
     Each dispatched unit is a **shard**, not a cube: the job runs
     `python -m fsd.workflows.shard <shard_csv_url> --cores <cores>`, which calls back
@@ -741,7 +736,7 @@ def run_aml(
             "job_statuses": result["job_statuses"], "shards": result["reports"]}
 
 
-# --- P2: the Azure ML flatten reduce dispatcher -------------------------------
+# --- The Azure ML flatten reduce dispatcher -------------------------------
 
 
 def _aml_flatten_preflight(
@@ -840,7 +835,7 @@ def run_aml_flatten(
             "job_statuses": result["job_statuses"], "reports": result["reports"]}
 
 
-# --- P4: the Azure ML inference dispatcher ------------------------------------
+# --- The Azure ML inference dispatcher ------------------------------------
 
 
 def _stage_bundle(bundle_path: str, dst_url: str) -> str:
@@ -858,8 +853,8 @@ def _stage_bundle(bundle_path: str, dst_url: str) -> str:
     with fs.open(os.path.join(dst_url, _bundle.BUNDLE_MANIFEST), "w") as f:
         f.write(raw)
     rels = list(manifest.get("artifacts", {}).values()) + _bundle.manifest_code_files(manifest)
-    # Destination + total size print BEFORE the upload starts: this leg has measured 627 s
-    # for 13 MB over VPN, and it is the one silence costs most on.
+    # Destination + total size print BEFORE the upload starts: this leg can be slow over VPN,
+    # and it is the one silence costs most on.
     total_bytes = sum(fs.size(os.path.join(bundle_path, rel)) for rel in rels)
     print(f"[stage] bundle -> {dst_url} | {len(rels)} files, {total_bytes / 1e6:.1f} MB",
           flush=True)
@@ -1027,7 +1022,7 @@ def run_aml_inference(
             "job_statuses": result["job_statuses"], "shards": result["reports"]}
 
 
-# --- P2: the Azure ML download dispatcher ------------------------------------
+# --- The Azure ML download dispatcher ------------------------------------
 
 
 def _import_command_job_limits():
@@ -1111,11 +1106,10 @@ def run_aml_download(
     poll_interval_seconds: int = 30,
     get_secret=None,
 ) -> dict:
-    """AML download dispatcher: per-source dispatch
-    shape -- CDSE submits **exactly one** whole-ROI job; MPC discovers on the
-    driver, `shard_units` the asset list, and submits **N** per-shard jobs. Both
-    wait, aggregate `_status/<k>.json`, and raise on any failed/circuit-tripped job
-    (`_aml_submit_and_wait`, shared with `run_aml`).
+    """AML download dispatcher. Dispatch shape depends on the source: CDSE submits
+    **exactly one** whole-ROI job; MPC discovers on the driver, `shard_units` the asset
+    list, and submits **N** per-shard jobs. Both wait, aggregate `_status/<k>.json`, and
+    raise on any failed/circuit-tripped job (`_aml_submit_and_wait`, shared with `run_aml`).
 
     `roi` must be a url (any `fsd.storage`/geopandas-readable path) rather than an
     in-memory GeoDataFrame -- the job that reads it runs on a different machine.
@@ -1182,8 +1176,8 @@ def run_aml_download(
             f"--startdate {_iso(startdate)} --enddate {_iso(enddate)} "
             f"--bands {','.join(bands)} --dst {dst_folderpath} --catalog {catalog_filepath} "
             f"--max-tiles {max_tiles} {creds_arg} "
-            # The specifier rides the command line as a plain string (spec 59 D7) -- quoted,
-            # because `>=05.00` is otherwise a shell redirect.
+            # The specifier rides the command line as a plain string, quoted because
+            # `>=05.00` is otherwise a shell redirect.
             f"--processing {shlex.quote(processing)} "
             f"--status-url {run_root}/_status/0.json"
         )
@@ -1209,8 +1203,8 @@ def run_aml_download(
 
         # Diff against the existing catalog BEFORE any preflight or dispatch (#64). A
         # request whose every discovered asset is already catalogued must not submit a
-        # single job -- 5m31s of cold start has been spent discovering there was nothing to
-        # do -- and a 95%-present request must dispatch the shortfall, not 100%.
+        # single job (node cold start is minutes), and a 95%-present request must dispatch
+        # the shortfall, not 100%.
         rows = _mpc_catalog_shortfall(catalog_filepath, rows)
         n_assets = len(rows)
         if n_assets == 0:
@@ -1275,8 +1269,8 @@ def run_aml_download(
     if source == "mpc":
         _merge_shard_catalogs(shard_catalog_urls, catalog_filepath)
 
-    # Spec 59 D7: the driver knows which acquisitions this download touched, so it -- not a
-    # node -- reports whether any now holds more than one processing in the archive.
+    # The driver knows which acquisitions this download touched, so it -- not a node --
+    # reports whether any now holds more than one processing in the archive.
     if fs.exists(catalog_filepath):
         for line in _processing.ambiguity_lines(
             _TileCatalog(catalog_filepath).read(), touched_keys, n_matched=len(touched_keys),
