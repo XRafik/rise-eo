@@ -2,7 +2,7 @@
 
 Spec: specs/08-workflows.md, specs/10-storage-and-scale.md.
 
-This is what an Azure Batch task (Phase 2) dispatches unchanged. It:
+Azure ML runs this same task on each node (`runner="aml"`, through `fsd.workflows.shard`). It:
 - reads its inputs (geometry + pre-sliced catalog) and writes its artifact via
   fsd.storage / the builder,
 - knows nothing about how it was scheduled.
@@ -53,25 +53,25 @@ def run_task(
     (`TileCatalog.filter` output — already date+overlap filtered, carries
     `area_contribution`); we band-flatten it and hand it to the builder.
 
-    `declaration_filepath` is the control file `setup` wrote under the run folder's
-    WINDOW segment (spec 58 D13): the `collection=` string resolved to a `CollectionDeclaration` and
-    serialized to JSON **on the driver**, before this task was ever dispatched. This
-    node reads that file and nothing else — it never imports `fsd.collections` to
-    resolve a collection string itself, because that registry is a plain in-process
-    dict that does not exist inside a fresh AML job container (ADR 0031). The
-    declaration passed to `build_datacube` here is validated against the catalog's own
-    stamp on ARTIFACT facts (spec 58 D14) — a build-policy difference (mask, reference
-    band, mosaic method) is fine; an artifact-fact difference raises.
+    `declaration_filepath` is the control file `setup` wrote under the run folder's WINDOW
+    segment: the `collection=` string resolved to a `CollectionDeclaration` and serialized to
+    JSON **on the driver**, before this task was dispatched. This node reads that file and
+    nothing else -- it never imports `fsd.collections` to resolve a collection string, because
+    that registry is a plain in-process dict that does not exist inside a fresh AML job
+    container (ADR 0031). The declaration is validated against the catalog's own stamp on
+    ARTIFACT facts: a build-policy difference (mask, reference band, mosaic method) is fine;
+    an artifact-fact difference raises.
 
     `write_timings` asks the builder to drop a `timings.json` sidecar (benchmark
     seam); `write_read_log` asks for a `reads.jsonl` per-read log.
     `main()` sets both from the `FSD_WRITE_TIMINGS` / `FSD_WRITE_READ_LOG` env vars so
     the harness can enable them without any runner/Snakefile plumbing.
 
-    A task whose final artifact (`datacube.npy`) already exists at
-    `export_folderpath` returns immediately without rebuilding -- the resume signal is
-    the artifact's own existence, not a sentinel. This is what makes a re-dispatched
-    (recovery-retried) shard cheap: it skips every cube it already finished.
+    A task whose final artifact (`datacube.npy`) already exists at `export_folderpath`
+    returns immediately -- the resume signal is the artifact's own existence, not a sentinel,
+    so a re-dispatched (recovery-retried) shard skips every cube it already finished.
+
+    Spec: 58 D13, D14.
     """
     if fs.exists(os.path.join(export_folderpath, "datacube.npy")):
         return

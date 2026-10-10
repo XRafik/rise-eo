@@ -54,13 +54,15 @@ DECLARATION_FILENAME = "declaration.json"
 
 
 def _canonicalize_processing(processing: str | None) -> str:
-    """Canonical string form of a build `processing=` value (spec 59 D6): `None` -> `""`;
+    """Canonical string form of a build `processing=` value: `None` -> `""`;
     `"latest"` stays; a specifier is stripped of whitespace with its clauses sorted, so
     `">=05.00, <06"` and `"<06,>=05.00"` are one selection and one cube path.
 
     Like `_canonicalize_properties_filter`, callers fold this into `params_key` ONLY when the
     build actually used `processing` -- `None` must contribute no component at all, or every
-    existing cube path would move (spec 59 AC 8).
+    existing cube path would move.
+
+    Spec: 59 D6.
     """
     if processing is None:
         return ""
@@ -72,14 +74,15 @@ def _canonicalize_processing(processing: str | None) -> str:
 def _canonicalize_properties_filter(
     properties_filter: Mapping[str, str | Sequence[str]] | None,
 ) -> str:
-    """Canonical string form of a `properties_filter` selection (spec 58 D9.3): keys
+    """Canonical string form of a `properties_filter` selection: keys
     sorted, each value set sorted, so one selection is one stable string regardless of
     the caller's dict/list ordering. `None`/empty -> `""`.
 
     Callers that fold this into `params_key`'s digest add the result ONLY when
     non-empty -- an empty selection must contribute no component at all (not even an
-    empty string joined in), or every existing S2 cube path would move (spec 58 D9.3,
-    AC13).
+    empty string joined in), or every existing S2 cube path would move.
+
+    Spec: 58 D9.3.
     """
     if not properties_filter:
         return ""
@@ -87,7 +90,7 @@ def _canonicalize_properties_filter(
     for key in sorted(properties_filter):
         # Same scalar/string normalization the FILTER uses, so a selection that
         # selects one set of rows is one digest -- `146` and `"146"` must not be two
-        # cube paths for the same rows (spec 58 D9, `sat:relative_orbit` is an int).
+        # cube paths for the same rows (`sat:relative_orbit` is an int).
         values = properties_filter_values(properties_filter[key])
         parts.append(f"{key}=" + ",".join(sorted(values)))
     return ";".join(parts)
@@ -117,26 +120,18 @@ def params_key(
     paths, or the second silently overwrites the first and the build skip reads the
     wrong-band cube as "present".
 
-    Keys on `collection` + a digest of the resolved `CollectionDeclaration` (spec 58 D4),
-    replacing the old mask-classes-only digest. This fixes the collision that field
-    could never catch: HLS bands are named identically to S2's (`B04`/`B08`/`B8A`), so an
-    HLS cube and an S2 cube over the same cell/window/`mosaic_days` used to resolve to the
-    SAME path. Any collection-level change now correctly invalidates cached cube paths --
-    mask classes, nodata, reference band, radiometry, whatever the declaration holds.
+    Keyed on `collection` + the declaration digest because HLS band names (`B04`/`B08`/`B8A`)
+    equal S2's, so an HLS and an S2 cube over the same cell/window would otherwise share a
+    path. Any declaration change invalidates cached cube paths.
 
-    `properties_filter` (spec 58 D9.3) is the build-time partition selection --
-    canonicalized (`_canonicalize_properties_filter`) and appended ONLY when non-empty,
-    so an empty selection contributes NOTHING to the digest, not even an empty component:
-    a collection that declares no partition (every P1 collection) must resolve to exactly
-    the path it did before P2.
+    `properties_filter` and `processing` are appended ONLY when set, so an empty one
+    contributes NOTHING (not even an empty component) and a build that does not use them
+    keeps its cube path, while two builds differing only in `processing` never share a cube;
+    `processing=` is namespaced so it never collides with a filter.
 
-    `processing` (spec 59 D6) joins exactly as `properties_filter` does: appended ONLY when
-    not `None`, so a build that does not use it resolves to the path it always did (AC 8),
-    while two builds differing only in `processing` never share a cube. It is namespaced
-    (`processing=...`) so it can never collide with a `properties_filter` component.
+    Same string form `setup` writes to `input.csv`, so a digest from a read-back row agrees.
 
-    Uses the same string form `setup` writes to `input.csv` (`",".join(...)`), so a digest
-    computed here and one computed from a read-back `input.csv` row agree byte-for-byte.
+    Spec: 58 D4, D9.3; 59 D6.
     """
     parts = [",".join(bands), mosaic_scheme, collection, declaration_module.digest(declaration)]
     selection = _canonicalize_properties_filter(properties_filter)
@@ -200,56 +195,49 @@ def setup(
 ) -> None:
     """Per geometry: write geometry.geojson + catalog.parquet slice + input.csv row.
 
-    Reads the catalog **once**, then reuses `catalog.filter_gdf` for each shape's
-    date+overlap slice (which also persists `area_contribution`). Shapes with no
-    intersecting granules are skipped with a note. Prints live progress + ETA: the
-    per-shape writes are network I/O on a remote run folder, so this can run for
-    minutes and must not look like a hang.
+    Reads the catalog **once**, then reuses `catalog.filter_gdf` for each shape's date+overlap
+    slice (which also persists `area_contribution`); shapes with no intersecting granules are
+    skipped with a note. Prints live progress + ETA: the per-shape writes are network I/O on a
+    remote run folder, so this can run for minutes and must not look like a hang.
 
     Shapes are prepared concurrently (`max_concurrent` threads) because that work is
-    latency-bound blob I/O, not CPU. `input.csv` row order still follows the
-    shapefile's order. Pass `max_concurrent=1` for the old serial behaviour.
+    latency-bound blob I/O, not CPU; `max_concurrent=1` runs serially. `input.csv` row order
+    still follows the shapefile's.
 
-    The mosaic anchor written to each row is the caller's `startdate`/`enddate` (not
-    the per-shape actual acquisition min/max), so every shape mosaics on the same
-    calendar grid and the resulting cubes share a `timestamps` axis that `flatten` can
-    concatenate. The run-folder name is built from that same requested window +
-    `mosaic_days`, never the per-shape actual acquisition range, so every cell of one run
-    lands under one folder that identifies the cube contract it was built against; each
-    shape's own `actual_start`/`actual_end` live in its cube metadata instead.
+    The mosaic anchor written to each row is the caller's `startdate`/`enddate` (not the
+    per-shape acquisition min/max), so every shape mosaics on the same calendar grid and the
+    cubes share a `timestamps` axis that `flatten` can concatenate. The run-folder name is
+    built from that same requested window + `mosaic_days`, never the per-shape acquisition
+    range, so every cell of one run lands under one folder that identifies the cube contract
+    it was built against; each shape's `actual_start`/`actual_end` live in its cube metadata.
 
-    `timestamp_col` does not feed the folder name and is unused today -- `filter_gdf`'s
-    catalog rows already fix "timestamp" as the column -- but stays in the caller-facing
-    signature.
+    `timestamp_col` is unused (`filter_gdf`'s catalog rows already fix "timestamp") but stays
+    in the caller-facing signature.
 
-    `collection` resolves to a `CollectionDeclaration` here, on the driver
-    (`fsd.collections.get`), and is written as JSON to
-    `<run_folderpath>/<window_segment>/declaration.json`
-    -- the control file every shard reads (spec 58 D13). This runs uniformly for every
-    call, including the built-in `sentinel-2-l2a` default: nodes never consult the
-    registry, so there is one code path rather than two where only a user's collection
-    variant breaks, and only remotely.
+    `collection` resolves to a `CollectionDeclaration` on the driver (`fsd.collections.get`)
+    and is written as JSON to `<run_folderpath>/<window_segment>/declaration.json`, the
+    control file every shard reads. This runs uniformly, including for the built-in
+    `sentinel-2-l2a`: nodes never consult the registry, so there is one code path rather than
+    two where only a user's collection variant breaks, and only remotely.
 
-    `properties_filter` (spec 58 D9) narrows the catalog to rows matching every given
-    STAC property BEFORE the per-shape date+overlap slice (`filter_gdf`) -- "the filter
-    is applied ... where the catalog is queried". A key no row in the catalog carries at
-    all raises (`catalog.filter_by_properties`), naming the keys it does carry, rather
-    than silently slicing to zero rows. The canonicalized selection is folded into
-    `window_segment` (via `params_key`, D9.3) and recorded on every `input.csv` row it
-    produces, so a differently-filtered re-run never collides with this one on content
-    identity (`_UNIT_IDENTITY_COLS`) despite sharing every other parameter.
+    `properties_filter` narrows the catalog to rows matching every given STAC property BEFORE
+    the per-shape slice. A key no row carries raises (`catalog.filter_by_properties`), naming
+    the keys it does carry, rather than silently slicing to zero rows. The canonicalized
+    selection is folded into `window_segment` (via `params_key`) and recorded on every
+    `input.csv` row, so a differently-filtered re-run never collides on content identity.
 
-    `processing` (spec 59 D6) is applied to each shape's slice AFTER `properties_filter` and
-    the date+overlap filter, grouped by `acquisition_key`: `None` (default) raises on any
-    acquisition present in more than one processing, listing each group and the arguments
-    that resolve it; `"latest"` / a PEP 440 specifier select one row per acquisition (a
-    group with no satisfying row is dropped and reported). Joins the cube path exactly as
-    `properties_filter` does, only when not `None`.
+    `processing` is applied to each shape's slice AFTER `properties_filter` and the
+    date+overlap filter, grouped by `acquisition_key`: `None` (default) raises on any
+    acquisition present in more than one processing, listing each group and the arguments that
+    resolve it; `"latest"` / a PEP 440 specifier select one row per acquisition (a group with
+    no satisfying row is dropped and reported). Joins the cube path as `properties_filter` does.
+
+    Spec: 58 D9, D13; 59 D6.
     """
     startdate = pd.to_datetime(startdate, utc=True)
     enddate = pd.to_datetime(enddate, utc=True)
     declaration = _collections.get(collection)
-    # Canonicalize bands to native asset keys (spec 58 D8) as early as possible: every
+    # Canonicalize bands to native asset keys as early as possible: every
     # downstream use of `bands` -- the digest, `input.csv`, the builder's catalog-band
     # match -- must see one spelling, or `bands=["B8A"]` and `bands=["nir08"]` would
     # resolve to different cube paths despite naming the identical band.
@@ -264,9 +252,8 @@ def setup(
     # work-units writing the SAME folder -- concurrently, once `max_concurrent > 1`. On blob
     # that collides on the block-blob commit (`InvalidBlockList`) and the surviving
     # geometry.geojson is whichever shape committed last; locally it silently overwrites.
-    # Either way the run is wrong, so refuse it here rather than race. A multi-polygon ROI
-    # has made `roi_to_s2_grids` repeat cell ids before; that is fixed at source in grid.py,
-    # but the guard belongs here too, for every caller.
+    # Either way the run is wrong, so refuse it here rather than race. The guard belongs
+    # here for every caller, whatever produced the ids.
     if shapes_gdf[id_col].duplicated().any():
         counts = shapes_gdf[id_col].value_counts()
         repeated = counts[counts > 1]
@@ -281,9 +268,8 @@ def setup(
 
     # Read the catalog ONCE for the whole run, then filter it in memory per shape
     # (`filter_gdf`). `TileCatalog.filter` re-reads the file on every call, which on a
-    # remote catalog made setup cost one full download per shape: 900 shapes over
-    # `abfss://` = 900 downloads of the same ~121 KiB parquet (~106 MiB, ~900 VPN
-    # round-trips) before a single job was submitted. Same rows out, one read in.
+    # remote catalog costs one full download per shape (one VPN round-trip each) before a
+    # single job is submitted. Same rows out, one read in.
     catalog_gdf = TileCatalog(catalog_filepath).read()
     catalog_gdf = filter_by_properties(catalog_gdf, properties_filter)
 
@@ -298,19 +284,18 @@ def setup(
                                             properties_filter=properties_filter,
                                             processing=processing)
 
-    # The declaration control file (spec 58 D13) -- written under the WINDOW segment, not
-    # the run-folder root. One run folder holds many windows and (once P2 ships a second
-    # collection) many collections: `_UNIT_IDENTITY_COLS` carries `collection` precisely so
-    # rows of different collections coexist in one `input.csv`, and `_build_shortfall`
-    # dispatches every still-missing row in that file regardless of which `setup` call wrote
-    # it. A single run-root `declaration.json` would therefore be overwritten by the next
-    # `setup` and read back by the earlier call's nodes -- a silently wrong mask/radiometry
-    # at a path that names a different collection. The window segment already digests
-    # `collection` + the declaration (D4), so it is exactly the right granularity (the
-    # addressing rule: address per unit path, never one file per run).
+    # The declaration control file -- written under the WINDOW segment, not the run-folder
+    # root. One run folder holds many windows and many collections: `_UNIT_IDENTITY_COLS`
+    # carries `collection` precisely so rows of different collections coexist in one
+    # `input.csv`, and `_build_shortfall` dispatches every still-missing row in that file
+    # regardless of which `setup` call wrote it. A single run-root `declaration.json` would
+    # therefore be overwritten by the next `setup` and read back by the earlier call's nodes
+    # -- a silently wrong mask/radiometry at a path that names a different collection. The
+    # window segment already digests `collection` + the declaration, so it is exactly the
+    # right granularity (address per unit path, never one file per run).
     #
     # Written only once the duplicate-id guard above has passed, so a refused call leaves no
-    # trace, exactly as before this write was added.
+    # trace.
     declaration_filepath = os.path.join(
         run_folderpath, window_segment, DECLARATION_FILENAME)
     fs.makedirs(os.path.join(run_folderpath, window_segment))
@@ -340,7 +325,7 @@ def setup(
             shape_gdf[COL_LABEL] = srow[label_col]
 
         subset = filter_gdf(catalog_gdf, shape_gdf, startdate, enddate)
-        # Spec 59 D6: one processing per acquisition among the rows this cube would mosaic.
+        # One processing per acquisition among the rows this cube would mosaic.
         # `None` raises on a duplicate group; the error names the shape.
         try:
             selection = processing_module.select_processing(subset, processing)
@@ -358,8 +343,8 @@ def setup(
         fs.makedirs(export_folderpath)
         shape_path = os.path.join(export_folderpath, "geometry.geojson")
         catalog_path = os.path.join(export_folderpath, "catalog.parquet")
-        # D6a: write via fsd.storage rather than gpd.to_file(path) directly, so
-        # this per-unit geometry lands correctly on a remote export_folderpath too.
+        # Write via fsd.storage rather than gpd.to_file(path) directly, so this per-unit
+        # geometry lands correctly on a remote export_folderpath too.
         # write_text (not fs.open) so a concurrent adlfs InvalidBlockList retries (TODO #57).
         fs.write_text(shape_path, shape_gdf.to_json())
         fs.write_parquet(catalog_path, subset)
@@ -385,14 +370,14 @@ def setup(
     # (`makedirs` + `geometry.geojson` + the `catalog.parquet` slice), so the loop is
     # latency-bound and the GIL is released for the duration of each call. Same
     # pattern `sources.mpc.download`/`download_shard` already run concurrently through
-    # `fsd.storage` against blob. Serially this has measured ~1.8 s/shape over VPN -- ~27
-    # minutes for 900 shapes, before a single job is submitted.
+    # `fsd.storage` against blob. Serially this costs minutes for hundreds of shapes, before
+    # a single job is submitted.
     #
     # Results are placed BY INDEX and compacted afterwards, so `input.csv` row order
     # is the shapefile's order regardless of completion order — parallelism must not
-    # change the manifest. (An exception in a worker still propagates out of
-    # `fut.result()`, as before; the pool's `__exit__` lets in-flight shapes finish
-    # first, so slightly more work lands before it surfaces.)
+    # change the manifest. (An exception in a worker propagates out of `fut.result()`; the
+    # pool's `__exit__` lets in-flight shapes finish first, so slightly more work lands
+    # before it surfaces.)
     prepared: list[dict | None] = [None] * n_shapes
     _tick(0, force=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as pool:
@@ -431,7 +416,7 @@ def setup(
 
 
 def _report_selections(selections, processing: str | None) -> None:
-    """One summary line for the whole `setup` pass (spec 59 D6: a drop is reported, never
+    """One summary line for the whole `setup` pass (a drop is reported, never
     silent) -- per-granule lines would be N shapes x M skips of noise."""
     superseded = {s["id"] for sel in selections for s in sel.skipped}
     dropped = {k for sel in selections for k in sel.dropped_acquisitions}
@@ -508,9 +493,9 @@ def _present_cube_ids_at(window_folderpath: str) -> set[str] | None:
     """The ids whose cube is fully built, from ONE recursive listing of the window folder.
 
     `_cube_present` costs four blob round-trips per cell (`exists` + `size`, twice), and
-    both driver-side sweeps run it per cell, serially: 900 cells is ~3600 sequential
-    round-trips over the WAN with no output, which reads as a hang. A directory walk answers
-    the same question in a couple of paginated requests.
+    both driver-side sweeps run it per cell, serially: hundreds of cells is thousands of
+    sequential round-trips over the WAN with no output, which reads as a hang. A directory
+    walk answers the same question in a couple of paginated requests.
 
     Keyed by the `<id>` path leaf, never the full path, so it does not have to reconcile
     `os.path.abspath` (local) against a backend's own path spelling (`abfss://` -> adlfs
@@ -560,7 +545,7 @@ def _presence_for_paths(datacube_filepaths, *, label: str) -> dict[str, bool]:
     The fast path is one recursive listing per `<window>` folder (`_present_cube_ids_at`);
     anything that cannot be listed falls back to concurrent, ticked per-path checks. Both
     driver-side sweeps -- the announced plan and the dispatch decision -- go through here,
-    so neither can regress into the silent serial walk they both once were.
+    so neither can regress into a silent serial walk.
     """
     paths = list(datacube_filepaths)
     by_folder: dict[str, list[str]] = {}
@@ -596,7 +581,7 @@ def _row_matches_window(
     so a row that round-tripped through CSV still compares correctly against in-memory
     request values.
 
-    `properties_filter` (spec 58 D9) is compared too, canonicalized -- a row from a
+    `properties_filter` is compared too, canonicalized -- a row from a
     DIFFERENT partition selection over the same bands/window/collection must not be
     mistaken for a match, or a re-run scoped to one orbit could silently adopt another
     orbit's row.
@@ -619,10 +604,9 @@ def _row_matches_window(
             got = str(pd.to_datetime(got, utc=True))
         else:
             # `",".join([])` -> `""` -> an empty CSV field -> read back as NaN,
-            # not `""`. Without this, an empty-string field ("mask nothing", a
-            # legitimate request under a since-removed override) round-trips to "nan"
-            # and never matches its own freshly-written request value, purging every
-            # row on every call.
+            # not `""`. Without this, an empty-string field (a legitimate request)
+            # round-trips to "nan" and never matches its own freshly-written request
+            # value, purging every row on every call.
             got = "" if pd.isna(got) else str(got)
         if got != want_val:
             return False
@@ -633,11 +617,11 @@ def _row_matches_path(row, *, run_folderpath: str, window_segment: str) -> bool:
     """Does an existing `input.csv` row name the path THIS request derives for its id?
 
     ⚠️ `_row_matches_window` compares the run PARAMETERS, and that is NOT sufficient on its
-    own. Change the path shape -- as adding the `_<params_key>` digest to the `<window>`
-    segment did -- and a row written before the change still matches on every parameter
-    while pointing at the OLD folder. Adopt such a row and the new addressing silently never
-    takes effect: the plan announces a full rebuild, while the build leg reads the row's own
-    stale `datacube_filepath`, finds the old cube present, and dispatches nothing. Worse,
+    own. Change the path shape (e.g. the `_<params_key>` digest in the `<window>` segment)
+    and a row written before the change still matches on every parameter while pointing at
+    the OLD folder. Adopt such a row and the new addressing silently never takes effect: the
+    plan announces a full rebuild, while the build leg reads the row's own stale
+    `datacube_filepath`, finds the old cube present, and dispatches nothing. Worse,
     the flatten stamp then records old paths the request-derived identity can never
     reproduce, so the top-level short-circuit is dead for that request forever.
 
@@ -762,7 +746,7 @@ def build_shortfall_only(
     `(n_present, n_missing, n_known_empty)`.
     """
     declaration = _collections.get(collection)
-    bands = [declaration.canonical_to_native(b) for b in bands]  # spec 58 D8
+    bands = [declaration.canonical_to_native(b) for b in bands]
     shapes_gdf = _load_shapes_gdf(shapefilepath)
     window_segment = window_folder_segment(
         startdate, enddate, mosaic_days, bands=bands, mosaic_scheme=mosaic_scheme,
@@ -796,9 +780,9 @@ def build_shortfall_only(
             existing_ids = set(existing_df[COL_ID].astype(str))
 
     # ONE presence sweep for the whole request, up front -- a listing where the backend
-    # allows it, concurrent+ticked checks otherwise. This used to be two separate serial
-    # walks (once in the loop below, once for the plan line), each four blob round-trips
-    # per cell: ~3600 sequential round-trips at 900 cells, silent, ~20 min over the WAN.
+    # allows it, concurrent+ticked checks otherwise. The loop below and the plan line share
+    # it: a separate serial walk for each would cost four blob round-trips per cell, twice,
+    # silently.
     cube_filepaths = {
         str(srow[id_col]): os.path.join(
             cube_export_folderpath(run_folderpath, window_segment, srow[id_col]),
@@ -974,11 +958,10 @@ def run_create_datacube(
     takes no extra kwargs, so it is ignored for `runner="local"`.
 
     `overwrite=True` forces every cube in `csv_filepath` to be rebuilt (clearing existing
-    artifacts first, `_force_rebuild`); `False` (default) skips
-    per-cell (`_build_shortfall`): a shortfall of 0 prints and returns WITHOUT submitting a
-    single job; a partial shortfall dispatches only the missing rows. No modification time
-    is read anywhere in this decision -- presence is `datacube.npy` +
-    `metadata.pickle.npy`, both non-empty.
+    artifacts first, `_force_rebuild`); `False` (default) skips per cell (`_build_shortfall`):
+    a shortfall of 0 prints and returns WITHOUT submitting a single job; a partial shortfall
+    dispatches only the missing rows. No modification time is read -- presence is
+    `datacube.npy` + `metadata.pickle.npy`, both non-empty.
 
     `overwrite_setup_csv=True` (default) delete-then-regenerates the whole `input.csv` every
     call. `False` -- what `create_training_data` passes -- runs `build_shortfall_only`
@@ -986,7 +969,7 @@ def run_create_datacube(
     catalog access) is missing and not already known-empty. Removing the flag entirely is
     blocked on #84.
     """
-    bands = [_collections.get(collection).canonical_to_native(b) for b in bands]  # spec 58 D8
+    bands = [_collections.get(collection).canonical_to_native(b) for b in bands]
     if overwrite_setup_csv:
         if fs.exists(csv_filepath):
             fs.rm(csv_filepath)

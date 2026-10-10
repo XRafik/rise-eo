@@ -4,8 +4,9 @@ Spec: specs/21-roi-inference-verb.md (P0.75).
 
 A superset of `fsd.workflows.task`: the *same* datacube build, plus a model-inference step
 that loads the bundle **once per task** and writes `output.tif` alongside the datacube. This is
-the **per-cell build+infer** work-unit an Azure Batch node dispatches unchanged at P4 — the
-reason inference goes through the runner seam rather than a separate process pool.
+the **per-cell build+infer** work-unit each Azure ML node runs unchanged (`runner="aml"`, through
+`fsd.workflows.infer_shard`) — the reason inference goes through the runner seam rather than a
+separate process pool.
 
 The model must be a **bundle** (it crosses a subprocess boundary); `run_inference(roi=…)`
 auto-saves a live adapter to one.
