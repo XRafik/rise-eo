@@ -66,6 +66,16 @@ def cog_creation_opts(
     return opts
 
 
+def _remove_quietly(path: str) -> None:
+    """Delete `path` if it exists, ignoring an `OSError`: this runs while another
+    exception is propagating, and must not replace it."""
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 def to_cog(
     src_path: str,
     dst_path: str,
@@ -111,11 +121,7 @@ def to_cog(
             rasterio.shutil.copy(src_path, tmp, **opts)  # GDAL picks format from driver=
             os.replace(tmp, dst_path)
         except BaseException:
-            if os.path.exists(tmp):
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
+            _remove_quietly(tmp)
             raise
         nbytes = os.path.getsize(dst_path)
     else:
@@ -195,11 +201,7 @@ def stamp_or_reencode(
             rasterio.shutil.copy(filepath, tmp, **cog_creation_opts(filepath))
             os.replace(tmp, filepath)
         finally:
-            if os.path.exists(tmp):
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
+            _remove_quietly(tmp)
         stamp_gdal_tags(
             filepath, offset=offset, scale=scale,
             set_nodata_if_missing=set_nodata_if_missing,

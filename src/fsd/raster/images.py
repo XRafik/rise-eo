@@ -354,16 +354,6 @@ def load_image(
         return None, None
 
 
-def _load_image_partial(src_filepath, shapes_gdf, nodata, all_touched, raise_error):
-    return load_image(
-        src_filepath=src_filepath,
-        shapes_gdf=shapes_gdf,
-        nodata=nodata,
-        all_touched=all_touched,
-        raise_error=raise_error,
-    )
-
-
 def load_images(
     src_filepaths: list[str],
     shapes_gdf=None,
@@ -375,7 +365,7 @@ def load_images(
 ):
     """Parallel load (+optional crop) -> ``list[(data, profile)]``."""
     func = functools.partial(
-        _load_image_partial,
+        load_image,
         shapes_gdf=shapes_gdf,
         nodata=nodata,
         all_touched=all_touched,

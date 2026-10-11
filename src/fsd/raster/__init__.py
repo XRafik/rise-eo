@@ -24,8 +24,8 @@ __all__ = ["rio_open", "rio_env"]
 # Source: gdal.org/en/stable/user/configoptions.html.
 #
 # ⚠️ EMPTY_DIR hides a sidecar that DOES exist. This applies to every remote raster open.
-# Both `rio_env` and `rio_open` spread `_REMOTE_OPEN_CONFIG` into their env_kwargs, and the
-# token/account assembly around it is written out in each, so change both.
+# Both `rio_env` and `rio_open` build their env through `_remote_env_kwargs`, which spreads
+# `_REMOTE_OPEN_CONFIG` in, so it holds for both.
 #
 # ⚠️ CPL_VSIL_CURL_ALLOWED_EXTENSIONS is a WHITELIST: a remote file whose extension is not
 # listed reads as NOT EXISTING. It must cover every extension fsd opens remotely (`.tif`
@@ -35,6 +35,15 @@ _REMOTE_OPEN_CONFIG = {
     "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
     "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.tiff,.jp2",
 }
+
+
+def _remote_env_kwargs(account: str | None) -> dict:
+    """The `rasterio.Env` options for a remote open: a fresh token, `_REMOTE_OPEN_CONFIG`,
+    and `AZURE_STORAGE_ACCOUNT` when the URL names one."""
+    env_kwargs = {"AZURE_STORAGE_ACCESS_TOKEN": storage_token(), **_REMOTE_OPEN_CONFIG}
+    if account is not None:
+        env_kwargs["AZURE_STORAGE_ACCOUNT"] = account
+    return env_kwargs
 
 
 def rio_env(paths):
@@ -66,10 +75,7 @@ def rio_env(paths):
             f"rio_env: cannot cover datasets on multiple storage accounts in one env: "
             f"{sorted(accounts)}. Open them under separate envs."
         )
-    env_kwargs = {"AZURE_STORAGE_ACCESS_TOKEN": storage_token(), **_REMOTE_OPEN_CONFIG}
-    if accounts:
-        env_kwargs["AZURE_STORAGE_ACCOUNT"] = accounts.pop()
-    return rasterio.Env(**env_kwargs)
+    return rasterio.Env(**_remote_env_kwargs(accounts.pop() if accounts else None))
 
 
 def rio_open(path: str, mode: str = "r", **kwargs):
@@ -93,11 +99,7 @@ def rio_open(path: str, mode: str = "r", **kwargs):
             f"(GDAL writes stay local): {path!r}"
         )
 
-    account = account_from_url(path)
-    env_kwargs = {"AZURE_STORAGE_ACCESS_TOKEN": storage_token(), **_REMOTE_OPEN_CONFIG}
-    if account is not None:
-        env_kwargs["AZURE_STORAGE_ACCOUNT"] = account
-    env = rasterio.Env(**env_kwargs)
+    env = rasterio.Env(**_remote_env_kwargs(account_from_url(path)))
     env.__enter__()
     try:
         src = rasterio.open(vsi, mode, **kwargs)

@@ -249,6 +249,24 @@ def _mask_spec_from_json(raw: dict | None) -> MaskSpec | None:
     return MaskSpec(**kwargs)
 
 
+def _identity(value):
+    return value
+
+
+# The fields `from_json` rehydrates; every other field is taken as written. `from_json`
+# walks `_DECLARATION_FIELDS` in order, so the order in which a bad field raises is fixed.
+_FIELD_FROM_JSON = {
+    "mask_spec": _mask_spec_from_json,
+    "radiometry_bands": lambda rb: tuple(rb) if rb is not None else None,
+    # Dict insertion order == JSON object key order (Python `dict`/`json` both
+    # preserve it), so this exactly inverts `to_json`'s `dict(decl.band_aliases)`
+    # without needing to sort -- a `CollectionDeclaration` compares equal to its own
+    # JSON round-trip.
+    "band_aliases": lambda aliases: tuple(aliases.items()),
+    "mosaic_partition": tuple,
+}
+
+
 def to_json(decl: CollectionDeclaration) -> dict:
     """`CollectionDeclaration` -> a plain JSON-able dict, field-for-field.
 
@@ -304,39 +322,11 @@ def from_json(raw: dict) -> CollectionDeclaration:
             f"{sorted(unknown)}; known fields are {_DECLARATION_FIELDS}."
         )
 
-    kwargs: dict = {}
-    if "reference_band" in raw:
-        kwargs["reference_band"] = raw["reference_band"]
-    if "native_grid" in raw:
-        kwargs["native_grid"] = raw["native_grid"]
-    if "mask_spec" in raw:
-        kwargs["mask_spec"] = _mask_spec_from_json(raw["mask_spec"])
-    if "mask_keep" in raw:
-        kwargs["mask_keep"] = raw["mask_keep"]
-    if "nodata" in raw:
-        kwargs["nodata"] = raw["nodata"]
-    if "mosaic_method" in raw:
-        kwargs["mosaic_method"] = raw["mosaic_method"]
-    if "scale" in raw:
-        kwargs["scale"] = raw["scale"]
-    if "radiometry_bands" in raw:
-        rb = raw["radiometry_bands"]
-        kwargs["radiometry_bands"] = tuple(rb) if rb is not None else None
-    if "band_aliases" in raw:
-        # Dict insertion order == JSON object key order (Python `dict`/`json` both
-        # preserve it), so this exactly inverts `to_json`'s `dict(decl.band_aliases)`
-        # without needing to sort -- a `CollectionDeclaration` compares equal to its own
-        # JSON round-trip.
-        kwargs["band_aliases"] = tuple(raw["band_aliases"].items())
-    if "requires_subscription_key" in raw:
-        kwargs["requires_subscription_key"] = raw["requires_subscription_key"]
-    if "supports_cloud_cover" in raw:
-        kwargs["supports_cloud_cover"] = raw["supports_cloud_cover"]
-    if "mosaic_partition" in raw:
-        kwargs["mosaic_partition"] = tuple(raw["mosaic_partition"])
-    if "partition_policy" in raw:
-        kwargs["partition_policy"] = raw["partition_policy"]
-    return CollectionDeclaration(**kwargs)
+    return CollectionDeclaration(**{
+        field: _FIELD_FROM_JSON.get(field, _identity)(raw[field])
+        for field in _DECLARATION_FIELDS
+        if field in raw
+    })
 
 
 def to_attrs(gdf, decl: CollectionDeclaration) -> None:

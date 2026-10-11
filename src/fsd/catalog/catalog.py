@@ -66,6 +66,28 @@ SPEC59_COLUMNS = ("acquisition_key", "processing_version", "processing_datetime"
 RESERVED_FILTER_COLUMNS = ("source", "processing_version")
 
 
+# Column defaults for a *fresh* `TileCatalog.append`, for a column the rows do not carry.
+#
+# offset/scale/nodata/properties are per-row declared values; a source that doesn't set one
+# (no radiometric-offset concept, or nodata already implicit) defaults rather than fail
+# column selection. This is an ergonomic default for a *fresh* append, not a legacy-catalog
+# shim (see `read()`, which does not backfill these).
+#
+# Spec 59 D8: the sources always supply `acquisition_key`, `processing_version`,
+# `processing_datetime` and `source`; a hand-built row (a test, an fsd-agnostic top-up) that
+# does not is its own acquisition (`acquisition_key` = its id, set in `append`) with no
+# version and no source -- the "any other" collection row of D3/D4.
+_APPEND_DEFAULTS = {
+    "offset": 0,
+    "scale": 1.0,
+    "nodata": 0,
+    "properties": "{}",
+    "processing_version": None,
+    "processing_datetime": pd.NaT,
+    "source": "",
+}
+
+
 def _union_files(*files_values: str) -> str:
     """Union comma-joined band-filename lists into one sorted, deduped string
     (also used for the comma-joined `source` set -- spec 59 D8)."""
@@ -227,30 +249,12 @@ class TileCatalog:
         new = gpd.GeoDataFrame(rows, crs=CRS)
         # Normalize timestamp to tz-aware UTC for a stable on-disk dtype.
         new["timestamp"] = pd.to_datetime(new["timestamp"], utc=True)
-        # offset/scale/nodata/properties are per-row declared values; a source that
-        # doesn't set one (no radiometric-offset concept, or nodata already
-        # implicit) defaults rather than fail column selection below. This is
-        # an ergonomic default for a *fresh* append, not a legacy-catalog shim
-        # (see `read()`, which does not backfill these).
-        if "offset" not in new.columns:
-            new["offset"] = 0
-        if "scale" not in new.columns:
-            new["scale"] = 1.0
-        if "nodata" not in new.columns:
-            new["nodata"] = 0
-        if "properties" not in new.columns:
-            new["properties"] = "{}"
-        # Spec 59 D8. The sources always supply these; a hand-built row (a test, an
-        # fsd-agnostic top-up) that does not is its own acquisition with no version and
-        # no source -- the "any other" collection row of D3/D4.
+        for column, default in _APPEND_DEFAULTS.items():
+            if column not in new.columns:
+                new[column] = default
+        # Spec 59 D8: a hand-built row with no `acquisition_key` is its own acquisition.
         if "acquisition_key" not in new.columns:
             new["acquisition_key"] = new["id"]
-        if "processing_version" not in new.columns:
-            new["processing_version"] = None
-        if "processing_datetime" not in new.columns:
-            new["processing_datetime"] = pd.NaT
-        if "source" not in new.columns:
-            new["source"] = ""
         new["processing_datetime"] = pd.to_datetime(new["processing_datetime"], utc=True)
 
         if fs.exists(self.filepath):

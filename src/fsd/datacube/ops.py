@@ -163,11 +163,9 @@ def _is_sorted(seq) -> bool:
     return all(seq[i] <= seq[i + 1] for i in range(len(seq) - 1))
 
 
-def _get_mosaic_ts_index_ranges(timestamps, startdate, enddate, mosaic_days=20):
-    """Map sorted `timestamps` to (start_idx, end_idx) ranges over `mosaic_days`
-    windows anchored at `startdate`. Faithful legacy port, including its quirk that a
-    gap opens a new interval (advancing one bucket), so ranges track occupied buckets
-    rather than every fixed window."""
+def _checked_bounds(timestamps, startdate, enddate):
+    """`(startdate, enddate)` as tz-aware `pd.Timestamp`s, after checking that `timestamps`
+    is sorted and lies within them."""
     startdate = _dt2ts(startdate)
     enddate = _dt2ts(enddate)
 
@@ -177,13 +175,28 @@ def _get_mosaic_ts_index_ranges(timestamps, startdate, enddate, mosaic_days=20):
         raise ValueError("startdate must be before or on the first timestamp")
     if enddate < timestamps[-1]:
         raise ValueError("enddate must be after or on the last timestamp")
+    return startdate, enddate
 
-    mosaic_buckets = []
-    cur_date = startdate
-    while cur_date < enddate:
-        next_date = cur_date + datetime.timedelta(days=mosaic_days)
-        mosaic_buckets.append((cur_date, next_date))
-        cur_date = next_date
+
+def _fixed_windows(startdate, enddate, mosaic_days):
+    """The `(lo, hi)` pairs of `mosaic_days`-long windows tiling `[startdate, enddate)`;
+    the last one may run past `enddate`."""
+    windows = []
+    lo = startdate
+    while lo < enddate:
+        windows.append((lo, lo + datetime.timedelta(days=mosaic_days)))
+        lo = windows[-1][1]
+    return windows
+
+
+def _get_mosaic_ts_index_ranges(timestamps, startdate, enddate, mosaic_days=20):
+    """Map sorted `timestamps` to (start_idx, end_idx) ranges over `mosaic_days`
+    windows anchored at `startdate`. Faithful legacy port, including its quirk that a
+    gap opens a new interval (advancing one bucket), so ranges track occupied buckets
+    rather than every fixed window."""
+    startdate, enddate = _checked_bounds(timestamps, startdate, enddate)
+
+    mosaic_buckets = _fixed_windows(startdate, enddate, mosaic_days)
 
     cur = 0
     ts_indexes = [[]]
@@ -210,21 +223,9 @@ def _calendar_windows(timestamps, startdate, enddate, mosaic_days=20):
     window; the final window is upper-inclusive so a timestamp exactly at `enddate`
     (allowed by the guard) is not dropped. Data-independent: the labels/count depend
     only on `(startdate, enddate, mosaic_days)`."""
-    startdate = _dt2ts(startdate)
-    enddate = _dt2ts(enddate)
+    startdate, enddate = _checked_bounds(timestamps, startdate, enddate)
 
-    if not _is_sorted(timestamps):
-        raise ValueError("timestamps is not sorted.")
-    if startdate > timestamps[0]:
-        raise ValueError("startdate must be before or on the first timestamp")
-    if enddate < timestamps[-1]:
-        raise ValueError("enddate must be after or on the last timestamp")
-
-    windows = []
-    lo = startdate
-    while lo < enddate:
-        windows.append((lo, lo + datetime.timedelta(days=mosaic_days)))
-        lo = windows[-1][1]
+    windows = _fixed_windows(startdate, enddate, mosaic_days)
 
     labels, intervals = [], []
     for k, (lo, hi) in enumerate(windows):

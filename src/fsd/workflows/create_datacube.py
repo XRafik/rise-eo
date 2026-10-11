@@ -34,6 +34,7 @@ from fsd.catalog.catalog import (
     properties_filter_values,
 )
 from fsd.catalog.declaration import CollectionDeclaration
+from fsd.datacube.files import CUBE_METADATA_NAME, CUBE_NAME
 from fsd.storage import fs
 from fsd.workflows import runners
 
@@ -352,7 +353,7 @@ def setup(
             "enddate": enddate,
             "catalog_filepath": catalog_path,
             "export_folderpath": export_folderpath,
-            "datacube_filepath": os.path.join(export_folderpath, "datacube.npy"),
+            "datacube_filepath": os.path.join(export_folderpath, CUBE_NAME),
             "images_count": int(subset.shape[0]),
             "declaration_filepath": declaration_filepath,
             COL_ID: srow[id_col],
@@ -474,14 +475,14 @@ def _cube_present(datacube_filepath: str) -> bool:
     catalogued as complete (#74) -- do not reintroduce it by checking one file, or by
     checking existence without size.
     """
-    metadata_filepath = os.path.join(os.path.dirname(datacube_filepath), "metadata.pickle.npy")
+    metadata_filepath = os.path.join(os.path.dirname(datacube_filepath), CUBE_METADATA_NAME)
     for filepath in (datacube_filepath, metadata_filepath):
         if not fs.exists(filepath) or fs.size(filepath) == 0:
             return False
     return True
 
 
-_CUBE_FILES = ("datacube.npy", "metadata.pickle.npy")
+_CUBE_FILES = (CUBE_NAME, CUBE_METADATA_NAME)
 
 
 def _present_cube_ids_at(window_folderpath: str) -> set[str] | None:
@@ -622,7 +623,7 @@ def _row_matches_path(row, *, run_folderpath: str, window_segment: str) -> bool:
         return False
     expected = cube_export_folderpath(run_folderpath, window_segment, row[COL_ID])
     for col, want in (("export_folderpath", expected),
-                      ("datacube_filepath", os.path.join(expected, "datacube.npy"))):
+                      ("datacube_filepath", os.path.join(expected, CUBE_NAME))):
         if col not in row.index or pd.isna(row[col]):
             return False
         if str(row[col]) != want:
@@ -768,7 +769,7 @@ def build_shortfall_only(
     cube_filepaths = {
         str(srow[id_col]): os.path.join(
             cube_export_folderpath(run_folderpath, window_segment, srow[id_col]),
-            "datacube.npy",
+            CUBE_NAME,
         )
         for _, srow in shapes_gdf.iterrows()
     }
@@ -902,7 +903,9 @@ def _force_rebuild(csv_filepath: str) -> None:
     with fs.open(csv_filepath, "r") as f:
         df = pd.read_csv(f)
     for datacube_filepath in df["datacube_filepath"]:
-        metadata_filepath = os.path.join(os.path.dirname(datacube_filepath), "metadata.pickle.npy")
+        metadata_filepath = os.path.join(
+            os.path.dirname(datacube_filepath), CUBE_METADATA_NAME
+        )
         for filepath in (datacube_filepath, metadata_filepath):
             if fs.exists(filepath):
                 fs.rm(filepath)
