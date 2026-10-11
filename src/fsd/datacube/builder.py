@@ -22,7 +22,6 @@ import time
 import uuid
 import warnings
 from collections.abc import Mapping, Sequence
-from contextlib import contextmanager
 
 import geopandas as gpd
 import numpy as np
@@ -38,23 +37,15 @@ from fsd.catalog.declaration import (
     S2_L2A_DECLARATION,
     CollectionDeclaration,
 )
-from fsd.datacube import ops
+from fsd.datacube import _instrument, ops
 from fsd.raster import images
 from fsd.raster.images import apply_offset
 from fsd.storage import fs
 
 _RASTER_EXTS = (".jp2", ".tif", ".tiff")
 _VALID_IF_MISSING = ("raise_error", "warn", None)
-TIMINGS_FILENAME = "timings.json"
-READ_LOG_FILENAME = "reads.jsonl"
-
-
-@contextmanager
-def _timed(store: dict, name: str):
-    """Record wall-seconds for a build phase into `store` -- the benchmark seam."""
-    t0 = time.perf_counter()
-    yield
-    store[name] = round(time.perf_counter() - t0, 4)
+TIMINGS_FILENAME = _instrument.TIMINGS_FILENAME
+READ_LOG_FILENAME = _instrument.READ_LOG_FILENAME
 
 
 # --- declaration resolution ---------------------------------------------------
@@ -403,7 +394,7 @@ def build_datacube(
     timings: dict[str, float] = {}
     t_all = time.perf_counter()
 
-    with _timed(timings, "missing_check"):
+    with _instrument.timed(timings, "missing_check"):
         _missing_files_action(
             catalog_gdf=catalog_subset, shape_gdf=shape_gdf, startdate=startdate,
             enddate=enddate, bands=bands, if_missing_files=if_missing_files,
@@ -413,7 +404,7 @@ def build_datacube(
     # Load + crop each (granule, band) to the shape; adds crs/image_index, drops
     # unreadable rows. Raster pixel reads use rasterio directly -- the documented seam
     # exception. This is the read phase the benchmarks scrutinise.
-    with _timed(timings, "load_images"):
+    with _instrument.timed(timings, "load_images"):
         catalog_gdf, data_profile_list, reads = _load_images(
             catalog_gdf=catalog_subset, shape_gdf=shape_gdf, nodata=nodata,
             njobs=njobs_load_images, write_read_log=write_read_log,
@@ -429,7 +420,7 @@ def build_datacube(
         _apply_offsets(catalog_gdf, data_profile_list)
 
     # Collapse into a single UTM zone so rasterio.merge (single-CRS) can run.
-    with _timed(timings, "dst_crs"):
+    with _instrument.timed(timings, "dst_crs"):
         dst_crs = _get_dst_crs(catalog_gdf)
 
     # Reference grid = the merged reference-band (B08, 10 m) profile. Everything is
@@ -442,7 +433,7 @@ def build_datacube(
     # zero images. Since every band is already grid-uniform for these collections,
     # `_get_indices_to_resample` naturally finds nothing to resample against whichever
     # band is picked here -- no separate "skip resample" branch is needed.
-    with _timed(timings, "reference_profile"):
+    with _instrument.timed(timings, "reference_profile"):
         reference_grid_band = reference_band if reference_band is not None else bands[0]
         ref_indices = catalog_gdf.loc[catalog_gdf["band"] == reference_grid_band, "image_index"]
         reference_profile = _get_merged_profile(
@@ -450,7 +441,7 @@ def build_datacube(
             nodata=nodata, njobs=njobs,
         )
 
-    with _timed(timings, "resample"):
+    with _instrument.timed(timings, "resample"):
         resample_indices = _get_indices_to_resample(
             indices=catalog_gdf["image_index"], data_profile_list=data_profile_list,
             reference_profile=reference_profile,
@@ -460,13 +451,13 @@ def build_datacube(
             reference_profile=reference_profile, njobs=njobs,
         )
 
-    with _timed(timings, "stack"):
+    with _instrument.timed(timings, "stack"):
         datacube, metadata = _stack_datacube(
             catalog_gdf=catalog_gdf, data_profile_list=data_profile_list, bands=bands,
             reference_profile=reference_profile, shape_gdf=shape_gdf, nodata=nodata,
         )
 
-    with _timed(timings, "ops"):
+    with _instrument.timed(timings, "ops"):
         # Declaration-driven op-sequence assembly — replaces the
         # hardcoded S2 chain. `mask_active` (resolved above from the declaration +
         # the requested `bands`) decides whether the mask/drop pair runs at all; a
@@ -495,7 +486,7 @@ def build_datacube(
         # compared (#101) and a stale cube diagnosed.
         metadata["provenance"] = _cube_provenance(catalog_subset)
 
-    with _timed(timings, "save"):
+    with _instrument.timed(timings, "save"):
         fs.makedirs(export_folderpath)
         # Metadata is a dict (geometry, per-timestamp mapping, dim names) — things that
         # don't fit in the numpy array. It's pickled via np.save (allow_pickle) rather
@@ -513,9 +504,9 @@ def build_datacube(
         _save_npy_atomic(os.path.join(export_folderpath, "datacube.npy"), datacube)
 
     if reads is not None:
-        _write_read_log(export_folderpath, reads)
+        _instrument.write_read_log_sidecar(export_folderpath, reads)
     if write_timings:
-        _write_timings_sidecar(
+        _instrument.write_timings_sidecar(
             export_folderpath, timings, round(time.perf_counter() - t_all, 4),
             shape_gdf=shape_gdf, catalog_subset=catalog_subset, catalog_gdf=catalog_gdf,
             n_resampled=len(resample_indices), datacube=datacube, metadata=metadata,
@@ -543,46 +534,6 @@ def _save_npy_atomic(path: str, arr, allow_pickle: bool = False) -> None:
     tmp = f"{path}.tmp-{uuid.uuid4().hex}"
     fs.save_npy(tmp, arr, allow_pickle=allow_pickle)
     fs.rename(tmp, path)
-
-
-def _write_timings_sidecar(export_folderpath, timings, total_seconds, *, shape_gdf,
-                           catalog_subset, catalog_gdf, n_resampled, datacube, metadata,
-                           dst_crs):
-    """Dump per-phase timings + a few sizing counts as `timings.json`."""
-    payload = {
-        "id": (str(shape_gdf["id"].iloc[0]) if "id" in shape_gdf.columns else None),
-        "total_seconds": total_seconds,
-        "phase_seconds": timings,
-        "n_band_rows": int(len(catalog_subset)),
-        "n_images_loaded": int(len(catalog_gdf)),
-        "n_images_resampled": int(n_resampled),
-        "n_mosaic_timestamps": int(len(metadata["timestamps"])),
-        "datacube_shape": list(datacube.shape),
-        "dst_crs": str(dst_crs),
-    }
-    with fs.open(os.path.join(export_folderpath, TIMINGS_FILENAME), "w") as f:
-        json.dump(payload, f, indent=2)
-
-
-def _write_read_log(export_folderpath, reads):
-    """Dump one JSON row per windowed read as `reads.jsonl`."""
-    fs.makedirs(export_folderpath)
-    with fs.open(os.path.join(export_folderpath, READ_LOG_FILENAME), "w") as f:
-        for r in reads:
-            f.write(json.dumps(r) + "\n")
-
-
-def _mgrs_tile(product_id, filepath) -> str | None:
-    """Parse the MGRS tile (`..._T36NXF_...`) from the product id or the parent
-    folder name. Returns None if neither carries the `_T<MGRS tile>` marker (e.g. the
-    synthetic granules in tests) — the same-file key is `filepath`, not this."""
-    for s in (product_id, os.path.basename(os.path.dirname(filepath))):
-        s = str(s)
-        if "_T" in s:
-            cand = s.split("_T", 1)[1][:5]
-            if len(cand) == 5:
-                return cand
-    return None
 
 
 # --- missing-files check -----------------------------------------------------
@@ -681,7 +632,7 @@ def _load_images(catalog_gdf, shape_gdf, nodata, njobs=1, write_read_log=False):
             RuntimeWarning, stacklevel=2,
         )
     if write_read_log and njobs == 1:
-        data_profile_list, reads = _load_images_logged(
+        data_profile_list, reads = _instrument.load_images_logged(
             filepaths=filepaths, shape_gdf=shape_gdf, nodata=nodata,
             product_ids=catalog_gdf["id"].tolist(), bands=catalog_gdf["band"].tolist(),
         )
@@ -715,32 +666,6 @@ def _apply_offsets(catalog_gdf, data_profile_list) -> None:
         offset = int(offset) if offset else 0
         if offset:
             data_profile_list[idx] = apply_offset(*data_profile_list[idx], offset=offset)
-
-
-def _load_images_logged(filepaths, shape_gdf, nodata, product_ids, bands):
-    """Serial load+crop, timing each windowed read with wall-clock `time.time()`
-    (comparable across processes). Returns (data_profile_list, reads)."""
-    grid_id = (str(shape_gdf["id"].iloc[0]) if "id" in shape_gdf.columns else None)
-    data_profile_list, reads = [], []
-    for fp, pid, band in zip(filepaths, product_ids, bands):
-        t0 = time.time()
-        dp = images.load_image(
-            src_filepath=fp, shapes_gdf=shape_gdf, nodata=nodata,
-            all_touched=True, raise_error=False,
-        )
-        t1 = time.time()
-        data_profile_list.append(dp)
-        reads.append({
-            "id": grid_id,
-            "mgrs_tile": _mgrs_tile(pid, fp),
-            "product_id": str(pid),
-            "band": str(band),
-            "filepath": fp,
-            "start": round(t0, 6),
-            "end": round(t1, 6),
-            "duration": round(t1 - t0, 6),
-        })
-    return data_profile_list, reads
 
 
 def _get_dst_crs(catalog_gdf) -> CRS:

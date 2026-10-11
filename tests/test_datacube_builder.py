@@ -2,7 +2,9 @@
 
 import dataclasses
 import datetime
+import inspect
 import json
+import os
 
 import geopandas as gpd
 import numpy as np
@@ -619,3 +621,139 @@ def test_build_datacube_uses_declared_reference_band_without_kwarg(tmp_path):
     assert dc_20m.shape[1:3] == (2, 2)   # declared B08 (20 m) drove the grid
     assert dc_10m.shape[1:3] == (4, 4)   # declared B04 (10 m) drove the grid
     assert dc_20m.shape[1:3] != dc_10m.shape[1:3]  # the declaration is load-bearing
+
+
+# --- instrumentation pins (#145 P12a): the sidecars' exact outputs -----------------
+
+_INSTRUMENT_KW = dict(
+    startdate=datetime.datetime(2018, 5, 31), enddate=datetime.datetime(2018, 7, 2),
+    bands=["B04", "B08", "SCL"], mosaic_days=20, if_missing_files=None,
+)
+
+
+def _build_instrumented(tmp_path, catalog, shape, name="out", **flags):
+    out = tmp_path / name
+    builder.build_datacube(
+        catalog_subset=catalog, shape_gdf=shape, export_folderpath=str(out),
+        **_INSTRUMENT_KW, **flags,
+    )
+    return out
+
+
+def _read_log_rows(out):
+    text = (out / builder.READ_LOG_FILENAME).read_text()
+    return [json.loads(ln) for ln in text.splitlines()]
+
+
+@pytest.mark.parametrize("grid_id", [None, "grid_007"])
+def test_timings_sidecar_payload_keys_values_and_layout(tmp_path, grid_id):
+    catalog, shape = _make_catalog(tmp_path)
+    if grid_id is not None:
+        shape = shape.copy()
+        shape["id"] = grid_id
+    out = _build_instrumented(tmp_path, catalog, shape, write_timings=True)
+    text = (out / builder.TIMINGS_FILENAME).read_text()
+    payload = json.loads(text)
+    assert text == json.dumps(payload, indent=2)
+    assert list(payload) == [
+        "id", "total_seconds", "phase_seconds", "n_band_rows", "n_images_loaded",
+        "n_images_resampled", "n_mosaic_timestamps", "datacube_shape", "dst_crs"]
+    assert list(payload["phase_seconds"]) == [
+        "missing_check", "load_images", "dst_crs", "reference_profile", "resample", "stack",
+        "ops", "save"]
+    assert payload["id"] == grid_id
+    assert payload["n_band_rows"] == 6
+    assert payload["n_images_loaded"] == 6
+    assert payload["n_images_resampled"] == 0
+    assert payload["n_mosaic_timestamps"] == 2
+    assert payload["datacube_shape"] == [2, 4, 4, 2]
+    assert payload["dst_crs"] == "EPSG:32633"
+
+
+def test_read_log_rows_order_keys_values_and_layout(tmp_path):
+    catalog, shape = _make_catalog(tmp_path)
+    shape = shape.copy()
+    shape["id"] = "grid_007"
+    out = _build_instrumented(tmp_path, catalog, shape, write_read_log=True)
+    text = (out / builder.READ_LOG_FILENAME).read_text()
+    assert text.endswith("\n")
+    lines = text.splitlines()
+    assert len(lines) == 6
+    rows = [json.loads(ln) for ln in lines]
+    for row, ln in zip(rows, lines):
+        assert list(row) == ["id", "mgrs_tile", "product_id", "band", "filepath", "start",
+                             "end", "duration"]
+        assert ln == json.dumps(row)
+    assert [(r["id"], r["mgrs_tile"], r["product_id"], r["band"]) for r in rows] == [
+        ("grid_007", None, pid, band)
+        for pid in ("tile_t1", "tile_t2") for band in ("B04", "B08", "SCL")]
+    assert [r["filepath"] for r in rows] == [
+        str(tmp_path / f"{tag}_{band}.tif")
+        for tag in ("t1", "t2") for band in ("B04", "B08", "SCL")]
+
+
+def test_read_log_mgrs_tile_from_the_product_id(tmp_path):
+    catalog, shape = _make_catalog(tmp_path)
+    catalog["id"] = catalog["id"].map({
+        "tile_t1": "S2A_MSIL2A_20180406T100031_R122_T33UVP_20201012T185711",
+        "tile_t2": "S2A_MSIL2A_20180506T100031_R122_T33UVP_20201012T185712"})
+    out = _build_instrumented(tmp_path, catalog, shape, write_read_log=True)
+    assert [r["mgrs_tile"] for r in _read_log_rows(out)] == ["33UVP"] * 6
+
+
+def test_read_log_mgrs_tile_from_the_folder_name(tmp_path):
+    catalog, shape = _make_catalog(tmp_path)
+    folder = tmp_path / "X_T33UWP_Y"
+    folder.mkdir()
+    new_paths = []
+    for p in catalog["filepath"]:
+        moved = folder / os.path.basename(p)
+        os.rename(p, moved)
+        new_paths.append(str(moved))
+    catalog["filepath"] = new_paths
+    out = _build_instrumented(tmp_path, catalog, shape, write_read_log=True)
+    assert [r["mgrs_tile"] for r in _read_log_rows(out)] == ["33UWP"] * 6
+
+
+def test_read_log_with_parallel_load_warns_once_at_the_build_call(tmp_path):
+    catalog, shape = _make_catalog(tmp_path)
+    with pytest.warns(RuntimeWarning) as record:
+        out = _build_instrumented(
+            tmp_path, catalog, shape, write_read_log=True, njobs_load_images=2)
+    # Only the builder's own warnings: rasterio adds others on some platforms (CI's Linux).
+    ours = [w for w in record if w.filename == builder.__file__]
+    assert len(ours) == 1
+    assert ours[0].category is RuntimeWarning
+    assert str(ours[0].message) == (
+        "write_read_log requires njobs_load_images == 1; skipping read log.")
+    # stacklevel=2: the warning points at build_datacube's `_load_images(` call.
+    call = "catalog_gdf, data_profile_list, reads = _load_images("
+    source = inspect.getsource(builder).splitlines()
+    assert [i + 1 for i, line in enumerate(source) if call in line] == [ours[0].lineno]
+    assert not (out / builder.READ_LOG_FILENAME).exists()
+
+
+def test_both_flags_off_writes_only_the_cube_and_its_metadata(tmp_path):
+    catalog, shape = _make_catalog(tmp_path)
+    out = _build_instrumented(tmp_path, catalog, shape)
+    assert sorted(p.name for p in out.iterdir()) == ["datacube.npy", "metadata.pickle.npy"]
+
+
+def test_both_flags_on_leave_the_cube_and_metadata_unchanged(tmp_path):
+    catalog, shape = _make_catalog(tmp_path)
+    off = _build_instrumented(tmp_path, catalog, shape, name="off")
+    on = _build_instrumented(
+        tmp_path, catalog, shape, name="on", write_timings=True, write_read_log=True)
+    assert np.array_equal(fs.load_npy(str(off / "datacube.npy")),
+                          fs.load_npy(str(on / "datacube.npy")))
+    md_off = fs.load_npy(str(off / "metadata.pickle.npy"), allow_pickle=True)[()]
+    md_on = fs.load_npy(str(on / "metadata.pickle.npy"), allow_pickle=True)[()]
+    assert md_off.keys() == md_on.keys()
+    for key in md_off:
+        a, b = md_off[key], md_on[key]
+        if isinstance(a, np.ndarray):
+            assert np.array_equal(a, b), key
+        elif hasattr(a, "equals"):
+            assert a.equals(b), key
+        else:
+            assert a == b, key

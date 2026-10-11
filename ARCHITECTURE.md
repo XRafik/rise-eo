@@ -77,7 +77,7 @@ where they are; the location is an argument, optionally defaulted from user conf
 | `fsd/api.py` | **the public verbs** — `download`, `create_training_data`, `flatten_training_data`, `run_inference`, `verify_adapter`, `deploy`. Preflight lives here: fail cheap, before any spend. |
 | `fsd/sources/` | `cdse.py`, `mpc.py` — discover + fetch granules. `_s2_radiometry.py` derives offset/scale from the processing baseline. `download_cli.py` is the safe shell runner. |
 | `fsd/catalog/` | `catalog.py` = `TileCatalog`, the GeoParquet query format. `stac.py` = an **additive export view**; `stac_geoparquet.py` exports it in the form pgSTAC loads. `declaration.py` carries radiometry through. `inspect_cli.py` / `restamp_cli.py` are operator tools. |
-| `fsd/datacube/` | `builder.py` merges granules into one cube per geometry; `ops.py` array transforms; `flatten.py` the reduce into training arrays. |
+| `fsd/datacube/` | `builder.py` merges granules into one cube per geometry; `_instrument.py` the opt-in timing sidecars; `ops.py` array transforms; `flatten.py` the reduce into training arrays. |
 | `fsd/bands/` | band math on the 5-D contract. |
 | `fsd/raster/` | rasterio primitives: `cog.py` (COG conversion, remote-dst branch), `images.py`. **The home of the GDAL/VSI exception to invariant 1** — the mosaic path in `api.py` and the COG writer in `model/engine.py` also open rasters directly, and are the only other places that may. |
 | `fsd/grid.py` | `roi_to_s2_grids` — an ROI becomes S2 grid cells, one cell = one work unit. |
