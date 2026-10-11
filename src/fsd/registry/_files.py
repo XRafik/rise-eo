@@ -1,6 +1,7 @@
 """File-level helpers shared by `fsd.model.registry` and `fsd.registry._core`: the
-staged JSON write, the best-effort discard of a staging leftover, and the content digest.
-Stdlib and `fsd.storage.fs` only, so either registry can import it without a cycle.
+staged JSON write, the best-effort discard of a staging leftover, and the content digest
+(also used by `fsd.image.digest`). Stdlib and `fsd.storage.fs` only, so any of them can
+import it without a cycle.
 """
 
 from __future__ import annotations
