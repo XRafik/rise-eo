@@ -32,15 +32,15 @@ Spec: specs/51-deploy-model-registry.md, specs/52-registry-on-blob.md
 
 from __future__ import annotations
 
-import contextlib
-import hashlib
 import json
 import os
 import re
-import uuid
 from typing import NamedTuple
 
 from fsd.model import bundle as bundle_mod
+from fsd.registry._files import STAGING_PREFIX, write_json_staged
+from fsd.registry._files import digest_files as _digest_of
+from fsd.registry._files import discard as _discard
 from fsd.storage import fs
 
 __all__ = [
@@ -60,7 +60,7 @@ __all__ = [
 ALIASES_FILE = "_aliases.json"
 DEPLOY_FILE = "_deploy.json"
 _COMPLETE_FILE = "_complete.json"
-_STAGING_PREFIX = ".staging-"
+_STAGING_PREFIX = STAGING_PREFIX
 _MAX_PUBLISH_ATTEMPTS = 16
 
 _REF_RE = re.compile(r"^(?P<name>[^:@]+)(?P<sep>[:@])(?P<value>.+)$")
@@ -197,13 +197,7 @@ def set_alias(
     except FileNotFoundError:
         aliases = {}
     aliases[alias] = version
-    stage = os.path.join(name_root, f"{_STAGING_PREFIX}{uuid.uuid4().hex}.json")
-    try:
-        fs.write_text(stage, json.dumps(aliases, indent=2, sort_keys=True), **opts)
-        fs.rename(stage, path, **opts)
-    except BaseException:
-        _discard(stage, opts)
-        raise
+    write_json_staged(name_root, ALIASES_FILE, aliases, opts)
 
 
 # --- content digest ------------------------------------------------------------
@@ -236,15 +230,6 @@ def _read_bundle_content(base_path: str, storage_options: dict | None) -> list[t
 def _read_bytes(path: str, storage_options: dict) -> bytes:
     with fs.open(path, "rb", **storage_options) as f:
         return f.read()
-
-
-def _digest_of(files: list[tuple[str, bytes]]) -> str:
-    h = hashlib.sha256()
-    for rel, data in sorted(files, key=lambda item: item[0]):
-        h.update(rel.encode("utf-8"))
-        h.update(b"\x00")
-        h.update(data)
-    return f"sha256:{h.hexdigest()}"
 
 
 def content_digest(bundle_path: str, *, storage_options: dict | None = None) -> str:
@@ -303,14 +288,7 @@ def write_deploy_record(
     vpath = version_path(registry, name, version)
     if not fs.exists(vpath, **opts):
         raise ValueError(f"cannot write deploy record: {vpath!r} does not exist")
-    stage = os.path.join(vpath, f"{_STAGING_PREFIX}{uuid.uuid4().hex}.json")
-    target = os.path.join(vpath, DEPLOY_FILE)
-    try:
-        fs.write_text(stage, json.dumps(record, indent=2, sort_keys=True), **opts)
-        fs.rename(stage, target, **opts)
-    except BaseException:
-        _discard(stage, opts)
-        raise
+    write_json_staged(vpath, DEPLOY_FILE, record, opts)
 
 
 # --- publish --------------------------------------------------------------------
@@ -356,14 +334,6 @@ def _list_versions(name_root: str, storage_options: dict) -> list[int]:
         if m and _is_version_complete(os.path.join(name_root, leaf), storage_options):
             versions.append(int(m.group(1)))
     return sorted(versions)
-
-
-def _discard(path: str, storage_options: dict) -> None:
-    """Best-effort removal of an abandoned staging tree. A leftover is harmless -- it is
-    never visible as a version (`_list_versions` matches `v<N>` only) -- so a failure to
-    clean up must not mask the error that caused it."""
-    with contextlib.suppress(Exception):
-        fs.rm(path, recursive=True, **storage_options)
 
 
 def _holds_content(path: str, digest: str, storage_options: dict) -> bool:
