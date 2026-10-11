@@ -38,6 +38,7 @@ from fsd.catalog.declaration import (
     CollectionDeclaration,
 )
 from fsd.datacube import _instrument, ops
+from fsd.datacube.files import CUBE_METADATA_NAME, CUBE_NAME
 from fsd.raster import images
 from fsd.raster.images import apply_offset
 from fsd.storage import fs
@@ -499,9 +500,9 @@ def build_datacube(
         # signal (workflows.task.run_task), so by the time it appears the metadata it
         # depends on is already durable. Swap the order and a resume can find a cube whose
         # metadata is missing.
-        _save_npy_atomic(os.path.join(export_folderpath, "metadata.pickle.npy"),
+        _save_npy_atomic(os.path.join(export_folderpath, CUBE_METADATA_NAME),
                           metadata, allow_pickle=True)
-        _save_npy_atomic(os.path.join(export_folderpath, "datacube.npy"), datacube)
+        _save_npy_atomic(os.path.join(export_folderpath, CUBE_NAME), datacube)
 
     if reads is not None:
         _instrument.write_read_log_sidecar(export_folderpath, reads)

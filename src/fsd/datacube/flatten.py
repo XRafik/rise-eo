@@ -23,9 +23,8 @@ import rasterio.warp
 
 from fsd import config
 from fsd.catalog import processing as processing_module
+from fsd.datacube.files import CUBE_METADATA_NAME, TRAINING_METADATA_NAME
 from fsd.storage import fs
-
-_METADATA_NAME = "metadata.pickle.npy"
 
 
 def flatten(
@@ -45,7 +44,7 @@ def flatten(
     `timestamps` (raises otherwise).
     """
     metadata_filepaths = [
-        os.path.join(os.path.dirname(fp), _METADATA_NAME)
+        os.path.join(os.path.dirname(fp), CUBE_METADATA_NAME)
         for fp in filepaths_df[filepath_col]
     ]
     common_metadata = _check_metadata_consistency(metadata_filepaths)
@@ -75,7 +74,7 @@ def flatten(
     fs.save_npy(os.path.join(export_folderpath, "data.npy"), data)
     fs.save_npy(os.path.join(export_folderpath, "coords.npy"), coords)
     fs.save_npy(os.path.join(export_folderpath, "ids.npy"), np.array(id_list))
-    fs.save_npy(os.path.join(export_folderpath, _METADATA_NAME),
+    fs.save_npy(os.path.join(export_folderpath, TRAINING_METADATA_NAME),
                 common_metadata, allow_pickle=True)
     if label_col is not None:
         fs.save_npy(os.path.join(export_folderpath, "labels.npy"),
@@ -114,7 +113,7 @@ def _read_datacube_2d(filepath: str, nodata: int = 0):
     h_idx, w_idx = np.where((datacube == nodata).sum(axis=(0, 3)) < nt * nb)
     data_2d = datacube[:, h_idx, w_idx, :].swapaxes(0, 1)  # (pixels, t, b)
 
-    metadata = fs.load_npy(os.path.join(os.path.dirname(filepath), _METADATA_NAME),
+    metadata = fs.load_npy(os.path.join(os.path.dirname(filepath), CUBE_METADATA_NAME),
                            allow_pickle=True)[()]
     gt = metadata["geotiff_metadata"]
     en = _easting_northing_array(width=gt["width"], height=gt["height"],

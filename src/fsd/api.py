@@ -39,6 +39,7 @@ from fsd.catalog import stac as _stac
 from fsd.catalog.catalog import TileCatalog
 from fsd.catalog.catalog import filter_gdf as _filter_gdf
 from fsd.datacube import flatten as _flatten
+from fsd.datacube.files import CUBE_METADATA_NAME, CUBE_NAME, TRAINING_METADATA_NAME
 from fsd.model import bundle as _bundle
 from fsd.model import engine as _engine
 from fsd.model import registry as registry_mod
@@ -379,7 +380,7 @@ class TrainingData:
             "ids": fs.load_npy(os.path.join(self.export_folderpath, "ids.npy")),
             "coords": fs.load_npy(os.path.join(self.export_folderpath, "coords.npy")),
             "metadata": fs.load_npy(
-                os.path.join(self.export_folderpath, "metadata.pickle.npy"), allow_pickle=True
+                os.path.join(self.export_folderpath, TRAINING_METADATA_NAME), allow_pickle=True
             )[()],
         }
         labels_path = os.path.join(self.export_folderpath, "labels.npy")
@@ -952,7 +953,7 @@ def _flatten_identity_from_request(
     cubes = sorted(
         [id_value, os.path.join(
             _create_datacube.cube_export_folderpath(run_folderpath, window_segment, id_value),
-            "datacube.npy",
+            CUBE_NAME,
         )]
         for id_value in ids
     )
@@ -1000,7 +1001,7 @@ def _fingerprint_features(adapter, feature_sequence) -> dict | None:
 
 
 def _flatten_output_names(*, label_col, want_features: bool) -> list[str]:
-    names = ["data.npy", "coords.npy", "ids.npy", "metadata.pickle.npy"]
+    names = ["data.npy", "coords.npy", "ids.npy", TRAINING_METADATA_NAME]
     if label_col is not None:
         names.append("labels.npy")
     if want_features:
@@ -1024,7 +1025,7 @@ def _load_landed_arrays(export_folderpath: str):
     top-level short-circuit."""
     data = fs.load_npy(os.path.join(export_folderpath, "data.npy"))
     metadata = fs.load_npy(
-        os.path.join(export_folderpath, "metadata.pickle.npy"), allow_pickle=True
+        os.path.join(export_folderpath, TRAINING_METADATA_NAME), allow_pickle=True
     )[()]
     return data, metadata
 
@@ -1231,7 +1232,7 @@ def _apply_training_features(export_folderpath, metadata, *, adapter, feature_se
     metadata["feature_bands"] = feature_bands
     metadata["aggregate"] = agg_name
     fs.save_npy(
-        os.path.join(export_folderpath, "metadata.pickle.npy"), metadata, allow_pickle=True
+        os.path.join(export_folderpath, TRAINING_METADATA_NAME), metadata, allow_pickle=True
     )
     return feature_bands
 
@@ -1344,7 +1345,7 @@ def _resolve_inference_pairs(inference_datacubes, output_folderpath):
         if "shapefilepath" in df.columns:
             shapefilepaths = [str(p) for p in df["shapefilepath"]]
     else:  # a folder: each subfolder holds a datacube.npy
-        dc_filepaths = sorted(fs.glob(os.path.join(str(inference_datacubes), "*", "datacube.npy")))
+        dc_filepaths = sorted(fs.glob(os.path.join(str(inference_datacubes), "*", CUBE_NAME)))
 
     pairs = []
     geometries = {} if shapefilepaths is not None else None
@@ -1686,7 +1687,7 @@ def run_inference(
     if not pairs:
         errs.append(f"no inference datacubes found under {inference_datacubes!r}.")
     for dc_fp, _ in pairs:
-        md_fp = os.path.join(os.path.dirname(dc_fp), "metadata.pickle.npy")
+        md_fp = os.path.join(os.path.dirname(dc_fp), CUBE_METADATA_NAME)
         if not fs.exists(dc_fp) or not fs.exists(md_fp):
             errs.append(f"missing datacube/metadata for {dc_fp}.")
             continue

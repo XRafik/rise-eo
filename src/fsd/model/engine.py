@@ -20,14 +20,13 @@ import numpy as np
 import rasterio
 
 from fsd.bands import modify
+from fsd.datacube.files import CUBE_METADATA_NAME
 from fsd.model.adapter import Output
 from fsd.model.features import apply_features
 from fsd.raster.cog import to_cog
 from fsd.storage import fs
 
 __all__ = ["infer_datacube", "infer_datacube_to_cog", "run_local"]
-
-_METADATA_NAME = "metadata.pickle.npy"
 
 
 def _chunked_predict(adapter, X: np.ndarray, predict_batch_size: int | None) -> np.ndarray:
@@ -109,7 +108,7 @@ def infer_datacube_to_cog(adapter, datacube_filepath: str, output_filepath: str,
     """Load a datacube + metadata, run inference, write the output COG. Returns its path."""
     datacube = fs.load_npy(datacube_filepath)
     metadata = fs.load_npy(
-        os.path.join(os.path.dirname(datacube_filepath), _METADATA_NAME), allow_pickle=True
+        os.path.join(os.path.dirname(datacube_filepath), CUBE_METADATA_NAME), allow_pickle=True
     )[()]
     band_indices = {b: i for i, b in enumerate(metadata["bands"])}
 
