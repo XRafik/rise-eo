@@ -2,6 +2,7 @@
 
 import dataclasses
 import datetime
+import inspect
 import json
 import os
 
@@ -719,10 +720,16 @@ def test_read_log_with_parallel_load_warns_once_at_the_build_call(tmp_path):
     with pytest.warns(RuntimeWarning) as record:
         out = _build_instrumented(
             tmp_path, catalog, shape, write_read_log=True, njobs_load_images=2)
-    assert len(record) == 1
-    assert str(record[0].message) == (
+    # Only the builder's own warnings: rasterio adds others on some platforms (CI's Linux).
+    ours = [w for w in record if w.filename == builder.__file__]
+    assert len(ours) == 1
+    assert ours[0].category is RuntimeWarning
+    assert str(ours[0].message) == (
         "write_read_log requires njobs_load_images == 1; skipping read log.")
-    assert record[0].filename == builder.__file__
+    # stacklevel=2: the warning points at build_datacube's `_load_images(` call.
+    call = "catalog_gdf, data_profile_list, reads = _load_images("
+    source = inspect.getsource(builder).splitlines()
+    assert [i + 1 for i, line in enumerate(source) if call in line] == [ours[0].lineno]
     assert not (out / builder.READ_LOG_FILENAME).exists()
 
 
