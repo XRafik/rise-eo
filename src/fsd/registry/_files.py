@@ -26,8 +26,8 @@ def discard(path: str, storage_options: dict) -> None:
 
 
 def write_json_staged(directory: str, filename: str, obj, storage_options: dict) -> None:
-    """Write `obj` as JSON to `<directory>/<filename>`: staged beside it, then renamed, so a
-    reader never sees a half-written file. A failed write or rename leaves no stage behind."""
+    """Write `obj` as JSON to `<directory>/<filename>`, staged beside it and then renamed, so a
+    reader never sees a half-written file."""
     stage = os.path.join(directory, f"{STAGING_PREFIX}{uuid.uuid4().hex}.json")
     try:
         fs.write_text(stage, json.dumps(obj, indent=2, sort_keys=True), **storage_options)
@@ -38,9 +38,8 @@ def write_json_staged(directory: str, filename: str, obj, storage_options: dict)
 
 
 def digest_files(files: list[tuple[str, bytes]]) -> str:
-    """SHA-256 over `(relative path, bytes)` pairs: sorted by path, each fed as path, a NUL
-    byte, then the bytes. The byte order is the contract -- changing it changes every
-    registered version's digest."""
+    """SHA-256 over `(relative path, bytes)` pairs, sorted by path, each fed as path, NUL, bytes."""
+    # The byte order is the contract: changing it changes every registered version's digest.
     h = hashlib.sha256()
     for rel, data in sorted(files, key=lambda item: item[0]):
         h.update(rel.encode("utf-8"))
