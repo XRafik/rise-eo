@@ -58,7 +58,7 @@ def _write_geometry_geojson(folder, *, feature_id="cell-1", geom=_SLANTED_POLYGO
     return fp
 
 
-_DT =dt.datetime(2020, 1, 2, 3, 4, 5, tzinfo=dt.timezone.utc)
+_DT = dt.datetime(2020, 1, 2, 3, 4, 5, tzinfo=dt.timezone.utc)
 
 # A None in a float column of a GeoDataFrame is NaN, and the builder passes a NaN offset /
 # scale straight through to `raster:bands` today; the literals below pin that as-is.
@@ -209,7 +209,7 @@ def _two_cogs(tmp):
 
 def _allow_path_fps(monkeypatch):
     # `rio_open` itself takes only str, so a pathlib.Path fp can reach the footprint lookup
-    # only through a wrapper; `_describe` imports `rio_open` at call time, so this applies.
+    # only through a wrapper; `cog_outputs_to_items` imports `rio_open` on each call, so this applies.
     import fsd.raster
 
     real = fsd.raster.rio_open
