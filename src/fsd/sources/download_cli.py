@@ -84,6 +84,19 @@ def _expected_block(expected_json: str | None, *, run_invariants: bool) -> dict:
     return expected
 
 
+def _result_doc(status: str, n_pass: int, metrics: dict, error: str | None, *,
+                expected_json: str | None, run_invariants: bool) -> dict:
+    """The spec-24 `_result.json` document, keys in their written order."""
+    return {
+        "step": "download-confirm-run",
+        "status": status,
+        "pass": n_pass,
+        "metrics": metrics,
+        "expected": _expected_block(expected_json, run_invariants=run_invariants),
+        "error": error,
+    }
+
+
 def _stop_predicate(stop_file: str | None):
     if stop_file is None:
         return None
@@ -105,14 +118,10 @@ def main(argv=None) -> int:
     except Exception as e:  # noqa: BLE001 - any failure must still leave a pasteable result
         # On a crash (network, creds, disk, ...) still write a _result.json so
         # the runbook flow has something to paste, then re-raise so the traceback shows.
-        _write_result(result_json, {
-            "step": "download-confirm-run",
-            "status": "failed",
-            "pass": 0,
-            "metrics": {},
-            "expected": _expected_block(args.expected_json, run_invariants=not args.dry_run),
-            "error": repr(e),
-        })
+        _write_result(result_json, _result_doc(
+            "failed", 0, {}, repr(e),
+            expected_json=args.expected_json, run_invariants=not args.dry_run,
+        ))
         raise
 
 
@@ -124,18 +133,15 @@ def _run(args, result_json: str, cog: bool) -> int:
             max_cloudcover=args.max_cloudcover, processing=args.processing,
         )
         print(cdse.format_download_plan(plan))
-        _write_result(result_json, {
-            "step": "download-confirm-run",
-            "status": "dry-run",
-            "pass": 0,
-            "metrics": {
+        _write_result(result_json, _result_doc(
+            "dry-run", 0,
+            {
                 "needed": plan["needed_count"],
                 "present": plan["present_count"],
                 "missing": plan["missing_count"],
             },
-            "expected": _expected_block(args.expected_json, run_invariants=False),
-            "error": None,
-        })
+            None, expected_json=args.expected_json, run_invariants=False,
+        ))
         return 0
 
     creds = CdseCredentials.from_json(args.creds)
@@ -228,11 +234,9 @@ def _run(args, result_json: str, cog: bool) -> int:
         flush=True,
     )
 
-    _write_result(result_json, {
-        "step": "download-confirm-run",
-        "status": status,
-        "pass": len(results),
-        "metrics": {
+    _write_result(result_json, _result_doc(
+        status, len(results),
+        {
             "successful": agg.successful_count,
             "failed": terminal.failed_count,      # terminal pass = the completion gate
             "failed_total": agg.failed_count,     # transient failures across all passes (diagnostic)
@@ -249,9 +253,8 @@ def _run(args, result_json: str, cog: bool) -> int:
             "circuit_tripped": terminal.circuit_tripped,
             "pool_broken": terminal.pool_broken,
         },
-        "expected": _expected_block(args.expected_json, run_invariants=True),
-        "error": error,
-    })
+        error, expected_json=args.expected_json, run_invariants=True,
+    ))
     # Exit 0 on clean completion OR a user stop; non-zero otherwise.
     return 0 if (stopped or not failed) else 1
 
