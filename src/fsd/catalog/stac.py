@@ -220,7 +220,7 @@ def _add_band_asset(
                 RasterBand.create(
                     nodata=nodata,
                     # raster:bands offset is reflectance-unit to match the declared
-                    # scale — the catalog `row_offset` is DN-unit, so scale
+                    # scale — the catalog row's `offset` is DN-unit, so scale
                     # it; `items_to_rows` divides it back out. Keeps unscale=true
                     # unit-consistent (DN*scale + offset == (DN+offset_dn)/10000).
                     offset=offset * scale if is_reflectance else 0,
