@@ -24,9 +24,6 @@ from shapely.geometry import box
 from fsd.storage import fs
 from fsd.workflows import create_datacube
 
-# Set by the one-off generator that computed `EXPECTED` from the unchanged code.
-_RECORD: dict | None = None
-
 W1 = dict(startdate=datetime.datetime(2018, 1, 1), enddate=datetime.datetime(2019, 1, 1))
 W2 = dict(startdate=datetime.datetime(2018, 2, 1), enddate=datetime.datetime(2019, 2, 1))
 
@@ -101,9 +98,6 @@ def _norm(text, tmp_path):
 
 
 def _check(name, obs):
-    if _RECORD is not None:
-        _RECORD[name] = obs
-        return
     assert obs == EXPECTED[name]
 
 
