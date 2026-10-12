@@ -171,6 +171,103 @@ def _read_proj_fields(href: str) -> dict:
 
 # --- granule catalog -> STAC items -------------------------------------------
 
+def _set_processing(item: pystac.Item, row) -> None:
+    """Set the spec 59 `processing:*` properties (and extension URI) from a row's processing columns."""
+    # Spec 59 D8: the catalog's processing columns are the STAC processing extension's
+    # `processing:version` / `processing:datetime` (UTC), when the provider exposed them.
+    version = row.get("processing_version")
+    if version is not None and not pd.isna(version):
+        item.properties["processing:version"] = str(version)
+    pdt = row.get("processing_datetime")
+    if pdt is not None and not pd.isna(pdt):
+        item.properties["processing:datetime"] = (
+            pd.Timestamp(pdt).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ"))
+    if "processing:version" in item.properties or "processing:datetime" in item.properties:
+        if _PROCESSING_EXT not in item.stac_extensions:
+            item.stac_extensions.append(_PROCESSING_EXT)
+
+
+def _set_grid(item: pystac.Item, item_id: str) -> None:
+    """Set `proj:epsg` and `grid:code` from the MGRS tile in an S2 product id, if it has one."""
+    mgrs = _parse_mgrs(item_id)
+    if mgrs is not None:
+        tile, epsg = mgrs
+        ProjectionExtension.ext(item, add_if_missing=True).epsg = epsg
+        if _GRID_EXT not in item.stac_extensions:
+            item.stac_extensions.append(_GRID_EXT)
+        item.properties["grid:code"] = f"MGRS-{tile}"
+
+
+def _add_band_asset(
+    item: pystac.Item, filename: str, row, declaration: CollectionDeclaration, read_proj: bool,
+    *, nodata, offset, scale,
+) -> None:
+    """Add one band file of a granule row to `item` as an asset."""
+    band = filename.rsplit(".", 1)[0]
+    href = _asset_href(row["local_folderpath"], filename)
+    media_type, roles = _media_type_and_roles(filename, band, declaration)
+    asset = pystac.Asset(href=href, media_type=media_type, roles=roles, title=band)
+    item.add_asset(band, asset)  # sets asset.owner=item, required before ext(add_if_missing=True)
+    if "data" in roles:
+        asset.extra_fields["eo:bands"] = [{"name": band}]
+        if read_proj and media_type != pystac.MediaType.XML:
+            asset.extra_fields.update(
+                {f"proj:{k}": v for k, v in _read_proj_fields(href).items()}
+            )
+        if media_type in (pystac.MediaType.COG, pystac.MediaType.JPEG2000):
+            is_reflectance = _band_role(band, declaration) in ("reflectance", "reference")
+            RasterExtension.ext(asset, add_if_missing=True).bands = [
+                RasterBand.create(
+                    nodata=nodata,
+                    # raster:bands offset is reflectance-unit to match the declared
+                    # scale — the catalog `row_offset` is DN-unit, so scale
+                    # it; `items_to_rows` divides it back out. Keeps unscale=true
+                    # unit-consistent (DN*scale + offset == (DN+offset_dn)/10000).
+                    offset=offset * scale if is_reflectance else 0,
+                    scale=scale if is_reflectance else 1,
+                )
+            ]
+
+
+def _granule_item(
+    row, *, collection_id, read_proj: bool, declaration: CollectionDeclaration,
+) -> pystac.Item:
+    """Build the STAC Item for one `TileCatalog` row."""
+    geom = row["geometry"]
+    dt = row["timestamp"].to_pydatetime()
+    coll = collection_id if collection_id is not None else row["collection"]
+    row_offset = row.get("offset", 0) or 0
+    row_scale = row.get("scale", declaration.scale)
+    row_scale = declaration.scale if not row_scale else row_scale
+    row_nodata = row.get("nodata", 0)
+    row_nodata = 0 if row_nodata is None else row_nodata
+
+    item = pystac.Item(
+        id=str(row["id"]),
+        geometry=shapely.geometry.mapping(geom),
+        bbox=list(geom.bounds),
+        datetime=dt,
+        properties={},
+        collection=coll,
+    )
+
+    EOExtension.ext(item, add_if_missing=True).cloud_cover = float(row["cloud_cover"])
+    _set_processing(item, row)
+    _set_grid(item, str(row["id"]))
+
+    files = [f for f in str(row["files"]).split(",") if f]
+    for filename in files:
+        _add_band_asset(
+            item, filename, row, declaration, read_proj,
+            nodata=row_nodata, offset=row_offset, scale=row_scale,
+        )
+
+    if row.get("s3url"):
+        item.add_link(pystac.Link(rel=_SOURCE_LINK_REL, target=str(row["s3url"])))
+
+    return item
+
+
 def tile_catalog_to_items(
     gdf, *, collection_id=None, read_proj=False, declaration: CollectionDeclaration | None = None,
 ) -> list[pystac.Item]:
@@ -196,82 +293,12 @@ def tile_catalog_to_items(
     """
     if declaration is None:
         declaration = declaration_module.from_attrs(gdf) or declaration_module.S2_L2A_DECLARATION
-
-    items: list[pystac.Item] = []
-    for _, row in gdf.iterrows():
-        geom = row["geometry"]
-        dt = row["timestamp"].to_pydatetime()
-        coll = collection_id if collection_id is not None else row["collection"]
-        row_offset = row.get("offset", 0) or 0
-        row_scale = row.get("scale", declaration.scale)
-        row_scale = declaration.scale if not row_scale else row_scale
-        row_nodata = row.get("nodata", 0)
-        row_nodata = 0 if row_nodata is None else row_nodata
-
-        item = pystac.Item(
-            id=str(row["id"]),
-            geometry=shapely.geometry.mapping(geom),
-            bbox=list(geom.bounds),
-            datetime=dt,
-            properties={},
-            collection=coll,
+    return [
+        _granule_item(
+            row, collection_id=collection_id, read_proj=read_proj, declaration=declaration,
         )
-
-        EOExtension.ext(item, add_if_missing=True).cloud_cover = float(row["cloud_cover"])
-
-        # Spec 59 D8: the catalog's processing columns are the STAC processing extension's
-        # `processing:version` / `processing:datetime` (UTC), when the provider exposed them.
-        version = row.get("processing_version")
-        if version is not None and not pd.isna(version):
-            item.properties["processing:version"] = str(version)
-        pdt = row.get("processing_datetime")
-        if pdt is not None and not pd.isna(pdt):
-            item.properties["processing:datetime"] = (
-                pd.Timestamp(pdt).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ"))
-        if "processing:version" in item.properties or "processing:datetime" in item.properties:
-            if _PROCESSING_EXT not in item.stac_extensions:
-                item.stac_extensions.append(_PROCESSING_EXT)
-
-        mgrs = _parse_mgrs(str(row["id"]))
-        if mgrs is not None:
-            tile, epsg = mgrs
-            ProjectionExtension.ext(item, add_if_missing=True).epsg = epsg
-            if _GRID_EXT not in item.stac_extensions:
-                item.stac_extensions.append(_GRID_EXT)
-            item.properties["grid:code"] = f"MGRS-{tile}"
-
-        files = [f for f in str(row["files"]).split(",") if f]
-        for filename in files:
-            band = filename.rsplit(".", 1)[0]
-            href = _asset_href(row["local_folderpath"], filename)
-            media_type, roles = _media_type_and_roles(filename, band, declaration)
-            asset = pystac.Asset(href=href, media_type=media_type, roles=roles, title=band)
-            item.add_asset(band, asset)  # sets asset.owner=item, required before ext(add_if_missing=True)
-            if "data" in roles:
-                asset.extra_fields["eo:bands"] = [{"name": band}]
-                if read_proj and media_type != pystac.MediaType.XML:
-                    asset.extra_fields.update(
-                        {f"proj:{k}": v for k, v in _read_proj_fields(href).items()}
-                    )
-                if media_type in (pystac.MediaType.COG, pystac.MediaType.JPEG2000):
-                    is_reflectance = _band_role(band, declaration) in ("reflectance", "reference")
-                    RasterExtension.ext(asset, add_if_missing=True).bands = [
-                        RasterBand.create(
-                            nodata=row_nodata,
-                            # raster:bands offset is reflectance-unit to match the declared
-                            # scale — the catalog `row_offset` is DN-unit, so scale
-                            # it; `items_to_rows` divides it back out. Keeps unscale=true
-                            # unit-consistent (DN*scale + offset == (DN+offset_dn)/10000).
-                            offset=row_offset * row_scale if is_reflectance else 0,
-                            scale=row_scale if is_reflectance else 1,
-                        )
-                    ]
-
-        if row.get("s3url"):
-            item.add_link(pystac.Link(rel=_SOURCE_LINK_REL, target=str(row["s3url"])))
-
-        items.append(item)
-    return items
+        for _, row in gdf.iterrows()
+    ]
 
 
 def _output_item_id(fp) -> str:
@@ -297,6 +324,84 @@ def _read_footprint_geometry(geom_path):
     geom = shapely.geometry.shape(feat["geometry"])
     feat_id = (feat.get("properties") or {}).get("id")
     return geom, feat_id
+
+
+def _output_footprint(fp, geometries):
+    """The Item footprint geometry for output COG `fp` from its `geometries` entry, or raise."""
+    geom_or_path = geometries.get(str(fp), geometries.get(fp))
+    if geom_or_path is None:
+        raise ValueError(
+            f"cog_outputs_to_items: geometries has no entry for output COG {fp!r}; "
+            "the manifest-driven contract requires every output to have a footprint "
+            "(pass geometries=None to fall back to the raster bbox for ALL outputs)."
+        )
+    if isinstance(geom_or_path, shapely.geometry.base.BaseGeometry):
+        geom = geom_or_path
+        if geom.is_empty:
+            raise ValueError(
+                f"cog_outputs_to_items: geometries entry for output COG {fp!r} is an "
+                "empty geometry."
+            )
+    else:
+        geom_path = geom_or_path
+        try:
+            geom, feat_id = _read_footprint_geometry(geom_path)
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                f"cog_outputs_to_items: could not read geometry {geom_path!r} for "
+                f"output COG {fp!r}: {exc}"
+            ) from exc
+        if geom is None or geom.is_empty:
+            raise ValueError(
+                f"cog_outputs_to_items: geometry.geojson at {geom_path!r} (for "
+                f"{fp!r}) has no readable polygon feature."
+            )
+        item_id = _output_item_id(fp)
+        if feat_id is not None and str(feat_id) != item_id:
+            raise ValueError(
+                f"cog_outputs_to_items: geometry.geojson id {feat_id!r} at "
+                f"{geom_path!r} disagrees with output item id {item_id!r} for {fp!r}."
+            )
+    return geom
+
+
+def _output_item(fp, epsg, shape, transform, geom, bbox, *, dt, collection_id, band_names):
+    """Build the STAC Item for one inference-output COG from its `_describe` ingredients."""
+    item = pystac.Item(
+        id=_output_item_id(fp),
+        geometry=shapely.geometry.mapping(geom),
+        bbox=bbox,
+        datetime=dt,
+        properties={},
+        collection=collection_id,
+    )
+    if epsg is not None:
+        ProjectionExtension.ext(item, add_if_missing=True).epsg = epsg
+    item.properties["proj:shape"] = shape
+    item.properties["proj:transform"] = transform
+
+    asset = pystac.Asset(
+        href=str(fp), media_type=pystac.MediaType.COG, roles=["data"], title="output"
+    )
+    if band_names:
+        asset.extra_fields["eo:bands"] = [{"name": b} for b in band_names]
+    item.add_asset("output", asset)
+    return item
+
+
+def _check_unique_ids(items) -> None:
+    """Raise if two output Items share an id."""
+    # STAC item ids must be unique: write_stac_catalog's normalize_hrefs maps id -> <id>/<id>.json,
+    # so a collision silently overwrites all-but-one item on disk AND duplicates the collection link
+    # (the spec-26 bug). fsd writes every output as <cube_id>/output.tif, so ids come from the parent
+    # dir and are unique by construction; guard loudly if a layout ever breaks that invariant.
+    ids = [it.id for it in items]
+    if len(set(ids)) != len(ids):
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        raise ValueError(
+            f"cog_outputs_to_items: item ids are not unique ({dupes}); each output must live in "
+            "its own per-cube folder (<cube_id>/output.tif)."
+        )
 
 
 def cog_outputs_to_items(cog_filepaths, *, geometries=None, collection_id="fsd-inference",
@@ -355,40 +460,7 @@ def cog_outputs_to_items(cog_filepaths, *, geometries=None, collection_id="fsd-i
             transform = list(src.transform)[:6]
 
             if geometries is not None:
-                geom_or_path = geometries.get(str(fp), geometries.get(fp))
-                if geom_or_path is None:
-                    raise ValueError(
-                        f"cog_outputs_to_items: geometries has no entry for output COG {fp!r}; "
-                        "the manifest-driven contract requires every output to have a footprint "
-                        "(pass geometries=None to fall back to the raster bbox for ALL outputs)."
-                    )
-                if isinstance(geom_or_path, shapely.geometry.base.BaseGeometry):
-                    geom = geom_or_path
-                    if geom.is_empty:
-                        raise ValueError(
-                            f"cog_outputs_to_items: geometries entry for output COG {fp!r} is an "
-                            "empty geometry."
-                        )
-                else:
-                    geom_path = geom_or_path
-                    try:
-                        geom, feat_id = _read_footprint_geometry(geom_path)
-                    except (OSError, ValueError) as exc:
-                        raise ValueError(
-                            f"cog_outputs_to_items: could not read geometry {geom_path!r} for "
-                            f"output COG {fp!r}: {exc}"
-                        ) from exc
-                    if geom is None or geom.is_empty:
-                        raise ValueError(
-                            f"cog_outputs_to_items: geometry.geojson at {geom_path!r} (for "
-                            f"{fp!r}) has no readable polygon feature."
-                        )
-                    item_id = _output_item_id(fp)
-                    if feat_id is not None and str(feat_id) != item_id:
-                        raise ValueError(
-                            f"cog_outputs_to_items: geometry.geojson id {feat_id!r} at "
-                            f"{geom_path!r} disagrees with output item id {item_id!r} for {fp!r}."
-                        )
+                geom = _output_footprint(fp, geometries)
                 bbox = list(geom.bounds)
             else:
                 bounds4326 = transform_bounds(src.crs, "EPSG:4326", *src.bounds, densify_pts=21)
@@ -412,39 +484,14 @@ def cog_outputs_to_items(cog_filepaths, *, geometries=None, collection_id="fsd-i
             tick(done)
     tick(len(cog_filepaths), force=True)
 
-    items: list[pystac.Item] = []
-    for fp, (epsg, shape, transform, geom, bbox) in zip(cog_filepaths, described):
-        item = pystac.Item(
-            id=_output_item_id(fp),
-            geometry=shapely.geometry.mapping(geom),
-            bbox=bbox,
-            datetime=dt,
-            properties={},
-            collection=collection_id,
+    items = [
+        _output_item(
+            fp, epsg, shape, transform, geom, bbox,
+            dt=dt, collection_id=collection_id, band_names=band_names,
         )
-        if epsg is not None:
-            ProjectionExtension.ext(item, add_if_missing=True).epsg = epsg
-        item.properties["proj:shape"] = shape
-        item.properties["proj:transform"] = transform
-
-        asset = pystac.Asset(
-            href=str(fp), media_type=pystac.MediaType.COG, roles=["data"], title="output"
-        )
-        if band_names:
-            asset.extra_fields["eo:bands"] = [{"name": b} for b in band_names]
-        item.add_asset("output", asset)
-        items.append(item)
-    # STAC item ids must be unique: write_stac_catalog's normalize_hrefs maps id -> <id>/<id>.json,
-    # so a collision silently overwrites all-but-one item on disk AND duplicates the collection link
-    # (the spec-26 bug). fsd writes every output as <cube_id>/output.tif, so ids come from the parent
-    # dir and are unique by construction; guard loudly if a layout ever breaks that invariant.
-    ids = [it.id for it in items]
-    if len(set(ids)) != len(ids):
-        dupes = sorted({i for i in ids if ids.count(i) > 1})
-        raise ValueError(
-            f"cog_outputs_to_items: item ids are not unique ({dupes}); each output must live in "
-            "its own per-cube folder (<cube_id>/output.tif)."
-        )
+        for fp, (epsg, shape, transform, geom, bbox) in zip(cog_filepaths, described)
+    ]
+    _check_unique_ids(items)
     return items
 
 
