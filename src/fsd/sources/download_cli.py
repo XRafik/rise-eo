@@ -84,6 +84,19 @@ def _expected_block(expected_json: str | None, *, run_invariants: bool) -> dict:
     return expected
 
 
+def _result_doc(status: str, n_pass: int, metrics: dict, error: str | None, *,
+                expected_json: str | None, run_invariants: bool) -> dict:
+    """The spec-24 `_result.json` document, keys in their written order."""
+    return {
+        "step": "download-confirm-run",
+        "status": status,
+        "pass": n_pass,
+        "metrics": metrics,
+        "expected": _expected_block(expected_json, run_invariants=run_invariants),
+        "error": error,
+    }
+
+
 def _stop_predicate(stop_file: str | None):
     if stop_file is None:
         return None
@@ -105,15 +118,42 @@ def main(argv=None) -> int:
     except Exception as e:  # noqa: BLE001 - any failure must still leave a pasteable result
         # On a crash (network, creds, disk, ...) still write a _result.json so
         # the runbook flow has something to paste, then re-raise so the traceback shows.
-        _write_result(result_json, {
-            "step": "download-confirm-run",
-            "status": "failed",
-            "pass": 0,
-            "metrics": {},
-            "expected": _expected_block(args.expected_json, run_invariants=not args.dry_run),
-            "error": repr(e),
-        })
+        _write_result(result_json, _result_doc(
+            "failed", 0, {}, repr(e),
+            expected_json=args.expected_json, run_invariants=not args.dry_run,
+        ))
         raise
+
+
+def _outcome(results: list[cdse.DownloadResult], agg: cdse.DownloadResult) -> tuple:
+    """`(terminal, stopped, failed, status, error)` for a finished `download_resume` run."""
+    # `sum_results` SUMS failed_count across passes, so a resume that
+    # recovers a transient failure on a later pass has agg.failed_count > 0 even though every file
+    # ultimately landed. Judge completion by the TERMINAL pass (download_resume's own break
+    # condition — a clean final pass), NOT the historical sum. An empty results list means
+    # download_resume stopped before pass 1 (stop-file already present) → treat as a user stop.
+    terminal = results[-1] if results else agg
+    stopped = agg.stopped or not results
+    unresolved_pool_broken = terminal.pool_broken and terminal.failed_count > 0
+    failed = terminal.failed_count > 0 or terminal.circuit_tripped or unresolved_pool_broken
+    if stopped:
+        status = "stopped"
+    elif failed:
+        status = "failed"
+    else:
+        status = "ok"
+
+    error = None
+    if status == "failed":
+        reasons = []
+        if terminal.failed_count > 0:
+            reasons.append(f"{terminal.failed_count} file(s) failed on the terminal pass")
+        if terminal.circuit_tripped:
+            reasons.append("circuit breaker tripped")
+        if unresolved_pool_broken:
+            reasons.append("convert pool broken with unresolved failures")
+        error = "; ".join(reasons) or "download reported failure"
+    return terminal, stopped, failed, status, error
 
 
 def _run(args, result_json: str, cog: bool) -> int:
@@ -124,18 +164,15 @@ def _run(args, result_json: str, cog: bool) -> int:
             max_cloudcover=args.max_cloudcover, processing=args.processing,
         )
         print(cdse.format_download_plan(plan))
-        _write_result(result_json, {
-            "step": "download-confirm-run",
-            "status": "dry-run",
-            "pass": 0,
-            "metrics": {
+        _write_result(result_json, _result_doc(
+            "dry-run", 0,
+            {
                 "needed": plan["needed_count"],
                 "present": plan["present_count"],
                 "missing": plan["missing_count"],
             },
-            "expected": _expected_block(args.expected_json, run_invariants=False),
-            "error": None,
-        })
+            None, expected_json=args.expected_json, run_invariants=False,
+        ))
         return 0
 
     creds = CdseCredentials.from_json(args.creds)
@@ -189,32 +226,7 @@ def _run(args, result_json: str, cog: bool) -> int:
         agg.bytes_downloaded / 1e6 / agg.transfer_wall_seconds
         if agg.transfer_wall_seconds > 0 else 0.0
     )
-    # `sum_results` SUMS failed_count across passes, so a resume that
-    # recovers a transient failure on a later pass has agg.failed_count > 0 even though every file
-    # ultimately landed. Judge completion by the TERMINAL pass (download_resume's own break
-    # condition — a clean final pass), NOT the historical sum. An empty results list means
-    # download_resume stopped before pass 1 (stop-file already present) → treat as a user stop.
-    terminal = results[-1] if results else agg
-    stopped = agg.stopped or not results
-    unresolved_pool_broken = terminal.pool_broken and terminal.failed_count > 0
-    failed = terminal.failed_count > 0 or terminal.circuit_tripped or unresolved_pool_broken
-    if stopped:
-        status = "stopped"
-    elif failed:
-        status = "failed"
-    else:
-        status = "ok"
-
-    error = None
-    if status == "failed":
-        reasons = []
-        if terminal.failed_count > 0:
-            reasons.append(f"{terminal.failed_count} file(s) failed on the terminal pass")
-        if terminal.circuit_tripped:
-            reasons.append("circuit breaker tripped")
-        if unresolved_pool_broken:
-            reasons.append("convert pool broken with unresolved failures")
-        error = "; ".join(reasons) or "download reported failure"
+    terminal, stopped, failed, status, error = _outcome(results, agg)
 
     print(
         f"\n[fsd.download_cli] {status}: successful={agg.successful_count} "
@@ -228,11 +240,9 @@ def _run(args, result_json: str, cog: bool) -> int:
         flush=True,
     )
 
-    _write_result(result_json, {
-        "step": "download-confirm-run",
-        "status": status,
-        "pass": len(results),
-        "metrics": {
+    _write_result(result_json, _result_doc(
+        status, len(results),
+        {
             "successful": agg.successful_count,
             "failed": terminal.failed_count,      # terminal pass = the completion gate
             "failed_total": agg.failed_count,     # transient failures across all passes (diagnostic)
@@ -249,9 +259,8 @@ def _run(args, result_json: str, cog: bool) -> int:
             "circuit_tripped": terminal.circuit_tripped,
             "pool_broken": terminal.pool_broken,
         },
-        "expected": _expected_block(args.expected_json, run_invariants=True),
-        "error": error,
-    })
+        error, expected_json=args.expected_json, run_invariants=True,
+    ))
     # Exit 0 on clean completion OR a user stop; non-zero otherwise.
     return 0 if (stopped or not failed) else 1
 

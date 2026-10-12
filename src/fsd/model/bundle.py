@@ -300,6 +300,29 @@ def _is_installed_distribution(name: str) -> bool:
     return _is_installed(spec.origin)
 
 
+def _top_level_imports(tree: ast.AST) -> list[str]:
+    """The first dotted name of every absolute import in `tree`, in `ast.walk` order, duplicates kept."""
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names += [alias.name.split(".")[0] for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level and node.level > 0:
+                continue  # relative import -- resolved within the package, not a "sibling"
+            if node.module:
+                names.append(node.module.split(".")[0])
+    return names
+
+
+def _sibling_rel(root: str, name: str) -> str | None:
+    """`name`'s file under `root` relative to it (`<name>.py` before `<name>/__init__.py`), or None."""
+    if os.path.isfile(os.path.join(root, name + ".py")):
+        return name + ".py"
+    if os.path.isfile(os.path.join(root, name, "__init__.py")):
+        return os.path.join(name, "__init__.py")
+    return None  # doesn't resolve under root -- an external dependency, not a sibling
+
+
 def _check_no_unembedded_siblings(root: str, rels: list[str]) -> None:
     """Refuse a bundle whose embedded `.py` files import a SIBLING module that lives under
     the same resolved root but was not embedded (#71).
@@ -308,8 +331,9 @@ def _check_no_unembedded_siblings(root: str, rels: list[str]) -> None:
     succeeded is that the driver still has the sibling on its own `sys.path`/cwd.
 
     Parses each embedded file with `ast` (never imports it -- the module may need
-    dependencies the driver lacks). For every top-level `import X` / `from X import
-    ...`: skip stdlib/an installed distribution/`fsd` itself (a dependency, declared
+    dependencies the driver lacks). For every `import X` / `from X import ...`
+    anywhere in the file (by its first dotted name, so `import a.b` is `a`): skip
+    stdlib/an installed distribution/`fsd` itself (a dependency, declared
     via `requirements=`, never embedded); if `X` resolves to a file under `root` that
     is not in `rels`, refuse, naming the file and the one-line fix. Scanning is
     transitive over embedded files (a sibling that imports a sibling), bounded by the
@@ -337,31 +361,16 @@ def _check_no_unembedded_siblings(root: str, rels: list[str]) -> None:
         except SyntaxError:
             continue  # not this function's job to validate the adapter's syntax
 
-        names: list[str] = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                names += [alias.name.split(".")[0] for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                if node.level and node.level > 0:
-                    continue  # relative import -- resolved within the package, not a "sibling"
-                if node.module:
-                    names.append(node.module.split(".")[0])
-
-        for name in names:
+        for name in _top_level_imports(tree):
             if name in checked_names:
                 continue
             checked_names.add(name)
             if name == "fsd" or _is_installed_distribution(name):
                 continue
 
-            file_candidate = os.path.join(root, name + ".py")
-            pkg_candidate = os.path.join(root, name, "__init__.py")
-            if os.path.isfile(file_candidate):
-                target_rel = name + ".py"
-            elif os.path.isfile(pkg_candidate):
-                target_rel = os.path.join(name, "__init__.py")
-            else:
-                continue  # doesn't resolve under root -- an external dependency, not a sibling
+            target_rel = _sibling_rel(root, name)
+            if target_rel is None:
+                continue
 
             if target_rel not in rels:
                 fix_files = {os.path.join(root, r) for r in rels}
