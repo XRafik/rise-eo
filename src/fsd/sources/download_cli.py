@@ -125,6 +125,37 @@ def main(argv=None) -> int:
         raise
 
 
+def _outcome(results: list[cdse.DownloadResult], agg: cdse.DownloadResult) -> tuple:
+    """`(terminal, stopped, failed, status, error)` for a finished `download_resume` run."""
+    # `sum_results` SUMS failed_count across passes, so a resume that
+    # recovers a transient failure on a later pass has agg.failed_count > 0 even though every file
+    # ultimately landed. Judge completion by the TERMINAL pass (download_resume's own break
+    # condition — a clean final pass), NOT the historical sum. An empty results list means
+    # download_resume stopped before pass 1 (stop-file already present) → treat as a user stop.
+    terminal = results[-1] if results else agg
+    stopped = agg.stopped or not results
+    unresolved_pool_broken = terminal.pool_broken and terminal.failed_count > 0
+    failed = terminal.failed_count > 0 or terminal.circuit_tripped or unresolved_pool_broken
+    if stopped:
+        status = "stopped"
+    elif failed:
+        status = "failed"
+    else:
+        status = "ok"
+
+    error = None
+    if status == "failed":
+        reasons = []
+        if terminal.failed_count > 0:
+            reasons.append(f"{terminal.failed_count} file(s) failed on the terminal pass")
+        if terminal.circuit_tripped:
+            reasons.append("circuit breaker tripped")
+        if unresolved_pool_broken:
+            reasons.append("convert pool broken with unresolved failures")
+        error = "; ".join(reasons) or "download reported failure"
+    return terminal, stopped, failed, status, error
+
+
 def _run(args, result_json: str, cog: bool) -> int:
     if args.dry_run:
         plan = cdse.plan_download(
@@ -195,32 +226,7 @@ def _run(args, result_json: str, cog: bool) -> int:
         agg.bytes_downloaded / 1e6 / agg.transfer_wall_seconds
         if agg.transfer_wall_seconds > 0 else 0.0
     )
-    # `sum_results` SUMS failed_count across passes, so a resume that
-    # recovers a transient failure on a later pass has agg.failed_count > 0 even though every file
-    # ultimately landed. Judge completion by the TERMINAL pass (download_resume's own break
-    # condition — a clean final pass), NOT the historical sum. An empty results list means
-    # download_resume stopped before pass 1 (stop-file already present) → treat as a user stop.
-    terminal = results[-1] if results else agg
-    stopped = agg.stopped or not results
-    unresolved_pool_broken = terminal.pool_broken and terminal.failed_count > 0
-    failed = terminal.failed_count > 0 or terminal.circuit_tripped or unresolved_pool_broken
-    if stopped:
-        status = "stopped"
-    elif failed:
-        status = "failed"
-    else:
-        status = "ok"
-
-    error = None
-    if status == "failed":
-        reasons = []
-        if terminal.failed_count > 0:
-            reasons.append(f"{terminal.failed_count} file(s) failed on the terminal pass")
-        if terminal.circuit_tripped:
-            reasons.append("circuit breaker tripped")
-        if unresolved_pool_broken:
-            reasons.append("convert pool broken with unresolved failures")
-        error = "; ".join(reasons) or "download reported failure"
+    terminal, stopped, failed, status, error = _outcome(results, agg)
 
     print(
         f"\n[fsd.download_cli] {status}: successful={agg.successful_count} "
