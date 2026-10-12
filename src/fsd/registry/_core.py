@@ -20,18 +20,18 @@ files; an image definition's `image.json`).
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import re
-import uuid
 from typing import Callable
 
+from fsd.registry._files import STAGING_PREFIX as STAGING_PREFIX
+from fsd.registry._files import discard as discard
+from fsd.registry._files import write_json_staged
 from fsd.storage import fs
 
 ALIASES_FILE = "_aliases.json"
 COMPLETE_FILE = "_complete.json"
-STAGING_PREFIX = ".staging-"
 MAX_PUBLISH_ATTEMPTS = 16
 
 VERSION_ALIAS_RE = re.compile(r"^v(\d+)$")
@@ -65,12 +65,6 @@ def list_versions(root: str, storage_options: dict) -> list[int]:
         if m and is_version_complete(os.path.join(root, leaf), storage_options):
             versions.append(int(m.group(1)))
     return sorted(versions)
-
-
-def discard(path: str, storage_options: dict) -> None:
-    """Best-effort removal of an abandoned staging tree (mirrors `fsd.model.registry._discard`)."""
-    with contextlib.suppress(Exception):
-        fs.rm(path, recursive=True, **storage_options)
 
 
 def _holds_content(
@@ -216,13 +210,6 @@ def set_alias(
     if not fs.exists(target, **storage_options):
         raise ValueError(f"cannot set alias {alias!r} -> v{version}: {target!r} does not exist")
 
-    path = os.path.join(root, ALIASES_FILE)
     aliases = read_aliases(registry, name, storage_options)
     aliases[alias] = version
-    stage = os.path.join(root, f"{STAGING_PREFIX}{uuid.uuid4().hex}.json")
-    try:
-        fs.write_text(stage, json.dumps(aliases, indent=2, sort_keys=True), **storage_options)
-        fs.rename(stage, path, **storage_options)
-    except BaseException:
-        discard(stage, storage_options)
-        raise
+    write_json_staged(root, ALIASES_FILE, aliases, storage_options)

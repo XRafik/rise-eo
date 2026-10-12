@@ -29,6 +29,7 @@ import zipfile
 from typing import Callable
 
 from fsd.image.definition import ImageDefinition, _build_wheel
+from fsd.registry._files import digest_files
 
 __all__ = ["digest", "resolve", "wheel_digest"]
 
@@ -66,12 +67,7 @@ def _digest_directory(path: str) -> str:
             rel = os.path.relpath(full, path)
             with open(full, "rb") as f:
                 files.append((rel, f.read()))
-    h = hashlib.sha256()
-    for rel, data in sorted(files, key=lambda item: item[0]):
-        h.update(rel.encode("utf-8"))
-        h.update(b"\x00")
-        h.update(data)
-    return f"sha256:{h.hexdigest()}"
+    return digest_files(files)
 
 
 def _git_ls_remote_sha(repo_url: str, ref: str) -> str:
