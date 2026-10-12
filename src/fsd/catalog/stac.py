@@ -8,11 +8,11 @@ pure-metadata (no raster reads) by default — `proj:epsg` is derived from the M
 product id; per-asset `proj:shape`/`proj:transform` are opt-in (`read_proj=True`).
 
 Serialization is a static, self-contained STAC catalog (JSON) via `pystac`, written through the
-`fsd.storage` seam so a blob/S3 destination works later unchanged. `stac-geoparquet` is deferred.
+`fsd.storage` seam so a blob/S3 destination works later unchanged. The stac-geoparquet export
+lives in `fsd.catalog.stac_geoparquet`.
 
-Designed so the future inference-output catalog (P4/P5, one Item per output COG) reuses
-`write_stac_catalog` + the asset helpers via a second item-builder; only the granule-catalog
-path (`tile_catalog_to_items`) is implemented here.
+`write_stac_catalog` takes Items from either builder here: `tile_catalog_to_items` (one Item per
+granule) or `cog_outputs_to_items` (one Item per inference-output COG, for `run_inference`).
 """
 
 from __future__ import annotations
