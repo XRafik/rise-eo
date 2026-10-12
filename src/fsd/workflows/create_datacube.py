@@ -17,7 +17,7 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 import geopandas as gpd
 import pandas as pd
@@ -175,6 +175,51 @@ def cube_export_folderpath(run_folderpath: str, window_segment: str, id_value) -
     return export_folderpath
 
 
+def _refuse_duplicate_ids(shapes_gdf: gpd.GeoDataFrame, id_col: str) -> None:
+    """Raise `ValueError` when two shapes share an `id_col` value."""
+    # `export_folderpath` is derived from `srow[id_col]`, so two shapes sharing an id are two
+    # work-units writing the SAME folder -- concurrently, once `max_concurrent > 1`. On blob
+    # that collides on the block-blob commit (`InvalidBlockList`) and the surviving
+    # geometry.geojson is whichever shape committed last; locally it silently overwrites.
+    # Either way the run is wrong, so refuse it here rather than race. The guard belongs
+    # here for every caller, whatever produced the ids.
+    if shapes_gdf[id_col].duplicated().any():
+        counts = shapes_gdf[id_col].value_counts()
+        repeated = counts[counts > 1]
+        worst = ", ".join(f"{i}x{n}" for i, n in repeated.head(3).items())
+        raise ValueError(
+            f"shapes have duplicate '{id_col}' values: {len(repeated)} of "
+            f"{shapes_gdf[id_col].nunique()} ids repeated across {len(shapes_gdf)} shapes "
+            f"(worst: {worst}). Each id becomes one export folder, so duplicates make "
+            f"multiple work-units write the same files concurrently. Deduplicate the shapes "
+            f"(or pass an id column that is unique per shape) before calling setup()."
+        )
+
+
+def _append_input_rows(
+    rows: list[dict], csv_filepath: str, *, mosaic_days: int, mosaic_scheme: str,
+    collection: str, bands: list[str],
+    properties_filter: Mapping[str, str | Sequence[str]] | None, processing: str | None,
+) -> None:
+    """Stamp `rows` with the request's parameters, append them after any rows already in
+    `csv_filepath`, dedupe on unit identity and write the file."""
+    input_df = pd.DataFrame(rows)
+    input_df["added_on"] = pd.Timestamp.now(tz="UTC")
+    input_df["mosaic_days"] = mosaic_days
+    input_df["mosaic_scheme"] = mosaic_scheme
+    input_df["collection"] = collection
+    input_df["bands"] = ",".join(bands)
+    input_df["properties_filter"] = _canonicalize_properties_filter(properties_filter)
+    input_df["processing"] = _canonicalize_processing(processing)
+
+    if fs.exists(csv_filepath):
+        with fs.open(csv_filepath, "r") as f:
+            input_df = pd.concat([pd.read_csv(f), input_df], ignore_index=True)
+    input_df = _dedupe_on_unit_identity(input_df)
+    with fs.open(csv_filepath, "w") as f:
+        input_df.to_csv(f, index=False)
+
+
 def setup(
     catalog_filepath: str,
     timestamp_col: str,
@@ -244,23 +289,7 @@ def setup(
     bands = [declaration.canonical_to_native(b) for b in bands]
     shapes_gdf = fs.read_geo(shapefilepath)
 
-    # `export_folderpath` is derived from `srow[id_col]`, so two shapes sharing an id are two
-    # work-units writing the SAME folder -- concurrently, once `max_concurrent > 1`. On blob
-    # that collides on the block-blob commit (`InvalidBlockList`) and the surviving
-    # geometry.geojson is whichever shape committed last; locally it silently overwrites.
-    # Either way the run is wrong, so refuse it here rather than race. The guard belongs
-    # here for every caller, whatever produced the ids.
-    if shapes_gdf[id_col].duplicated().any():
-        counts = shapes_gdf[id_col].value_counts()
-        repeated = counts[counts > 1]
-        worst = ", ".join(f"{i}x{n}" for i, n in repeated.head(3).items())
-        raise ValueError(
-            f"shapes have duplicate '{id_col}' values: {len(repeated)} of "
-            f"{shapes_gdf[id_col].nunique()} ids repeated across {len(shapes_gdf)} shapes "
-            f"(worst: {worst}). Each id becomes one export folder, so duplicates make "
-            f"multiple work-units write the same files concurrently. Deduplicate the shapes "
-            f"(or pass an id column that is unique per shape) before calling setup()."
-        )
+    _refuse_duplicate_ids(shapes_gdf, id_col)
 
     # Read the catalog ONCE for the whole run, then filter it in memory per shape
     # (`filter_gdf`). `TileCatalog.filter` re-reads the file on every call, which on a
@@ -394,21 +423,11 @@ def setup(
     if not rows:
         raise NoWorkUnitsError("setup produced no work-units (no shape had tiles in range).")
 
-    input_df = pd.DataFrame(rows)
-    input_df["added_on"] = pd.Timestamp.now(tz="UTC")
-    input_df["mosaic_days"] = mosaic_days
-    input_df["mosaic_scheme"] = mosaic_scheme
-    input_df["collection"] = collection
-    input_df["bands"] = ",".join(bands)
-    input_df["properties_filter"] = _canonicalize_properties_filter(properties_filter)
-    input_df["processing"] = _canonicalize_processing(processing)
-
-    if fs.exists(csv_filepath):
-        with fs.open(csv_filepath, "r") as f:
-            input_df = pd.concat([pd.read_csv(f), input_df], ignore_index=True)
-    input_df = _dedupe_on_unit_identity(input_df)
-    with fs.open(csv_filepath, "w") as f:
-        input_df.to_csv(f, index=False)
+    _append_input_rows(
+        rows, csv_filepath, mosaic_days=mosaic_days, mosaic_scheme=mosaic_scheme,
+        collection=collection, bands=bands, properties_filter=properties_filter,
+        processing=processing,
+    )
 
 
 def _report_selections(selections, processing: str | None) -> None:
@@ -704,6 +723,27 @@ def _clear_known_empty(run_folderpath: str, window_segment: str) -> None:
         _write_known_empty(run_folderpath, window_segment, set())
 
 
+def _current_rows(
+    csv_filepath: str, *, keep: Callable[[pd.Series], bool],
+) -> tuple[pd.DataFrame | None, set[str]]:
+    """The rows of an existing `csv_filepath` that `keep` accepts, and their ids
+    (`(None, set())` when the file does not exist)."""
+    existing_df = None
+    existing_ids: set[str] = set()
+    if fs.exists(csv_filepath):
+        with fs.open(csv_filepath, "r") as f:
+            existing_df = pd.read_csv(f)
+        if len(existing_df):
+            keep_mask = existing_df.apply(keep, axis=1)
+            existing_df = existing_df.loc[keep_mask]
+        # `input.csv` rows are always written under `COL_ID` ("id") by `setup`,
+        # regardless of the caller's own `id_col` name (e.g. "fid") -- the caller's
+        # `shapes_gdf` is the only frame that still uses the caller's `id_col`.
+        if len(existing_df) and COL_ID in existing_df.columns:
+            existing_ids = set(existing_df[COL_ID].astype(str))
+    return existing_df, existing_ids
+
+
 def build_shortfall_only(
     *, catalog_filepath: str, timestamp_col: str, shapefilepath: str, id_col: str,
     run_folderpath: str, startdate, enddate, bands: list[str],
@@ -738,29 +778,16 @@ def build_shortfall_only(
     )
     known_empty = _read_known_empty(run_folderpath, window_segment)
 
-    existing_df = None
-    existing_ids: set[str] = set()
-    if fs.exists(csv_filepath):
-        with fs.open(csv_filepath, "r") as f:
-            existing_df = pd.read_csv(f)
-        if len(existing_df):
-            keep_mask = existing_df.apply(
-                lambda row: _row_matches_window(
-                    row, bands=bands, mosaic_days=mosaic_days, startdate=startdate,
-                    enddate=enddate, mosaic_scheme=mosaic_scheme,
-                    collection=collection, properties_filter=properties_filter,
-                    processing=processing,
-                ) and _row_matches_path(
-                    row, run_folderpath=run_folderpath, window_segment=window_segment,
-                ),
-                axis=1,
-            )
-            existing_df = existing_df.loc[keep_mask]
-        # `input.csv` rows are always written under `COL_ID` ("id") by `setup`,
-        # regardless of the caller's own `id_col` name (e.g. "fid") -- `shapes_gdf`
-        # below is the only frame that still uses the caller's `id_col`.
-        if len(existing_df) and COL_ID in existing_df.columns:
-            existing_ids = set(existing_df[COL_ID].astype(str))
+    existing_df, existing_ids = _current_rows(
+        csv_filepath, keep=lambda row: _row_matches_window(
+            row, bands=bands, mosaic_days=mosaic_days, startdate=startdate,
+            enddate=enddate, mosaic_scheme=mosaic_scheme,
+            collection=collection, properties_filter=properties_filter,
+            processing=processing,
+        ) and _row_matches_path(
+            row, run_folderpath=run_folderpath, window_segment=window_segment,
+        ),
+    )
 
     # ONE presence sweep for the whole request, up front -- a listing where the backend
     # allows it, concurrent+ticked checks otherwise. The loop below and the plan line share
