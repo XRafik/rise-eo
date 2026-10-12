@@ -19,9 +19,46 @@ import shapely.geometry
 
 from fsd.catalog import stac
 from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-from tests.test_catalog_stac import _make_output_cog, _write_geometry_geojson
 
-_DT = dt.datetime(2020, 1, 2, 3, 4, 5, tzinfo=dt.timezone.utc)
+
+# Copied from tests/test_catalog_stac.py: CI runs bare `pytest`, which cannot import `tests.*`.
+def _make_output_cog(folder, *, epsg=32637):
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    os.makedirs(folder, exist_ok=True)
+    fp = os.path.join(folder, "output.tif")
+    data = np.zeros((1, 4, 4), dtype="uint8")
+    with rasterio.open(
+        fp, "w", driver="GTiff", height=4, width=4, count=1, dtype="uint8",
+        crs=f"EPSG:{epsg}", transform=from_origin(500000, 4000000, 10, 10),
+    ) as dst:
+        dst.write(data)
+    return fp
+
+
+_SLANTED_POLYGON = shapely.geometry.Polygon(
+    [(14.766, 48.492), (14.789, 48.534), (14.847, 48.526), (14.825, 48.484)]
+)
+
+
+def _write_geometry_geojson(folder, *, feature_id="cell-1", geom=_SLANTED_POLYGON):
+    fp = os.path.join(folder, "geometry.geojson")
+    fc = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"id": feature_id},
+            "geometry": shapely.geometry.mapping(geom),
+        }],
+    }
+    with open(fp, "w") as f:
+        json.dump(fc, f)
+    return fp
+
+
+_DT =dt.datetime(2020, 1, 2, 3, 4, 5, tzinfo=dt.timezone.utc)
 
 # A None in a float column of a GeoDataFrame is NaN, and the builder passes a NaN offset /
 # scale straight through to `raster:bands` today; the literals below pin that as-is.
