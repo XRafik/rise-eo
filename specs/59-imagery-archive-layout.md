@@ -12,7 +12,7 @@ the byte copy was already atomic, the defect is stamping after publishing (§8).
 **Amendment A1 (2026-10-03, SIGNED OFF by the user 2026-10-03):** D5 adds one public helper,
 `fsd.archive_catalog_filepath(dst_folderpath, collection)`, so no caller rebuilds the archive's
 inner layout by hand (found in the D12 review: five hand-built `{root}/{collection}/catalog.parquet`).
-**Amendment A2 (2026-10-13, DRAFT):** a `setup`-written `input.csv` with no `processing` column is
+**Amendment A2 (2026-10-13, SIGNED OFF by the user 2026-10-13):** a `setup`-written `input.csv` with no `processing` column is
 refused, extending D8's "no shim" (#145 X2; end of this spec).
 · **Opened:** 2026-09-29
 **Closes:** [#74](https://github.com/nikhilsrajan/fsd/issues/74) (a download stamps its file in place after publishing it — retitled 2026-09-30).
@@ -578,7 +578,7 @@ Per-source credit — what each source contributed:
 
 ## Amendment A2 (2026-10-13) — refuse a `setup`-written `input.csv` with no `processing` column (#145 X2)
 
-**Status:** DRAFT, awaiting the user's sign-off. Decided by the user on 2026-10-09 (question Q3b of the
+**Status:** SIGNED OFF (user, 2026-10-13), before any code in the X2 PR (#177) was written. Decided by the user on 2026-10-09 (question Q3b of the
 refactor audit, #145 Decisions comment) and 2026-10-13 (the three X2 questions: `verify_adapter` stays
 out, fail loudly, record it in this spec). Extends D8's "No shim" paragraph from the catalog to
 `input.csv`. Corrects Q3b's "old run folders rebuild once", which holds for neither site Q3b named.
