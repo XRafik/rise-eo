@@ -142,7 +142,7 @@ def test_migrate_carries_the_deploy_record_across(tmp_path):
         assert json.load(f) == record
 
 
-# --- spec 52 AC2/AC3: a write interrupted before the manifest lands is invisible + reusable
+# --- spec 52 AC2/AC3: a write interrupted before the marker lands is invisible + reusable
 
 
 def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_mid_write(
@@ -524,7 +524,7 @@ def test_publish_against_a_url_registry_returns_within_a_timeout(tmp_path):
 
 # --- spec 52 review (Opus, 2026-08-24): exit paths of `_write_new_version` ---------------
 #
-# The tests below pin three of its exit paths: the idempotent-collision `return`, the
+# The tests below pin two of its exit paths, the idempotent-collision `return` and the
 # landed-digest guard, and the marker-only completeness rule. The two "race" tests written
 # during implementation look like they cover the collision path but cannot reach it -- their
 # competitor publishes *before* `_list_versions` runs, so allocation starts past the
