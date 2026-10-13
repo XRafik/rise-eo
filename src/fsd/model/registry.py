@@ -11,8 +11,8 @@ registry are the same code. Versions are immutable; `_aliases.json` is the only 
 pointer. `publish` is idempotent by content digest. A version is published **in
 place** -- no staging prefix, no directory rename -- and re-digested before
 `v<N>/_complete.json` is written last, which is the all-or-nothing moment a directory
-rename used to provide. `migrate` relocates a registry and re-digests every version, so a
-ref that resolves against one root resolves identically against a copy of it.
+rename used to provide. `migrate` relocates a registry and re-digests every marked version,
+so a ref to a marked version resolves identically against a copy of it.
 
 **Concurrency, stated rather than implied.** There is no lock. What IS
 guaranteed: a reader never sees a half-written `_aliases.json` (staged and renamed), and
@@ -472,13 +472,15 @@ def migrate(
     src_storage_options: dict | None = None,
     dst_storage_options: dict | None = None,
 ) -> None:
-    """Copy a registry tree onto a new root, re-digesting every version.
+    """Copy a registry tree onto a new root, re-digesting every marked version.
 
     Not a schema rewrite: nothing the registry writes names its own location, so a ref that
     resolved against `src_registry` resolves identically against `dst_registry` once callers
     pass the new `registry=`. That invariant is what makes a move "a copy plus a changed
     argument" -- do not write an absolute registry path into any registry file. A version
     whose recomputed digest disagrees with what was copied is refused, not silently accepted.
+    An unmarked version is not copied, but `_aliases.json` is, so a pin or alias naming one
+    resolves against `src_registry` and dangles against `dst_registry`.
     """
     src_opts = src_storage_options or {}
     dst_opts = dst_storage_options or {}

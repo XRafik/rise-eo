@@ -206,13 +206,13 @@ finished one — and it is bounded: everything published after this spec carries
 
 ## 5. Risks
 
-> **Superseded by the 2026-10-13 amendment (end of this spec):** only `_complete.json` makes a version.
-
 **Two simultaneous publishers can corrupt a version, and nothing prevents it.** Both write into
 `v1/`, their files interleave, and neither set of bytes is intact. D1 step 2 means neither writer
 *marks* it, so neither claims it and both move on — the damage is a stranded folder rather than a
 bad model being *returned by `publish`*. **Corrected by Opus review, 2026-08-24: that folder is
-not invisible.** Both writers wrote a `bundle.json`, and D5's legacy rule reads
+not invisible.** *(This correction, to the end of its sentence about `_list_versions` (D2), is
+superseded by the 2026-10-13 amendment: with only `_complete.json` counting, the folder is
+invisible again. The rest of this risk still stands.)* Both writers wrote a `bundle.json`, and D5's legacy rule reads
 `bundle.json`-without-a-marker as complete, so `_list_versions` counts it: it burns a version
 number and stays reachable by an explicit pin or a hand-set alias. Nothing *hands it out* — no
 caller resolves "the latest version" through `_list_versions` (D2) — so the risk is unchanged in
