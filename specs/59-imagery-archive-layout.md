@@ -12,6 +12,8 @@ the byte copy was already atomic, the defect is stamping after publishing (§8).
 **Amendment A1 (2026-10-03, SIGNED OFF by the user 2026-10-03):** D5 adds one public helper,
 `fsd.archive_catalog_filepath(dst_folderpath, collection)`, so no caller rebuilds the archive's
 inner layout by hand (found in the D12 review: five hand-built `{root}/{collection}/catalog.parquet`).
+**Amendment A2 (2026-10-13, DRAFT):** a `setup`-written `input.csv` with no `processing` column is
+refused, extending D8's "no shim" (#145 X2; end of this spec).
 · **Opened:** 2026-09-29
 **Closes:** [#74](https://github.com/nikhilsrajan/fsd/issues/74) (a download stamps its file in place after publishing it — retitled 2026-09-30).
 **Prepares:** [#101](https://github.com/nikhilsrajan/fsd/issues/101) (guard inference against processing
@@ -311,6 +313,8 @@ Every other column is unchanged. The STAC export (`catalog/stac.py`) writes `pro
 
 **No shim, no migration tool** (spec 58 D12's standing policy): a pre-59 catalog is not read. It raises
 naming the missing columns and "re-download". The re-download is D12's cost.
+> **Extended by Amendment A2 (2026-10-13, end of this spec):** a `setup`-written `input.csv` with no
+> `processing` column is refused too.
 
 ### D9 — Provenance is recorded in every cube and training-data stamp
 
@@ -571,3 +575,83 @@ Per-source credit — what each source contributed:
 5. D5 path semantics + preflight.
 6. D9 provenance.
 7. P2 run-book, then notebooks/docs (D12).
+
+## Amendment A2 (2026-10-13) — refuse a `setup`-written `input.csv` with no `processing` column (#145 X2)
+
+**Status:** DRAFT, awaiting the user's sign-off. Decided by the user on 2026-10-09 (question Q3b of the
+refactor audit, #145 Decisions comment) and 2026-10-13 (the three X2 questions: `verify_adapter` stays
+out, fail loudly, record it in this spec). Extends D8's "No shim" paragraph from the catalog to
+`input.csv`. Corrects Q3b's "old run folders rebuild once", which holds for neither site Q3b named.
+
+**Problem.**
+- `setup` writes a `processing` column into every `input.csv` row (`_append_input_rows`,
+  `workflows/create_datacube.py:213`). A file written before this spec has none.
+  `_flatten_identity` covers that case with a shim: `params.setdefault("processing", [""])`
+  (`api.py:904-906`). D8 says "no shim" for a pre-59 catalog; `input.csv` got one anyway.
+- Dropping the shim alone makes such a run folder re-flatten on **every** `create_training_data` call,
+  not once:
+  1. `_row_matches_window` skips a column the row lacks (`create_datacube.py:609-611`), so the old rows
+     count as present and `setup` never runs.
+  2. `build_shortfall_only` rewrites `input.csv` from those rows, still without the column (`:844-846`).
+  3. The request's identity always holds `processing` (`api.py:968`). The identity read from the file
+     would not, so the stamp never matches.
+- `flatten_training_data` also accepts a hand-built `input_csv` with only `id`, `datacube_filepath` and
+  an optional label (e.g. `tests/test_training_data_aml.py:465`). It never came from `setup`, so a
+  missing `processing` column there does not mean "written before spec 59".
+
+**Decision.**
+- **X2.1** `flatten_training_data` raises `PreflightError` when its `input_csv` has at least one of the
+  run-parameter columns `setup` writes (`bands`, `mosaic_days`, `startdate`, `enddate`, `collection`,
+  `mosaic_scheme`, `properties_filter`) and no `processing` column. The check runs right after the file
+  is read, before the stamp check and before any reduce, so nothing is written. The message names the
+  file, says `setup` wrote it before spec 59, and gives the two ways out:
+  - delete the run folder and run again;
+  - or call `create_training_data` with `overwrite=True`. That deletes and rewrites `input.csv` from
+    the catalog (`create_datacube.py:985-987`), so it needs a spec-59 catalog (D8).
+
+  `create_training_data` reaches the check through `flatten_training_data`, which it always calls.
+- **X2.2** `_flatten_identity` drops the `setdefault`. `params` then holds exactly the run-parameter
+  columns the file has. This is already the rule for the other seven columns. A hand-built file with
+  none of them gets no `processing` key. One-time cost: a stamp written from a hand-built file before
+  this amendment holds `processing: [""]`, so the next call re-flattens once and rewrites the stamp.
+  Later calls match.
+- **X2.3** Unchanged: `verify_adapter` adds `processing` to its identity only when it is not `None`
+  (`api.py:2284-2286`). That is D6's cube-identity rule ("appended only when not `None`"), not a shim.
+  Dropping it would make every existing `processing=None` export folder raise `PreflightError`
+  (`api.py:2295`). Q3b named it by mistake.
+- **X2.4** Unchanged: `create_training_data`'s top-level short-circuit never reads `input.csv`
+  (spec 50 D3). A run folder whose stamp already matches the request is still handed back as current.
+  Only a stamp written after this spec can match, because older stamps have no `processing` key.
+- **X2.5** In the same PR: delete the shim's comment (`api.py:904-905`); add one sentence on the
+  refusal to `flatten_training_data`'s docstring. No existing test pins the shim.
+- **Data.** The workspace holds four pre-59 `input.csv` files, all spec-58 scratch runs under
+  `tests/outputs/p58_p2/` and `tests/outputs/p58_redownload/` (gitignored). Flattening them now raises.
+
+**Prior art.** In-repo only; the decision relies on no outside fact.
+- D8 here: "No shim, no migration tool (spec 58 D12's standing policy): a pre-59 catalog is not read. It
+  raises naming the missing columns and 're-download'." X2.1 applies the same rule to `input.csv`.
+- #145 Q5 (X4): a hand-built catalog with no `offset`/`nodata` fails loudly rather than defaulting.
+- Spec 52's 2026-10-13 amendment (#145 X1): a pre-spec rule is dropped and old content is not migrated.
+
+**How to verify.**
+- A test: an `input.csv` with `setup`'s run-parameter columns and no `processing` column makes
+  `flatten_training_data` raise `PreflightError`. The message names the file and spec 59, and no array
+  or stamp is written. It fails on the old code, which flattens.
+- A test: `create_training_data` on a run folder whose cubes all exist and whose `input.csv` lacks the
+  column raises the same error. It fails on the old code.
+- A test: a hand-built `input.csv` (`id`, `datacube_filepath` only) still flattens; its stamp's `params`
+  has no `processing` key; a second call skips. The key assertion fails on the old code.
+- `grep -n 'setdefault("processing"' src/fsd/api.py` prints nothing.
+- No gate 4: the check and `_flatten_identity` run on the driver only (one caller, `api.py:1116`,
+  before any dispatch).
+
+**Risks.**
+- A hand-built `input.csv` that copies some of `setup`'s columns but not `processing` now raises. Fix:
+  add an empty `processing` column.
+
+**Out of scope.**
+- `_row_matches_window` (`create_datacube.py:609-611`) and `_dedupe_on_unit_identity` (`:458`) skip
+  any column a row lacks. That tolerance is wider than `processing` (it also covers pre-58 files with
+  no `properties_filter`). Recorded on #145 as a finding.
+- `create_datacube` on a pre-59 run folder: it never flattens, so X2.1 does not fire there.
+- `verify_adapter` (X2.3).
