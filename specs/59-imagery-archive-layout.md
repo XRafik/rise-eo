@@ -582,6 +582,7 @@ Per-source credit — what each source contributed:
 refactor audit, #145 Decisions comment) and 2026-10-13 (the three X2 questions: `verify_adapter` stays
 out, fail loudly, record it in this spec). Extends D8's "No shim" paragraph from the catalog to
 `input.csv`. Corrects Q3b's "old run folders rebuild once", which holds for neither site Q3b named.
+Line numbers below are at `main` b839628, before the X2 code.
 
 **Problem.**
 - `setup` writes a `processing` column into every `input.csv` row (`_append_input_rows`,
