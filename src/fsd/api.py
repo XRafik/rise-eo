@@ -877,6 +877,25 @@ def create_training_data(
 
 _FLATTEN_STAMP_NAME = "_flatten_stamp.json"
 
+# The run-parameter columns `create_datacube.setup` writes into `input.csv`.
+_SETUP_RUN_PARAM_COLUMNS = (
+    "bands", "mosaic_days", "startdate", "enddate", "collection",
+    "mosaic_scheme", "properties_filter", "processing",
+)
+
+
+def _check_input_csv_has_processing(input_df: pd.DataFrame, input_csv: str) -> None:
+    """Raise `PreflightError` if `input_df` is a `setup` file written before the `processing` column existed."""
+    setup_cols = [c for c in _SETUP_RUN_PARAM_COLUMNS if c != "processing"]
+    if "processing" not in input_df.columns and any(c in input_df.columns for c in setup_cols):
+        _raise_preflight([
+            f"{input_csv!r} was written by `setup` before the `processing` column existed "
+            "(spec 59), so it cannot say which processing its cubes were built from. "
+            "Delete the run folder and run again, or call `create_training_data` with "
+            "`overwrite=True` (this rebuilds every cube and rewrites `input.csv` from the "
+            "catalog, so the catalog must be in the spec-59 format)."
+        ])
+
 
 def _flatten_identity(input_df: pd.DataFrame, *, id_col, filepath_col, adapter, feature_sequence,
                       aggregate) -> dict:
@@ -894,16 +913,12 @@ def _flatten_identity(input_df: pd.DataFrame, *, id_col, filepath_col, adapter, 
         [str(row[id_col]), str(row[filepath_col])] for _, row in input_df.iterrows()
     )
     params: dict = {}
-    for col in ("bands", "mosaic_days", "startdate", "enddate", "collection",
-               "mosaic_scheme", "properties_filter", "processing"):
+    for col in _SETUP_RUN_PARAM_COLUMNS:
         if col in input_df.columns:
             # An empty/NaN field round-trips through CSV as NaN, not "" -- normalize,
             # or this never matches `_flatten_identity_from_request`'s freshly-computed
             # "" for the same request.
             params[col] = sorted(set(input_df[col].fillna("").astype(str)))
-    # An older `input.csv` has no `processing` column; that is the same request as
-    # `processing=None`, which `_flatten_identity_from_request` records as [""].
-    params.setdefault("processing", [""])
     params["aggregate"] = _fingerprint_aggregate(aggregate)
     params["features"] = _fingerprint_features(adapter, feature_sequence)
     identity = {"cubes": cubes, "params": params}
@@ -1092,6 +1107,10 @@ def flatten_training_data(
     always reduces. The comparison never reads a modification time: a cube rebuilt
     under the same id/path is caught only if the id/path SET or the run parameters differ --
     see `_flatten_identity`.
+
+    **Refuses** (`PreflightError`) an `input_csv` that `setup` wrote before the `processing`
+    column existed (spec 59): delete the run folder, or pass `overwrite=True` to
+    `create_training_data` (which rebuilds every cube).
     """
     _check_one_feature_transform(adapter, feature_sequence)
 
@@ -1111,6 +1130,7 @@ def flatten_training_data(
 
     with fs.open(input_csv, "r") as f:
         input_df = pd.read_csv(f)
+    _check_input_csv_has_processing(input_df, input_csv)
 
     want_features = adapter is not None or feature_sequence is not None or aggregate is not None
     identity = _flatten_identity(
