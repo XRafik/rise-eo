@@ -418,9 +418,9 @@ draft** by establishing that the rename overwrites its destination unless made c
 
 ## Amendment (2026-10-13) — drop the legacy rule; only `_complete.json` makes a version (#145 X1)
 
-**Status:** DRAFT, awaiting sign-off. Decided by the user on 2026-10-09 (question Q3a of the refactor
-audit, #145 Decisions comment) and 2026-10-13 (the three X1 questions). Signed off when the user approves
-this text in the X1 PR, before any code in that PR is written. Supersedes D5, its 2026-08-24 amendment,
+**Status:** SIGNED OFF (user, 2026-10-13), before any code in the X1 PR (#174) was written. Decided by the
+user on 2026-10-09 (question Q3a of the refactor audit, #145 Decisions comment) and 2026-10-13 (the three
+X1 questions). Supersedes D5, its 2026-08-24 amendment,
 AC2's second half, AC5 and AC5a, and the "not invisible" correction in §5's first risk.
 
 **Problem.**
@@ -448,8 +448,8 @@ AC2's second half, AC5 and AC5a, and the "not invisible" correction in §5's fir
 - **X1.4** Old content is not migrated or stamped. The user confirmed on 2026-10-13 that no registry in
   use holds an unmarked version. The one known case is `notebooks/demo_registry/crop-rf/v1` (local,
   gitignored, 2026-08-24, alias `demo-eurocrops-at`). Under X1.3, a later `publish` of different content
-  to `crop-rf` in that registry would replace v1, and the alias would then name the new model. The X1 PR
-  records what the user chose for it.
+  to `crop-rf` in that registry would replace v1, and the alias would then name the new model. The user
+  chose on 2026-10-13 to delete that demo registry.
 - **X1.5** Comments and tests that describe the old rule are rewritten or removed in the same PR:
   - `_is_version_complete`'s docstring;
   - `_write_new_version`'s docstring: the "not invisible" sentence, the ⚠️ ordering hazard and the
