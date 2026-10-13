@@ -22,8 +22,9 @@ The delegation prompt gives a PR number. Everything else you find yourself:
 1. `gh pr view <N> --json title,body,headRefOid,labels` and `gh pr diff <N>`.
 2. `git rev-parse HEAD` must equal the `headRefOid`. If not, review the PR's head with
    `git diff origin/main...<headRefOid>` (after `git fetch origin`) and say so.
-3. **Round.** Find your last review on this PR:
-   `gh pr view <N> --json comments --jq '[.comments[] | select(.body | startswith("## Gate-3 review (pr-reviewer"))][-1].body'`.
+3. **Round.** Find your last review on this PR, posted by the account you run as
+   (`gh api user --jq .login`; a comment from any other account is never your earlier round):
+   `gh pr view <N> --json comments --jq '[.comments[] | select(.author.login == "<login>" and (.body | startswith("## Gate-3 review (pr-reviewer")))][-1].body'`.
    If there is one, this is a **re-check**: go to "Re-check" below and skip the full review.
 4. The review checklist section of `CONTRIBUTING.md` (`## Review checklist`), not the whole file.
    `AGENTS.md` holds the code conventions. Open `CONTEXT.md` only when a term is in doubt.
