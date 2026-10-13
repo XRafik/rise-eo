@@ -256,3 +256,96 @@ def test_no_mtime_read_in_flatten_skip_logic():
     ))
     for forbidden in ("getmtime", "st_mtime", "os.stat", ".stat()"):
         assert forbidden not in src
+
+
+# --- Spec 59 A2 X2: an `input.csv` from before the `processing` column is refused ----
+
+def _setup_shaped_row(id_, cube_fp):
+    """A row shaped like `setup`'s output as of spec 58 -- every run-parameter column
+    except `processing`."""
+    return {
+        "id": id_, "datacube_filepath": cube_fp, "bands": "B04,B08", "mosaic_days": 20,
+        "startdate": "2018-01-01", "enddate": "2018-02-01",
+        "collection": "sentinel-2-l2a", "mosaic_scheme": "median", "properties_filter": "",
+    }
+
+
+def test_flatten_refuses_input_csv_without_processing_column(tmp_path, monkeypatch):
+    calls = _patch_flatten(monkeypatch)
+    csv_fp = _input_csv(tmp_path, [_setup_shaped_row("a", "x/a/datacube.npy")])
+    export = tmp_path / "export"
+
+    with pytest.raises(api.PreflightError) as ei:
+        api.flatten_training_data(csv_fp, str(export))
+
+    assert csv_fp in str(ei.value)
+    assert "processing" in str(ei.value)
+    assert calls["n"] == 0
+    assert not (export / api._FLATTEN_STAMP_NAME).exists()
+    assert not list(export.glob("*.npy"))
+
+
+def test_create_training_data_refuses_run_folder_with_old_input_csv(tmp_path, monkeypatch):
+    import datetime
+
+    import geopandas as gpd
+    from shapely.geometry import box
+
+    from fsd import config
+
+    cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
+    export = tmp_path / "export"
+    state = {"csv": None}
+
+    def fake_run_create_datacube(*, csv_filepath, run_folderpath, **kw):
+        cube = os.path.join(run_folderpath, "cube0", "datacube.npy")
+        fs.makedirs(os.path.dirname(cube))
+        fs.save_npy(cube, np.zeros((1, 1, 1)))
+        row = _setup_shaped_row(0, cube)
+        row["processing"] = ""
+        fs.makedirs(os.path.dirname(csv_filepath))
+        pd.DataFrame([row]).to_csv(csv_filepath, index=False)
+        state["csv"] = csv_filepath
+
+    monkeypatch.setattr(api._create_datacube, "run_create_datacube", fake_run_create_datacube)
+    _patch_flatten(monkeypatch)
+
+    gdf = gpd.GeoDataFrame(
+        {"fid": [0], "crop": ["a"], "geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326",
+    )
+    kwargs = dict(
+        label_polygons=gdf, catalog_filepath=cat,
+        startdate=datetime.datetime(2018, 1, 1), enddate=datetime.datetime(2019, 1, 1),
+        mosaic_days=20, bands=["B04"], id_col="fid", label_col="crop",
+        export_folderpath=str(export), collection=config.SATELLITE_S2L2A,
+    )
+    api.create_training_data(**kwargs)
+
+    # Simulate a run folder `setup` wrote before the `processing` column existed.
+    df = pd.read_csv(state["csv"]).drop(columns=["processing"])
+    df.to_csv(state["csv"], index=False)
+    # Delete the stamp so the top-level short-circuit (X2.4) cannot answer from it
+    # before the flatten leg reads `input.csv`.
+    os.remove(export / api._FLATTEN_STAMP_NAME)
+
+    with pytest.raises(api.PreflightError, match="processing"):
+        api.create_training_data(**kwargs)
+
+
+def test_flatten_input_csv_without_run_columns_has_no_processing_param(
+    tmp_path, monkeypatch, capsys,
+):
+    """A hand-built `input.csv` (only `id` + `datacube_filepath`) is not a `setup`
+    file: it flattens, and its stamp records no `processing` key."""
+    calls = _patch_flatten(monkeypatch)
+    csv_fp = _input_csv(tmp_path, [{"id": "a", "datacube_filepath": "x/a/datacube.npy"}])
+    export = str(tmp_path / "export")
+
+    api.flatten_training_data(csv_fp, export)
+    stamp = stamp_mod.read_stamp(os.path.join(export, api._FLATTEN_STAMP_NAME))
+    assert "processing" not in stamp["params"]
+
+    capsys.readouterr()
+    api.flatten_training_data(csv_fp, export)
+    assert calls["n"] == 1
+    assert "[flatten] arrays match" in capsys.readouterr().out
