@@ -10,6 +10,10 @@ summary: Download at scale on AML: CDSE as one job, MPC fanned out to blob.
 > alongside KV — KV write was unavailable on the demo timeline; see the D5 REVISED note in §3, the
 > re-resolved Open Q2 in §8, and the updated §4/§5/§7). → NEXT: a Sonnet@medium session implements the
 > D5-revision delta against the merged code.** The original (pre-D5-revision) history follows.
+>
+> **Amendment A1 (2026-10-13, DRAFT):** `download_shard` refuses a shard row with a missing key
+> instead of filling in defaults (#145 X3; end of this spec).
+>
 > **→ (historical) NEXT: implement in a Sonnet@medium session against
 > this spec** (§3 D1–D10, §4 reuse ledger, §5 deliverables, §7 tests). **Prerequisite spec 35 is already
 > on `main`** (commit `f486c3c` — AML-downloaded catalogs self-describe via the ingest declaration
@@ -128,6 +132,10 @@ cluster's `max_instances` (spec 36 D2), sharded round-robin over the discovered 
   `sources.mpc.download_shard(work_rows, …)` that signs-on-node + `_transfer_and_stamp_one`s each row
   (re-using the existing per-asset transfer; the ROI-based `mpc.download` is **untouched**). Signing on
   the node (not the driver) avoids SAS-token-expiry between submit and run.
+
+> **Amended by Amendment A1 (2026-10-13, end of this spec):** `download_shard` raises `ValueError`
+> naming every missing key when a shard row lacks one of the 16 keys `discover_shard_rows` writes; it
+> no longer fills in defaults.
 
 ### D3 — The CLI entrypoint: `python -m fsd.workflows.download` — thin (mirrors spec 36's `shard.py`)
 
@@ -404,3 +412,114 @@ transfer limits and over-quota throttling; Microsoft Planetary Computer SAS-toke
 subscription-key effect on transfer vs signing, and West-Europe colocation; Azure ML v2 command-job
 `CommandJobLimits.timeout`; `azure-keyvault-secrets` `SecretClient` with a user-assigned managed
 identity via `AZURE_CLIENT_ID`.*
+
+---
+
+## Amendment A1 (2026-10-13) — `download_shard` refuses a shard row with a missing key (#145 X3)
+
+**Status:** DRAFT, awaiting the user's sign-off; no X3 code is written yet. Decided by the user on
+2026-10-09 (question Q3f of the refactor audit, #145 Decisions comment 6081711552: "Drop. A
+driver/image version mismatch fails with a clear `KeyError`") and 2026-10-13 (the four X3 questions:
+drop the defaults in both layers; one check up front that raises `ValueError`; record it in this spec;
+ship X3 alone, before G3). The exception type supersedes Q3f's `KeyError` (A1.6). Amends D2. Line
+numbers below are at `main` a4b5f3e, before the X3 code.
+
+**Problem.**
+- The driver writes one shard CSV per MPC job (`workflows/runners.py:1247-1249`). Every row comes from
+  `discover_shard_rows` (`sources/mpc.py:631-650`), which writes 16 keys. The node reads the CSV
+  (`workflows/download.py:137-141`) and passes the rows to `download_shard` (`:144`).
+- `download_shard` fills in five of those keys when a row lacks them (`mpc.py:707`, `:709-712`):
+  `scale` (the declaration's), `acquisition_key` (the granule name), `processing_version` and
+  `processing_datetime` (`None`), and `properties` (`"{}"`).
+- Today's driver always writes all 16 keys, and `run_id` is new for every dispatch
+  (`runners.py:1152`), so no node reads a shard CSV left over from an older run. A key is therefore
+  missing only when the driver runs an older fsd than the node's image, or when a caller builds the
+  rows by hand (`download_shard` is public: `mpc.py:55`).
+- In the first case the defaults are silently wrong. A driver from before spec 59 writes no
+  `acquisition_key` or `processing_*`. The node then catalogs each granule with its own name as the
+  acquisition key and no processing, so two processings of one acquisition no longer share a key
+  (spec 59 D4; the D6 build check and the D7 report both group by that key). The job reports
+  success; nothing points back at the download.
+- `_append_downloaded` holds three more defaults (`mpc.py:436`, `:438`, `:442`: `scale`,
+  `acquisition_key`, `properties`). Both callers always pass those keys: `download()` passes
+  `_items_to_gdf` rows (`mpc.py:181-191`), and `download_shard` passes its `tile_meta`, built with
+  every key. These defaults never fire.
+- The `else 1.0` in `declaration.scale if declaration else 1.0` (`:707`) is dead too: `declaration` is
+  `None` only when `rows` is empty (`:688`), and then the loop does not run.
+
+**Decision.**
+- **A1.1** `download_shard` checks its rows first, before `_import_pc_sign` (`:679`), before
+  `makedirs` (`:682`) and before any transfer. It collects every key, of the 16 below, that at least
+  one row lacks. If there is any, it raises `ValueError`, and nothing is signed, downloaded or
+  appended. The message:
+  - names the missing keys, sorted;
+  - says `discover_shard_rows` writes them, so the shard CSV was most likely written by a driver
+    running a different fsd version than this node's image;
+  - says how to fix it: run both from one fsd version, by updating the driver's fsd or rebuilding the
+    AML environment image (`docs/howto/build-the-images.md`).
+
+  The 16 keys, as one private module-level tuple in `sources/mpc.py`: `tile_id`, `band`, `href`,
+  `dst`, `offset`, `collection`, `timestamp`, `s3url`, `cloud_cover`, `scale`, `nodata`,
+  `acquisition_key`, `processing_version`, `processing_datetime`, `properties`, `geometry`.
+- **A1.2** `download_shard`'s `tile_meta` reads every key with `row[...]`. The five defaults and the
+  `else 1.0` go.
+- **A1.3** `_append_downloaded` reads `scale`, `acquisition_key` and `properties` with `r[...]`.
+- **A1.4** Unchanged: `_none_if_nan` on `processing_*` (`:439-440`). A key that is present with an
+  empty value is not missing: the CSV round trip turns `""` into NaN, and `_none_if_nan` turns NaN into
+  `None`. The check reads keys, never values.
+- **A1.5** Unchanged: an empty `rows` passes the check and returns an empty result, as now.
+- **A1.6** `ValueError`, not `KeyError`: Python defines `KeyError` as a failed mapping lookup and
+  `ValueError` as an argument of the right type with an inappropriate value (Prior art). Here the
+  argument is a list of dicts whose shape is wrong. It is a check, not a lookup.
+- **A1.7** Where the user sees it: the node job fails; the driver's `_aml_submit_and_wait` raises
+  `RuntimeError: job(s)/shard(s) failed: ...` (`runners.py:649`), as for any node failure, and the
+  message itself is in that job's log. The node writes no `_status/<k>.json`, because `run_shard`
+  raises before `_write_status` (`download.py:144-152`). Unchanged by X3.
+- **A1.8** In the same PR: one sentence on the check in `download_shard`'s docstring; the pointer at
+  D2.
+
+**Prior art.**
+- D8 of spec 59: "No shim, no migration tool (spec 58 D12's standing policy): a pre-59 catalog is not
+  read. It raises naming the missing columns". A1.1 applies the same rule to shard rows.
+- #145 X1 (spec 52's 2026-10-13 amendment) and X2 (spec 59 Amendment A2): a pre-spec tolerance is
+  dropped and fails loudly instead.
+- [Python 3 — Built-in Exceptions](https://docs.python.org/3/library/exceptions.html), the basis for
+  A1.6: `KeyError` is "Raised when a mapping (dictionary) key is not found in the set of existing
+  keys"; `ValueError` is "Raised when an operation or function receives an argument that has the right
+  type but an inappropriate value, and the situation is not described by a more precise exception".
+
+**How to verify.** Each new test is input → expected outcome.
+- **T1** One row with every key except `scale` and `properties` → `download_shard` raises `ValueError`;
+  the message contains `'properties'`, `'scale'`, `discover_shard_rows` and `different fsd version`;
+  the sign stub was never called; the catalog received no append. Fails on the old code, which
+  downloads.
+- **T2** Two rows, the first without `acquisition_key`, the second without `processing_datetime` →
+  one `ValueError` naming both keys. Fails on the old code.
+- **T3** One row with all 16 keys, `processing_version` and `processing_datetime` both NaN → no raise;
+  the appended catalog row has `None` for both. Guards A1.4; passes on the old code too.
+- **T4** `discover_shard_rows`, with the STAC search mocked → every row's keys equal the 16 in A1.1,
+  exactly. Guards drift between the producer and the check; passes on the old code too.
+- **T5** `_append_downloaded` given a `tile_meta` row without `scale` → `KeyError`. Fails on the old
+  code, which uses the declaration's scale.
+- **T6** `workflows.download.run_shard` on a `memory://` shard CSV with the `scale` column dropped →
+  `ValueError` with the T1 wording, and no `_status` JSON written. Fails on the old code.
+- `grep -nE '\.get\("(scale|acquisition_key|processing_version|processing_datetime|properties)"' src/fsd/sources/mpc.py`
+  prints nothing.
+- **Gate 4** (the check runs on the AML node): a run-book in `runbooks/`.
+  - Happy path: one MPC shard, one tile, B04 → the job completes; the catalog row has a non-empty
+    `acquisition_key` and `processing_version`.
+  - Negative case: the same shard CSV with `scale` and `properties` removed, submitted as an AML
+    command job running `python -m fsd.workflows.download --shard <url>` → the job fails, and its log
+    holds the A1.1 message naming both keys.
+
+**Risks.**
+- A caller of the public `download_shard` that builds rows by hand without these keys now raises. Fix:
+  add the keys. In this repo, two test fixtures (`tests/test_download_aml.py:174-179`, `:197-201`) lack
+  `scale`, `processing_version`, `processing_datetime` and `properties`; the X3 PR adds them.
+
+**Out of scope.**
+- The opposite skew, a driver newer than the image: the old node ignores columns it does not know, so
+  nothing fails. Catching it would need a version stamp in the shard CSV.
+- The CDSE path: one whole-ROI job, no shard rows.
+- `_row_matches_window` / `_dedupe_on_unit_identity` skipping missing columns (logged on #145 by X2).
+- G3's rewrites of `download` / `download_shard` (#145 A2, A8); they move the simplified code later.
