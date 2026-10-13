@@ -42,6 +42,7 @@ def _row(id_, mosaic_days=20, bands="B04,B08"):
         "id": id_, "datacube_filepath": f"x/{id_}/datacube.npy",
         "bands": bands, "mosaic_days": mosaic_days,
         "startdate": "2018-01-01", "enddate": "2018-02-01",
+        "processing": "",  # spec 59: real `setup` always writes this column
     }
 
 
@@ -298,7 +299,9 @@ def test_create_training_data_refuses_run_folder_with_old_input_csv(tmp_path, mo
     state = {"csv": None}
 
     def fake_run_create_datacube(*, csv_filepath, run_folderpath, **kw):
-        cube = os.path.join(run_folderpath, "cube0", "datacube.npy")
+        if fs.exists(csv_filepath):
+            return  # every cube already exists: the real build leaves `input.csv` alone
+        cube =os.path.join(run_folderpath, "cube0", "datacube.npy")
         fs.makedirs(os.path.dirname(cube))
         fs.save_npy(cube, np.zeros((1, 1, 1)))
         row = _setup_shaped_row(0, cube)

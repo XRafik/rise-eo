@@ -255,6 +255,7 @@ def _fake_run_create_datacube(
         "collection": [collection],
         "mosaic_scheme": [mosaic_scheme],
         "properties_filter": [""],  # spec 58 D9: real `setup` always writes this column
+        "processing": [""],  # spec 59: likewise
     }).to_csv(csv_filepath, index=False)
 
 
