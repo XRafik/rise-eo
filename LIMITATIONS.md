@@ -69,6 +69,7 @@ column is what "hitting it" means for each row.
 | **A model adapter is hand-written Python.** No config-only path. | a non-programmer needs to plug a model in | TODO #19 |
 | **✅ Root cause closed (spec 38 D7)**: the bundle now loads once per core per node (default, `cubes_per_task` groups cells) or once per node (`cores=1` heavy-model opt-out), not once per cell. The fine-grained per-phase timing breakdown (load/build/predict/save) TODO #25 also asked for is still open. | per-cell inference time is dominated by load | TODO #25 |
 | **One worked example: single-band classification (EuroCrops RF).** No regression / multi-band-output example. | first regression or multi-output model | TODO #18 |
+| **Don't publish to one registry name from two places at once** (`deploy`, `ensure_environment`): there is no lock, and one publisher can get back a version that holds the other's model or image. | two people build or deploy the same name at the same time | #175; spec 52 §5 |
 
 ## Data on disk (not code — state)
 
