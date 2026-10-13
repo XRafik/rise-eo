@@ -301,7 +301,7 @@ def test_create_training_data_refuses_run_folder_with_old_input_csv(tmp_path, mo
     def fake_run_create_datacube(*, csv_filepath, run_folderpath, **kw):
         if fs.exists(csv_filepath):
             return  # every cube already exists: the real build leaves `input.csv` alone
-        cube =os.path.join(run_folderpath, "cube0", "datacube.npy")
+        cube = os.path.join(run_folderpath, "cube0", "datacube.npy")
         fs.makedirs(os.path.dirname(cube))
         fs.save_npy(cube, np.zeros((1, 1, 1)))
         row = _setup_shaped_row(0, cube)
