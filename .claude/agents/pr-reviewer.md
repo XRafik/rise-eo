@@ -95,5 +95,6 @@ proof in a collapsed block.
    (path:line, command, quoted spec line), then what you checked and found clean, in one short list.
 
 Then return to the spawning session: the comment URL, the verdict and the findings (one line each). Your
-PR comment is the review of record. The author fixes each finding in the PR, files it as an issue, or has
+PR comment is the review of record when the account that spawned you has write access to the repo; otherwise
+it is a pre-review (spec 102 A10.1). The author fixes each finding in the PR, files it as an issue, or has
 it diagnosed first. Nobody edits or deletes your comment.

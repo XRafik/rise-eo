@@ -1095,8 +1095,10 @@ Signed off when the user merges the PR that adds it. Line numbers at `main` `6df
     required approvals turn on; "Maintainer handover" gains the A10.3 step after step 2 (line 98).
   - `AGENTS.md`: gate 3 (line 43), the reviewer bullet's "counts for gate 3" (lines 126–127) and the command
     that reads a review (lines 139–140).
-  - `.claude/agents/pr-reviewer.md`: the round lookup (line 26). `pr-reviewer-small.md` reuses it (line 14), so it
-    does not change.
+  - `.claude/agents/pr-reviewer.md`: the round lookup (line 26) and "the review of record" (lines 97–98).
+    `pr-reviewer-small.md` reuses the lookup (line 14), so it does not change.
+  - Not in this PR: `runbooks/102-p4-dry-run.ipynb` counts a `## Gate-3 review` comment from any account; issue #179
+    tracks it (from review round 1).
 
 **Prior art (D9).** Not homemade.
 - A10.1 applies GitHub's rule for required reviews to fsd's comment-based gate. GitHub counts "approving reviews from
