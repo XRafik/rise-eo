@@ -1052,3 +1052,100 @@ draft PR without asking" gains "and mark it ready when gates 1–3 hold".
   `WholeFileCacheFileSystem` and `SimpleCacheFileSystem` (A9.2's partial prior art).
 - **fsd ADR 0003** (`docs/adr/0003-all-file-io-through-storage-seam.md`): the rule A9.2 narrows, and its
   Consequences paragraph, which already relies on node-local scratch.
+
+## Amendment A10 — gate 3 counts a review only from an account with write access; code owners after the transfer (2026-10-13)
+
+**Status:** DRAFT, awaiting sign-off. Decided by the user on 2026-10-13 ("1+2", in a review of the #145 working loop).
+Signed off when the user merges the PR that adds it. Line numbers at `main` `6dfae80`. Builds on A1 and A8.
+
+**Problem.**
+- **The author can meet gate 3.** D2's gate 3 asks for a review by "someone other than the author", and A1 lets a
+  reviewer subagent count. The subagent posts under the account of whoever spawned it. So a contributor who spawns
+  `pr-reviewer` on their own PR gets a gate-3 comment posted by the PR's author, and nothing tells it apart from a
+  comment they typed by hand. While the maintainer is the only author this does no harm; it does with the first
+  contributor (D1: the repo is public).
+- **Anyone can post a review.** Any GitHub account can comment on a public repo. `AGENTS.md:140` reads the review of
+  record as the latest comment that starts with `## Gate-3 review`, and `pr-reviewer.md:26` finds its previous round
+  the same way. Neither checks who posted the comment, so a stranger's comment with that header would be read as the
+  review, or as round 1.
+- **D3's "no required approvals" fits one maintainer only.** With two or more maintainers, GitHub's own approval check
+  can carry gate 3, and a comment is the weaker of the two.
+
+**Decision.**
+- **A10.1** A gate-3 review counts only when the account that posted it has **write access** to the repo:
+  `gh api 'repos/{owner}/{repo}/collaborators/<login>/permission' --jq .permission` prints `admin` or `write`. GitHub
+  maps the maintain role to `write`. A reviewer subagent (A1) counts when the account that spawned it has write access.
+  Any other review, including a contributor's own reviewer agent on their own PR, is a pre-review: welcome, but not
+  gate 3. A contributor without write access marks the PR ready when the other gates hold and says that gate 3 waits
+  on the maintainer (A8.2).
+- **A10.2** To read the review of record, list the accounts that posted the PR's `## Gate-3 review` comments, keep
+  those with write access (A10.1), and read the latest comment by one of them. The `pr-reviewer` round lookup keeps
+  only comments posted by the account it runs as (`gh api user --jq .login`): its own previous round was posted by
+  that account, so it needs no permission call.
+- **A10.3** **Code owners after the transfer.** Once the repo is in the `nasaharvest` org (D18) **and** two or more
+  maintainers are active:
+  - add `.github/CODEOWNERS` with one line, `* @<org>/<maintainers-team>`. It names a team, not people, so a handover
+    changes the team and not the file;
+  - in branch protection, require 1 approval and turn on "Require review from Code Owners".
+
+  Gate 3 is then that approval, and a reviewer agent's comment (A1) becomes a pre-review. Until both conditions hold,
+  D3's "no required approvals" stands.
+- **A10.4** The living docs say this where gate 3 is stated:
+  - `CONTRIBUTING.md`: gate 3 (line 25); "Maintainer tasks", the branch-protection bullet (line 76), says when
+    required approvals turn on; "Maintainer handover" gains the A10.3 step after step 2 (line 98).
+  - `AGENTS.md`: gate 3 (line 43), the reviewer bullet's "counts for gate 3" (lines 126–127) and the command
+    that reads a review (lines 139–140).
+  - `.claude/agents/pr-reviewer.md`: the round lookup (line 26) and "the review of record" (lines 97–98).
+    `pr-reviewer-small.md` reuses the lookup (line 14), so it does not change.
+  - Not in this PR: `runbooks/102-p4-dry-run.ipynb` counts a `## Gate-3 review` comment from any account; issue #179
+    tracks it (from review round 1).
+
+**Prior art (D9).** Not homemade.
+- A10.1 applies GitHub's rule for required reviews to fsd's comment-based gate. GitHub counts "approving reviews from
+  people with write permissions in the repository or from a designated code owner". D3 turned required approvals off
+  only because a solo maintainer cannot approve their own PRs; A10.1 keeps the comment and adopts GitHub's test of
+  whose review counts. The Apache Software Foundation draws the same line for code changes: "PMC members have formally
+  binding votes, but in general communities encourage all their members to vote, even if their votes are only
+  advisory." That page is undated, and no archived copy could be fetched, so its age is not shown here.
+- A10.3 is GitHub's code-owners feature, announced 2017-07-06: "With protected branches enabled, a code owner for each
+  owned file has to leave a review before anyone can merge a pull request to that branch."
+
+**How to verify.**
+- `grep -n "write access" CONTRIBUTING.md AGENTS.md` prints the gate-3 lines; `grep -n "CODEOWNERS" CONTRIBUTING.md`
+  prints the handover step and the branch-protection bullet.
+- `grep -n "gh api user" .claude/agents/pr-reviewer.md` prints the round lookup.
+- On PR #177, the A10.2 steps find one account, whose permission is `admin`, and read its round-2 review. For an
+  account that is not a collaborator (`octocat`), the permission call prints `read` (checked 2026-10-13), so that
+  account's comments would be dropped.
+- A10.3 is checked after the transfer, not now: with the settings on, a PR without a code owner's approval cannot be
+  merged.
+
+**Out of scope.**
+- A reviewer that runs in CI and posts as a bot, which would prove a review ran (weighed in A1's Out of scope).
+- Proving that a comment by an account with write access came from a real `pr-reviewer` run: A10 trusts those
+  accounts, as GitHub does.
+- Adding `CODEOWNERS` or changing branch protection now. Who merges (unchanged).
+- A docs test that pins the commands in `AGENTS.md`.
+
+**Outside the repo.** None.
+
+**Sources (per-source credit).**
+- **GitHub Docs, "About protected branches"**
+  (<https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches>):
+  "You can require approving reviews from people with write permissions in the repository or from a designated code
+  owner" (A10.1's rule); "If you do, any pull request that affects code with a code owner must be approved by that
+  code owner before the pull request can be merged into the protected branch" (A10.3).
+- **GitHub Docs, "About code owners"**
+  (<https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners>):
+  the file goes in `.github/`, the root or `docs/`; "the CODEOWNERS file must be on the base branch of the pull
+  request"; "When the code owner is a team, that team must be visible and it must have write permissions"; "the last
+  matching pattern takes the most precedence" (A10.3).
+- **GitHub REST docs, "Get repository permissions for a user"**
+  (<https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user>): `permission`
+  is one of admin, write, read or none, and "the maintain role is mapped to write and the triage role is mapped to
+  read" (A10.1's `admin` or `write`).
+- **GitHub Blog, "Introducing code owners"** (2017-07-06,
+  <https://github.blog/news-insights/product-news/introducing-code-owners/>): the quotation in Prior art (A10.3 predates
+  2022-11-30).
+- **Apache Software Foundation, "Voting"** (<https://www.apache.org/foundation/voting.html>, undated): binding votes
+  against advisory ones (A10.1's prior art).

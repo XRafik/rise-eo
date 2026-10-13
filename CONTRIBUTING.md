@@ -22,8 +22,10 @@ ready once the other gates hold, and say what waits in the PR description.
 2. **Linked issue.** Changing a convention, an on-disk format or the public API also needs a signed-off
    short spec (`specs/TEMPLATE.md`; its number is its tracking issue's number). Bug fixes, refactors, docs and
    a new collection that follows `docs/adding-a-source.md` need only the issue.
-3. **Reviewed by someone other than the author**, as a PR comment. Every finding is fixed in the PR or
-   filed as an issue.
+3. **Reviewed by someone other than the author, from an account with write access to the repo**, as a PR
+   comment. A review by anyone else, including your own reviewer agent when you have no write access, is a
+   welcome pre-review: mark the PR ready and say that gate 3 waits on the maintainer. Every finding is fixed
+   in the PR or filed as an issue.
 4. **Real-run evidence** when you touch real data, the cloud or pixels: paste the output or a screenshot
    (QGIS). "The cloud" includes code that dispatches, runs as or reports from a cloud job: the AML runner,
    `fsd.workflows.shard` / `infer_shard`, the `fsd.workflows.runners` they call, image definitions. That holds
@@ -75,6 +77,9 @@ Each line points at the incident that taught it.
   `docs`, `internal`). After merging, fast-forward local `main` and delete the branch and worktree.
 - **Branch protection** (Settings → Branches → `main`): require a pull request, require the `test` status
   check, **no required approvals** (authors cannot approve their own PRs), merge commits only, no direct pushes.
+  Once the repo is in the `nasaharvest` org **and** two or more maintainers are active, add `.github/CODEOWNERS`
+  with one line naming the maintainers team (`* @<org>/<maintainers-team>`), require 1 approval and turn on
+  "Require review from Code Owners". Gate 3 is then that approval (spec 102 A10.3).
 - **Release.** Tag `v0.y.z` when there is something worth shipping; `breaking` bumps `y`, everything else bumps `z`.
   Create the release with "Generate release notes" (`.github/release.yml` groups by label). Only the maintainer
   edits the `pyproject.toml` version.
@@ -96,8 +101,10 @@ Each line points at the incident that taught it.
 1. Transfer the repo to the `nasaharvest` org (needs repo-create permission there; old links redirect, and the
    redirect is lost if a repo is ever created at the old name).
 2. Branch protection and CI move with the repo; check the weekly failure still opens an issue.
-3. The successor gets their own `rise` access through the platform admin; shared aliases and blob roots are
+3. With two or more maintainers, add `.github/CODEOWNERS` and turn on the code-owner approval ("Maintainer
+   tasks", branch protection).
+4. The successor gets their own `rise` access through the platform admin; shared aliases and blob roots are
    in `docs/reference/AZURE_INFRA.md`.
-4. Hand private values (resource group, workspace names) over privately; never commit them.
-5. Dry run: a fresh agent session or the successor takes a `good first issue` to a green PR using only these docs.
+5. Hand private values (resource group, workspace names) over privately; never commit them.
+6. Dry run: a fresh agent session or the successor takes a `good first issue` to a green PR using only these docs.
    Every question it has to ask becomes a doc fix.
