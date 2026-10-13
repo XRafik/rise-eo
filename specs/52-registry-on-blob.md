@@ -1,6 +1,6 @@
 ---
 status: current
-summary: A registry version is published in place with a completion marker written last (D1), no directory rename -- fixing #88's infinite retry loop against a non-local backend. `_list_versions` becomes marker-aware with a legacy carve-out for pre-spec content (D2/D5). `deploy`, `run_inference`, `verify_adapter` and `verify_image` gain `configure_storage` calls so a blob registry actually authenticates (D4, #86). Amends spec 51 D2; completes spec 51 AC12.
+summary: A registry version is published in place with a completion marker written last (D1), no directory rename -- fixing #88's infinite retry loop against a non-local backend. `_list_versions` becomes marker-aware with a legacy carve-out for pre-spec content (D2/D5; the carve-out is dropped by the 2026-10-13 amendment). `deploy`, `run_inference`, `verify_adapter` and `verify_image` gain `configure_storage` calls so a blob registry actually authenticates (D4, #86). Amends spec 51 D2; completes spec 51 AC12.
 ---
 
 # Spec 52 — the registry on blob: `fsd.deploy` publishes to the cloud
@@ -137,6 +137,8 @@ was correct while a blob registry could not work, and is what this spec removes.
 
 ### D5 — existing registries keep working, and nothing is migrated
 
+> **Superseded by the 2026-10-13 amendment (end of this spec):** only `_complete.json` makes a version.
+
 A version published before this spec has no `_complete.json`, so D2 would make it invisible. That
 is unacceptable for zero benefit, so `_list_versions` treats a directory holding `bundle.json` but
 no marker as **complete (legacy)**. The only registry that exists is `notebooks/demo_registry`,
@@ -186,7 +188,7 @@ finished one — and it is bounded: everything published after this spec carries
    version whose bytes do not match never gets a marker.
 4. `_write_new_version` retries only a genuine version collision, re-raises everything else, and
    is bounded at 16 attempts.
-5. A version published before this spec (no marker, has `bundle.json`) still resolves — D5.
+5. A version published before this spec (no marker, has `bundle.json`) still resolves — D5. **Superseded (2026-10-13 amendment); AC2's exception, AC5a's "legacy" premise too.**
 5a. `migrate` writes `_complete.json` for every version it copies (the amendment to D5): a
    migrated registry's versions list identically even with the legacy rule hypothetically
    removed, because they are marked, not merely legacy-complete.
@@ -208,7 +210,9 @@ finished one — and it is bounded: everything published after this spec carries
 `v1/`, their files interleave, and neither set of bytes is intact. D1 step 2 means neither writer
 *marks* it, so neither claims it and both move on — the damage is a stranded folder rather than a
 bad model being *returned by `publish`*. **Corrected by Opus review, 2026-08-24: that folder is
-not invisible.** Both writers wrote a `bundle.json`, and D5's legacy rule reads
+not invisible.** *(This correction, to the end of its sentence about `_list_versions` (D2), is
+superseded by the 2026-10-13 amendment: with only `_complete.json` counting, the folder is
+invisible again. The rest of this risk still stands.)* Both writers wrote a `bundle.json`, and D5's legacy rule reads
 `bundle.json`-without-a-marker as complete, so `_list_versions` counts it: it burns a version
 number and stays reachable by an explicit pin or a hand-set alias. Nothing *hands it out* — no
 caller resolves "the latest version" through `_list_versions` (D2) — so the risk is unchanged in
@@ -409,3 +413,81 @@ draft** by establishing that the rename overwrites its destination unless made c
   adding one.
 - **`fsd/storage/azure.py::configure_storage`**: sets process-global fsspec state, which is what
   lets D4 be four one-line calls.
+
+---
+
+## Amendment (2026-10-13) — drop the legacy rule; only `_complete.json` makes a version (#145 X1)
+
+**Status:** SIGNED OFF (user, 2026-10-13), before any code in the X1 PR (#174) was written. Decided by the
+user on 2026-10-09 (question Q3a of the refactor audit, #145 Decisions comment) and 2026-10-13 (the three
+X1 questions). Supersedes D5, its 2026-08-24 amendment,
+AC2's second half, AC5 and AC5a, and the "not invisible" correction in §5's first risk.
+
+**Problem.**
+- D5 kept every pre-spec-52 version visible: a `v<N>` with `bundle.json` and no `_complete.json` counts as
+  complete (`_is_version_complete`, `model/registry.py:309-324`). It was meant for one registry,
+  `notebooks/demo_registry`, "days old and local" at the time.
+- It has a cost on every new publish. An interrupted publish that got as far as `bundle.json` looks
+  finished, so it burns a version number and stays reachable by a pin (D5 amendment; §5). To shrink that
+  window, `_write_new_version` writes `bundle.json` last, out of the caller's order (`registry.py:393`),
+  and a hazard comment guards the order.
+- The image registry (`registry/_core.py:51-55`, spec 56) never had the rule. So the two registries
+  disagree about what a version is, which also blocks merging them (#145 C1).
+- `AGENTS.md` says "no compatibility shims"; the audit lists this as one (#145, rubric row 12).
+
+**Decision.**
+- **X1.1** A version is complete only when `v<N>/_complete.json` exists. `_is_version_complete` drops
+  its `bundle.json` fallback and matches `registry/_core.is_version_complete`.
+- **X1.2** `_write_new_version` writes the files in the caller's order. With X1.1, an interruption at any
+  point before `_complete.json` leaves an unmarked, invisible version, whatever order the files landed
+  in, so the manifest-last sort has no job.
+- **X1.3** What an unmarked `v<N>` now means, in every case: it is invisible to `_list_versions`, so
+  `publish`'s idempotency scan and `migrate` skip it. When `publish` next allocates that number, it
+  clears the folder and rewrites it (unchanged code: `_discard` of an incomplete target). `resolve`
+  is unchanged (D2): a pin or an alias that names an unmarked version still reads it.
+- **X1.4** Old content is not migrated or stamped. The user confirmed on 2026-10-13 that no registry in
+  use holds an unmarked version. The one known case is `notebooks/demo_registry/crop-rf/v1` (local,
+  gitignored, 2026-08-24, alias `demo-eurocrops-at`). Under X1.3, a later `publish` of different content
+  to `crop-rf` in that registry would replace v1, and the alias would then name the new model. The user
+  chose on 2026-10-13 to delete that demo registry.
+- **X1.5** Comments and tests that describe the old rule are rewritten or removed in the same PR:
+  - `_is_version_complete`'s docstring;
+  - `_write_new_version`'s docstring: the "not invisible" sentence, the ⚠️ ordering hazard and the
+    residual-window paragraph;
+  - the "legacy rule" comment in `_migrate_version`;
+  - `_core.py:52`'s "unlike `fsd.model.registry`";
+  - in `tests/test_registry.py`: the manifest-last test, the interleaving test's `[1, 2]` assertion and
+    the legacy test.
+
+**Prior art.**
+- Apache Oozie, Coordinator spec §5.1 (synchronous datasets): with no `done-flag`, "the coordinator will
+  wait for the presence of a `_SUCCESS` file in the directory"; a named flag means the dataset "will be
+  considered ready (done) when the file exists". Directory presence counts only when the flag is
+  explicitly empty. X1.1 is the default case: the marker is the only signal.
+- Hadoop, S3A committers page: "After a Job is committed, all its work must be visible. A file named
+  `_SUCCESS` may be written to the output directory" (`mapreduce.fileoutputcommitter.marksuccessfuljobs`,
+  default true). That is the writer side of the same convention, matching D1 step 3.
+- In fsd: the image registry (spec 56) has used marker-only completeness from its first version.
+
+**How to verify.**
+- A test: a `v<N>` with `bundle.json` and no `_complete.json` is not listed. The next `publish` of
+  different content returns that same N, and the folder then holds the new content, marked.
+- A test: an interruption after `bundle.json` lands but before `_complete.json` leaves a version that
+  `_list_versions` does not count and that the next `publish` reuses in place. This is AC2 without its
+  exception.
+- The interleaving test asserts `_list_versions == [2]`: the unmarked `v1` is now invisible.
+- `grep -n "legacy" src/fsd/model/registry.py src/fsd/registry/_core.py` prints nothing.
+- `grep -n "BUNDLE_MANIFEST" src/fsd/model/registry.py` no longer shows the sort key.
+- No gate 4: the changed code has no backend branch, and no AML node calls `fsd.model.registry`.
+  `run_inference` resolves the ref on the driver (`api.py:1289`), and the node loads the bundle by path
+  (`workflows/infer_task.py`). The suite runs the changed code on local and `memory://` registries.
+
+**Risks.**
+- Two concurrent publishers of one name: B can now clear A's version while A is re-digesting it, where
+  before B would have counted it as complete and moved on. A then sees a digest mismatch and moves to
+  `v<N+1>`. No wrong model is marked. §5 already rests on "concurrent publication of the same model does
+  not happen in this team", and §6 is still the way back.
+
+**Out of scope.**
+- Merging `registry/_core.py` into `model/registry.py` (#145 C1). That follows X1.
+- Cleaning up stranded unmarked folders (§5's third risk; #50).

@@ -142,23 +142,14 @@ def test_migrate_carries_the_deploy_record_across(tmp_path):
         assert json.load(f) == record
 
 
-# --- spec 52 AC2/AC3: a write interrupted before the manifest lands is invisible + reusable
+# --- spec 52 AC2/AC3: a write interrupted before the marker lands is invisible + reusable
 
 
-def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_before_the_manifest_lands(
+def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_mid_write(
     tmp_path, monkeypatch,
 ):
-    """D1 + the D5 amendment (2026-08-24): `_write_new_version` writes `bundle.json` last
-    among the content files, specifically so that an interruption *during* the write --
-    where all the bytes and all the elapsed time are -- leaves no manifest on disk.
-    `_is_version_complete`'s legacy check is "does `bundle.json` exist", so no manifest
-    means invisible to `_list_versions` (D2) and reusable in place by the next `publish`
-    (AC2). This test's simulated failure lands on `bundle.json`'s own write -- the last of
-    the two -- so the manifest never lands, unlike the residual (accepted) window between
-    the manifest landing and `_complete.json` landing."""
-    # An artifact is added so the bundle has 2 files (bundle.json + artifact) -- the
-    # simulated failure below must land on the write of bundle.json itself, now last in
-    # write order, for this test to mean what its name says.
+    """A write that fails before `_complete.json` lands leaves a version `_list_versions`
+    does not show, and the next `publish` reuses that number (D1, D2, AC2, AC3)."""
     artifact = tmp_path / "model.bin"
     artifact.write_bytes(b"weights")
     src = bundle.save(
@@ -171,9 +162,9 @@ def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_before_the_
     failed = {"once": False}
 
     def flaky_write_bytes(path, data, **kw):
-        if not failed["once"] and os.path.basename(path) == bundle.BUNDLE_MANIFEST:
+        if not failed["once"]:
             failed["once"] = True
-            raise OSError("simulated failure writing the manifest")
+            raise OSError("simulated failure on the first write")
         return real_write_bytes(path, data, **kw)
 
     monkeypatch.setattr(registry.fs, "write_bytes", flaky_write_bytes)
@@ -182,13 +173,44 @@ def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_before_the_
         registry.publish(src, "crop-rf", registry_root)
 
     v1 = registry.version_path(registry_root, "crop-rf", 1)
-    assert not fs.exists(os.path.join(v1, bundle.BUNDLE_MANIFEST))
     assert not fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
     assert registry._list_versions(os.path.join(registry_root, "crop-rf"), {}) == []
 
     # the next publish reuses v1 rather than skipping to v2
     version = registry.publish(src, "crop-rf", registry_root)
     assert version == 1
+    assert fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
+
+
+def test_publish_interrupted_just_before_the_marker_leaves_an_invisible_version(
+    tmp_path, monkeypatch,
+):
+    """Every content file landed, `_complete.json` did not: still invisible, and the next
+    `publish` takes the same number (spec 52 X1.1, X1.3)."""
+    src = _make_bundle(tmp_path)
+    registry_root = str(tmp_path / "registry")
+    name_root = os.path.join(registry_root, "crop-rf")
+
+    real_write_text = fs.write_text
+    failed = {"once": False}
+
+    def flaky_write_text(path, text, **kw):
+        if not failed["once"] and os.path.basename(path) == registry._COMPLETE_FILE:
+            failed["once"] = True
+            raise OSError("simulated failure writing the marker")
+        return real_write_text(path, text, **kw)
+
+    monkeypatch.setattr(registry.fs, "write_text", flaky_write_text)
+
+    with pytest.raises(OSError):
+        registry.publish(src, "crop-rf", registry_root)
+
+    v1 = registry.version_path(registry_root, "crop-rf", 1)
+    assert fs.exists(os.path.join(v1, bundle.BUNDLE_MANIFEST))
+    assert not fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
+    assert registry._list_versions(name_root, {}) == []
+
+    assert registry.publish(src, "crop-rf", registry_root) == 1
     assert fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
 
 
@@ -330,13 +352,8 @@ def test_migrate_copies_registry_and_refs_resolve_identically(tmp_path):
 
 
 def test_migrate_marks_every_copied_version_complete(tmp_path):
-    """spec 52 D5 amendment (2026-08-24): `migrate` already performs D1's write + re-digest
-    steps, so its output must be marked complete, not merely legacy-complete via
-    `bundle.json`'s presence -- otherwise every migrated version depends forever on the
-    leniency D5 exists to grandfather in, not on the marker migrate could easily write. The
-    test that actually proves this: strip `bundle.json` from consideration by checking
-    `_list_versions` directly, which would only see a marked (or legacy) version either way
-    -- so instead assert the marker file exists, which the legacy path never writes."""
+    """`migrate` already does D1's write and re-digest steps, so each version it copies
+    gets `_complete.json`: without it `_list_versions` would not show the copy."""
     src_root = str(tmp_path / "src_registry")
     dst_root = str(tmp_path / "dst_registry")
     b1 = _make_bundle(tmp_path, "b1")
@@ -505,16 +522,14 @@ def test_publish_against_a_url_registry_returns_within_a_timeout(tmp_path):
     assert result["version"] == 1
 
 
-# --- spec 52 review (Opus, 2026-08-24): the branches mutation testing found unpinned -----
+# --- spec 52 review (Opus, 2026-08-24): exit paths of `_write_new_version` ---------------
 #
-# Three of `_write_new_version`'s exit paths and D5's legacy carve-out survived mutation
-# against the suite as shipped: deleting the idempotent-collision `return`, disabling the
-# landed-digest guard, and replacing the legacy `bundle.json` check with `return False` all
-# left every test green. The two "race" tests rewritten during implementation look like they
-# cover the collision path but cannot reach it -- their competitor publishes *before*
-# `_list_versions` runs, so allocation starts past the competitor's version and the loop
-# body never sees an existing target. Reaching it needs the listing to be stale, which is
-# what the race actually is and what `monkeypatch` supplies below.
+# The tests below pin two of its exit paths, the idempotent-collision `return` and the
+# landed-digest guard, and the marker-only completeness rule. The two "race" tests written
+# during implementation look like they cover the collision path but cannot reach it -- their
+# competitor publishes *before* `_list_versions` runs, so allocation starts past the
+# competitor's version and the loop body never sees an existing target. Reaching it needs the
+# listing to be stale, which is what the race actually is and what `monkeypatch` supplies.
 
 
 def test_write_new_version_returns_a_complete_collision_holding_identical_content(
@@ -567,8 +582,7 @@ def test_publish_moves_on_when_the_landed_bytes_are_not_the_callers(tmp_path, mo
     """D1 step 2 / spec 52 §5: two publishers interleaved their files at the same `v<N>`, so
     the re-digest of what landed does not match what we were asked to publish. Claiming that
     directory would serve a model nobody published, so the loop leaves it unmarked and moves
-    to `v2`. Also pins the honest version of §5's risk: `v1` is *not* invisible afterwards --
-    our `bundle.json` did land, and D5's legacy rule reads that as complete."""
+    to `v2`. `v1` has no `_complete.json`, so it is invisible to `_list_versions`."""
     artifact = tmp_path / "model.bin"
     artifact.write_bytes(b"weights")
     src = bundle.save(
@@ -581,7 +595,7 @@ def test_publish_moves_on_when_the_landed_bytes_are_not_the_callers(tmp_path, mo
     tampered = {"once": False}
 
     def tampering_write_bytes(path, data, **kw):
-        # a competitor's bytes land at the artifact -- before `bundle.json`, which is last
+        # a competitor's bytes land at the first non-manifest file
         if not tampered["once"] and os.path.basename(path) != bundle.BUNDLE_MANIFEST:
             tampered["once"] = True
             return real_write_bytes(path, b"someone else's weights", **kw)
@@ -595,30 +609,29 @@ def test_publish_moves_on_when_the_landed_bytes_are_not_the_callers(tmp_path, mo
     v2 = registry.version_path(registry_root, "crop-rf", 2)
     assert registry.content_digest(v2) == registry.content_digest(src)
     assert not fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
-    assert registry._list_versions(os.path.join(registry_root, "crop-rf"), {}) == [1, 2]
+    assert registry._list_versions(os.path.join(registry_root, "crop-rf"), {}) == [2]
 
 
-def test_a_legacy_version_with_no_marker_counts_and_is_never_allocated_over(tmp_path):
-    """AC5 / D5's legacy carve-out, which had no test at all: replacing it with
-    `return False` left the whole suite green. It is the rule that keeps every pre-spec-52
-    version visible, and it is now *more* load-bearing than at sign-off -- since this review
-    added a `_discard` of an incomplete target, a regression here would not merely merge
-    files into a legacy version, it would delete it and publish over the top."""
+def test_a_version_with_no_marker_is_invisible_and_is_replaced_by_the_next_publish(tmp_path):
+    """Spec 52 X1.1, X1.3: `bundle.json` alone does not make a version. An unmarked `v1` is
+    not listed, still resolves by pin (D2), and the next `publish` of different content
+    clears it and takes number 1."""
     registry_root = str(tmp_path / "registry")
     name_root = os.path.join(registry_root, "crop-rf")
-    legacy = _make_bundle(tmp_path, "legacy")
-    registry.publish(legacy, "crop-rf", registry_root)
+    old = _make_bundle(tmp_path, "old")
+    registry.publish(old, "crop-rf", registry_root)
 
     v1 = registry.version_path(registry_root, "crop-rf", 1)
-    fs.rm(os.path.join(v1, registry._COMPLETE_FILE))  # as a pre-spec-52 publish left it
+    fs.rm(os.path.join(v1, registry._COMPLETE_FILE))
 
-    assert registry._list_versions(name_root, {}) == [1]
+    assert registry._list_versions(name_root, {}) == []
     assert registry.resolve("crop-rf:1", registry_root).path == v1
 
     nextone = _make_bundle(tmp_path, "nextone")
     _rewrite_bundle_field(nextone, feature={"kind": "callable", "steps": ["next"]})
-    assert registry.publish(nextone, "crop-rf", registry_root) == 2
-    assert registry.content_digest(v1) == registry.content_digest(legacy)
+    assert registry.publish(nextone, "crop-rf", registry_root) == 1
+    assert registry.content_digest(v1) == registry.content_digest(nextone)
+    assert fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
 
 
 def test_publish_into_an_incomplete_version_clears_the_previous_attempts_leftovers(tmp_path):

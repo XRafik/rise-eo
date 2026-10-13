@@ -49,9 +49,8 @@ def name_root(registry: str, name: str) -> str:
 
 
 def is_version_complete(version_dir: str, storage_options: dict) -> bool:
-    """A version counts once `_complete.json` is there -- there is no legacy carve-out
-    here, unlike `fsd.model.registry`: every caller of this module writes
-    `_complete.json` from day one."""
+    """A version counts once `v<N>/_complete.json` exists, and not before; the model
+    registry (`fsd.model.registry`) uses the same rule."""
     return fs.exists(os.path.join(version_dir, COMPLETE_FILE), **storage_options)
 
 
@@ -86,9 +85,9 @@ def write_new_version(
     manifest_rel: str | None = None,
 ) -> int:
     """Write `files` under the next free `v<N>` and mark it complete last, returning the
-    version that actually holds them. Mirrors `fsd.model.registry._write_new_version`
-    exactly, generalized over the content digest and the "write this file last" manifest
-    convention (bundle.json there, image.json here).
+    version that actually holds them. Mirrors `fsd.model.registry._write_new_version`,
+    generalized over the content digest, except that it sorts `files` by path and writes
+    `manifest_rel` (image.json for the image registry), when given, last among them.
     """
     version = max(list_versions(root, storage_options), default=0) + 1
     if manifest_rel is not None:

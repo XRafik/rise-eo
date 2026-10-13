@@ -11,8 +11,8 @@ registry are the same code. Versions are immutable; `_aliases.json` is the only 
 pointer. `publish` is idempotent by content digest. A version is published **in
 place** -- no staging prefix, no directory rename -- and re-digested before
 `v<N>/_complete.json` is written last, which is the all-or-nothing moment a directory
-rename used to provide. `migrate` relocates a registry and re-digests every version, so a
-ref that resolves against one root resolves identically against a copy of it.
+rename used to provide. `migrate` relocates a registry and re-digests every marked version,
+so a ref to a marked version resolves identically against a copy of it.
 
 **Concurrency, stated rather than implied.** There is no lock. What IS
 guaranteed: a reader never sees a half-written `_aliases.json` (staged and renamed), and
@@ -20,9 +20,9 @@ guaranteed: a reader never sees a half-written `_aliases.json` (staged and renam
 re-digests what landed before marking it complete, and retries at `v<N+1>` on a genuine
 collision. What is NOT guaranteed: two concurrent `set_alias` calls can lose an update,
 two concurrent `publish` calls can leave a gap in the version sequence, and two
-simultaneous publishers writing the same `v<N>` can interleave their files -- neither one
-marks the result complete, so the damage is a stranded, unmarked directory rather than a
-bad model being served. See `_write_new_version`.
+simultaneous publishers writing the same `v<N>` can interleave their files -- a publisher
+whose re-digest then fails leaves the directory unmarked, so the damage is a stranded
+directory rather than a bad model being served. See `_write_new_version`.
 
 `resolve`/`publish` are the interface; the storage-seam layout is v1's only backend, but
 a second one can be added without either signature changing.
@@ -307,21 +307,8 @@ def _list_names(registry: str, storage_options: dict) -> list[str]:
 
 
 def _is_version_complete(version_dir: str, storage_options: dict) -> bool:
-    """A version counts once `_complete.json` is there, or -- for content predating that
-    marker -- once `bundle.json` is there with no marker at all.
-
-    The legacy rule is safe for legacy content: such a version was staged under a temp prefix
-    and only became `v<N>` via a directory rename that lands or does not, so `bundle.json`
-    being there already proves completeness.
-
-    The cost is that a freshly interrupted publish is indistinguishable from legacy content
-    once its files have landed. That is accepted: it strands a harmless directory, never
-    served, because nothing resolves "the latest version" through this function -- `resolve`
-    does not call it.
-    """
-    if fs.exists(os.path.join(version_dir, _COMPLETE_FILE), **storage_options):
-        return True
-    return fs.exists(os.path.join(version_dir, bundle_mod.BUNDLE_MANIFEST), **storage_options)
+    """A version counts once `v<N>/_complete.json` exists, and not before."""
+    return fs.exists(os.path.join(version_dir, _COMPLETE_FILE), **storage_options)
 
 
 def _list_versions(name_root: str, storage_options: dict) -> list[int]:
@@ -367,30 +354,16 @@ def _write_new_version(
     keeps the previous attempt's undeclared leftovers out of the version the re-digest is
     about to bless. A target whose freshly landed bytes do not match the caller's digest --
     two publishers interleaving files at the same `v<N>` -- is left unmarked and the loop
-    moves on rather than claiming it. Such a directory is not invisible: both writers wrote a
-    `bundle.json`, which the legacy rule reads as complete, so it burns a version number and
-    is still reachable by an explicit pin.
+    moves on rather than claiming it.
 
-    ⚠️ `bundle.json` is written **last** among the content files, deliberately out of the
-    caller's `files` order. The legacy completeness check is "does `bundle.json` exist", so
-    writing it last means an interruption *during* the write -- where all the bytes and all
-    the elapsed time are -- leaves no manifest, stays invisible to `_list_versions`, and is
-    reused in place by the next `publish`. Reorder this and every interrupted publish strands
-    a directory.
-
-    That leaves one window, between the manifest landing and `_complete.json` landing,
-    indistinguishable from legacy content. It is resolved in favour of treating it as
-    complete, because the other choice is worse: misreading real legacy content as incomplete
-    would hide a published version and let a later `publish` allocate over it, destroying a
-    model. Stranding a folder is the cheaper failure.
+    A target without `_complete.json` is invisible to `_list_versions`, whatever files it
+    holds, and is cleared by the next `publish` that allocates its number.
 
     Bounded at `_MAX_PUBLISH_ATTEMPTS`: the loop retries only genuine version
     collisions, so an unbounded run here would mean something is structurally wrong, not a
     transient race.
     """
     version = max(_list_versions(name_root, storage_options), default=0) + 1
-    manifest_rel = bundle_mod.BUNDLE_MANIFEST
-    ordered_files = sorted(files, key=lambda item: (item[0] == manifest_rel, item[0]))
     for _ in range(_MAX_PUBLISH_ATTEMPTS):
         target = os.path.join(name_root, f"v{version}")
         if _is_version_complete(target, storage_options):
@@ -412,7 +385,7 @@ def _write_new_version(
             # no worse off than if this call did not exist.
             _discard(target, storage_options)
         try:
-            for rel, data in ordered_files:
+            for rel, data in files:
                 fs.write_bytes(os.path.join(target, rel), data, **storage_options)
             landed_digest = content_digest(target, storage_options=storage_options)
         except OSError as exc:
@@ -499,13 +472,15 @@ def migrate(
     src_storage_options: dict | None = None,
     dst_storage_options: dict | None = None,
 ) -> None:
-    """Copy a registry tree onto a new root, re-digesting every version.
+    """Copy a registry tree onto a new root, re-digesting every marked version.
 
     Not a schema rewrite: nothing the registry writes names its own location, so a ref that
     resolved against `src_registry` resolves identically against `dst_registry` once callers
     pass the new `registry=`. That invariant is what makes a move "a copy plus a changed
     argument" -- do not write an absolute registry path into any registry file. A version
     whose recomputed digest disagrees with what was copied is refused, not silently accepted.
+    An unmarked version is not copied, but `_aliases.json` is, so a pin or alias naming one
+    resolves against `src_registry` and dangles against `dst_registry`.
     """
     src_opts = src_storage_options or {}
     dst_opts = dst_storage_options or {}
@@ -539,8 +514,7 @@ def _migrate_version(vsrc: str, vdst: str, src_opts: dict, dst_opts: dict) -> No
             f"copied {after}) -- refusing a possibly-corrupted copy."
         )
     # Marked last, same as `_write_new_version`: migrate has already written and
-    # re-digest-confirmed above, so its output is first-class marked content rather than
-    # something that has to fall back on the legacy rule to be seen.
+    # re-digest-confirmed above, and `_list_versions` shows only marked versions.
     fs.write_text(
         os.path.join(vdst, _COMPLETE_FILE),
         json.dumps({"digest": after}, indent=2, sort_keys=True),
