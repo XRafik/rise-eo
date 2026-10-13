@@ -607,8 +607,9 @@ Line numbers below are at `main` b839628, before the X2 code.
   is read, before the stamp check and before any reduce, so nothing is written. The message names the
   file, says `setup` wrote it before spec 59, and gives the two ways out:
   - delete the run folder and run again;
-  - or call `create_training_data` with `overwrite=True`. That deletes and rewrites `input.csv` from
-    the catalog (`create_datacube.py:985-987`), so it needs a spec-59 catalog (D8).
+  - or call `create_training_data` with `overwrite=True`. That rebuilds every cube and deletes and
+    rewrites `input.csv` from the catalog (`create_datacube.py:985-987`), so it needs a spec-59
+    catalog (D8).
 
   `create_training_data` reaches the check through `flatten_training_data`, which it always calls.
 - **X2.2** `_flatten_identity` drops the `setdefault`. `params` then holds exactly the run-parameter
@@ -621,12 +622,19 @@ Line numbers below are at `main` b839628, before the X2 code.
   Dropping it would make every existing `processing=None` export folder raise `PreflightError`
   (`api.py:2295`). Q3b named it by mistake.
 - **X2.4** Unchanged: `create_training_data`'s top-level short-circuit never reads `input.csv`
-  (spec 50 D3). A run folder whose stamp already matches the request is still handed back as current.
-  Only a stamp written after this spec can match, because older stamps have no `processing` key.
+  (spec 50 D3). A run folder whose stamp already matches the request is still handed back as current,
+  and X2.1 does not fire for it. That includes a pre-59 run folder flattened after spec 59 merged:
+  the shim wrote `processing: [""]` into its stamp, and with `processing=None` its cube paths are
+  unchanged (D6), so a `processing=None` request matches. A stamp written before spec 59 has no
+  `processing` key, never matches, and so reaches X2.1. Making the short-circuit read `input.csv`
+  would undo spec 50 D3. (Corrected in review, 2026-10-13: the first text said every older stamp lacks
+  the key. The decision is unchanged.)
 - **X2.5** In the same PR: delete the shim's comment (`api.py:904-905`); add one sentence on the
   refusal to `flatten_training_data`'s docstring. No existing test pins the shim.
 - **Data.** The workspace holds four pre-59 `input.csv` files, all spec-58 scratch runs under
-  `tests/outputs/p58_p2/` and `tests/outputs/p58_redownload/` (gitignored). Flattening them now raises.
+  `tests/outputs/p58_p2/` and `tests/outputs/p58_redownload/` (gitignored). `flatten_training_data`
+  on any of them now raises. The two flatten stamps there (`p58_p2/training_s1`, `training_s2`) have
+  no `processing` key, so `create_training_data` reaches the refusal too (X2.4).
 
 **Prior art.** In-repo only; the decision relies on no outside fact.
 - D8 here: "No shim, no migration tool (spec 58 D12's standing policy): a pre-59 catalog is not read. It
