@@ -281,6 +281,7 @@ def test_flatten_refuses_input_csv_without_processing_column(tmp_path, monkeypat
 
     assert csv_fp in str(ei.value)
     assert "processing" in str(ei.value)
+    assert "spec 59" in str(ei.value)
     assert calls["n"] == 0
     assert not (export / api._FLATTEN_STAMP_NAME).exists()
     assert not list(export.glob("*.npy"))

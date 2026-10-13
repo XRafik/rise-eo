@@ -892,8 +892,8 @@ def _check_input_csv_has_processing(input_df: pd.DataFrame, input_csv: str) -> N
             f"{input_csv!r} was written by `setup` before the `processing` column existed "
             "(spec 59), so it cannot say which processing its cubes were built from. "
             "Delete the run folder and run again, or call `create_training_data` with "
-            "`overwrite=True` (this rewrites `input.csv` from the catalog, so the catalog "
-            "must be in the spec-59 format)."
+            "`overwrite=True` (this rebuilds every cube and rewrites `input.csv` from the "
+            "catalog, so the catalog must be in the spec-59 format)."
         ])
 
 
@@ -1110,7 +1110,7 @@ def flatten_training_data(
 
     **Refuses** (`PreflightError`) an `input_csv` that `setup` wrote before the `processing`
     column existed (spec 59): delete the run folder, or pass `overwrite=True` to
-    `create_training_data`.
+    `create_training_data` (which rebuilds every cube).
     """
     _check_one_feature_transform(adapter, feature_sequence)
 
