@@ -14,7 +14,7 @@ the byte copy was already atomic, the defect is stamping after publishing (§8).
 inner layout by hand (found in the D12 review: five hand-built `{root}/{collection}/catalog.parquet`).
 **Amendment A2 (2026-10-13, SIGNED OFF by the user 2026-10-13):** a `setup`-written `input.csv` with no `processing` column is
 refused, extending D8's "no shim" (#145 X2; end of this spec).
-**Amendment A3 (2026-10-14, DRAFT):** a catalog row or file with a missing or empty `offset` or `nodata`
+**Amendment A3 (2026-10-14, SIGNED OFF by the user 2026-10-14):** a catalog row or file with a missing or empty `offset` or `nodata`
 is refused instead of read as 0; an empty `scale` is filled from the declaration (#145 X4, #173; end of
 this spec).
 · **Opened:** 2026-09-29
@@ -672,7 +672,7 @@ Line numbers below are at `main` b839628, before the X2 code.
 
 ## Amendment A3 (2026-10-14) — a missing or empty `offset` / `nodata` fails loudly (#145 X4, #173)
 
-**Status:** DRAFT. Decided by the user on 2026-10-09 (question Q5 of the refactor audit, #145 Decisions
+**Status:** SIGNED OFF (user, 2026-10-14), before any code in the X4 PR (#182) was written. Decided by the user on 2026-10-09 (question Q5 of the refactor audit, #145 Decisions
 comment: "Fail loudly") and 2026-10-14 (the four X4 questions: one rule at `append` plus a check in
 `read()` and strict readers; `offset`/`nodata` raise, `scale` fills from the declaration; no repair;
 home here). Extends D8's "No shim" paragraph from the catalog's columns to its `offset`/`nodata`
