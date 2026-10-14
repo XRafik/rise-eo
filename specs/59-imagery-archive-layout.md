@@ -14,9 +14,9 @@ the byte copy was already atomic, the defect is stamping after publishing (§8).
 inner layout by hand (found in the D12 review: five hand-built `{root}/{collection}/catalog.parquet`).
 **Amendment A2 (2026-10-13, SIGNED OFF by the user 2026-10-13):** a `setup`-written `input.csv` with no `processing` column is
 refused, extending D8's "no shim" (#145 X2; end of this spec).
-**Amendment A3 (2026-10-14, SIGNED OFF by the user 2026-10-14):** a catalog row or file with a missing or empty `offset` or `nodata`
-is refused instead of read as 0; an empty `scale` is filled from the declaration (#145 X4, #173; end of
-this spec).
+**Amendment A3 (2026-10-14, SIGNED OFF by the user 2026-10-14; narrowed, re-sign-off PENDING):** `append` refuses a
+row with a missing or empty `offset` or `nodata`, and `flatten_catalog` no longer reads them as 0; an empty
+`scale` is filled from the declaration (#145 X4, #173; end of this spec).
 · **Opened:** 2026-09-29
 **Closes:** [#74](https://github.com/nikhilsrajan/fsd/issues/74) (a download stamps its file in place after publishing it — retitled 2026-09-30).
 **Prepares:** [#101](https://github.com/nikhilsrajan/fsd/issues/101) (guard inference against processing
@@ -318,8 +318,8 @@ Every other column is unchanged. The STAC export (`catalog/stac.py`) writes `pro
 naming the missing columns and "re-download". The re-download is D12's cost.
 > **Extended by Amendment A2 (2026-10-13, end of this spec):** a `setup`-written `input.csv` with no
 > `processing` column is refused too.
-> **Extended by Amendment A3 (2026-10-14, end of this spec):** so is a catalog row or file whose
-> `offset` or `nodata` is missing or empty; an empty `scale` is filled from the declaration.
+> **Extended by Amendment A3 (2026-10-14, end of this spec):** so is a catalog row whose `offset` or
+> `nodata` is missing or empty, at `append`; an empty `scale` is filled from the declaration.
 
 ### D9 — Provenance is recorded in every cube and training-data stamp
 
@@ -672,11 +672,16 @@ Line numbers below are at `main` b839628, before the X2 code.
 
 ## Amendment A3 (2026-10-14) — a missing or empty `offset` / `nodata` fails loudly (#145 X4, #173)
 
-**Status:** SIGNED OFF (user, 2026-10-14), before any code in the X4 PR (#182) was written. Decided by the user on 2026-10-09 (question Q5 of the refactor audit, #145 Decisions
-comment: "Fail loudly") and 2026-10-14 (the four X4 questions: one rule at `append` plus a check in
-`read()` and strict readers; `offset`/`nodata` raise, `scale` fills from the declaration; no repair;
-home here). Extends D8's "No shim" paragraph from the catalog's columns to its `offset`/`nodata`
-values. Line numbers below are at `main` cdcba01, before the X4 code.
+**Status:** SIGNED OFF (user, 2026-10-14), before any code in the X4 PR (#182) was written.
+**Narrowed** (user, 2026-10-14, after the first run of the X4 code; re-sign-off PENDING): the
+`read()` check and the STAC half of the strict readers are dropped (X4.3, X4.4). The signed-off text
+claimed 13 affected tests; with the code written, 87 tests in 14 files failed, 66 of them because
+`read()` refused catalog files the tests write straight to parquet for work that never reads
+`offset`. Decided by the user on 2026-10-09 (question Q5 of the refactor audit, #145 Decisions
+comment: "Fail loudly") and 2026-10-14 (the four X4 questions: `offset`/`nodata` raise, `scale` fills
+from the declaration; no repair; home here; then option B). Extends D8's "No shim" paragraph from the
+catalog's columns to its rows' `offset`/`nodata` values. Line numbers below are at `main` cdcba01,
+before the X4 code.
 
 **Problem.**
 - `TileCatalog.append` fills `offset: 0`, `scale: 1.0`, `nodata: 0` when a column is missing from
@@ -691,21 +696,21 @@ values. Line numbers below are at `main` cdcba01, before the X4 code.
     `int(NaN)`, which raises `ValueError` on the AML node, far from the append that caused it;
   - the STAC export (`catalog/stac.py:239-243` in `_granule_item`) writes NaN into `raster:bands`. That
     serialises as a bare `NaN` token, which JSON does not allow (RFC 8259 §6).
-- `read()` checks the spec-59 columns only (`catalog.py:311`). Its docstring says a hand-built file
-  without `offset`/`nodata` passes and the builder then reads 0 (`:306-308`).
+- `flatten_catalog` reads a missing `offset`/`nodata` column as 0 (`builder.py:236-238`), so a
+  hand-built frame or file without them builds silently. `read()`'s docstring says so (`:306-308`).
 - Measured on 2026-10-14: every catalog file under `tests/` (the tutorial fixture and five under
   `tests/outputs/p59_p2/`) stores `offset`/`nodata` as int64 and `scale` as float64, with no NaN. Both
   sources always write all three columns (`sources/mpc.py:180-182`, `sources/cdse.py:259-261`). So only
-  hand-built rows and files are affected: removing the two defaults fails 13 existing tests in 5 files,
-  all with hand-built rows.
+  hand-built rows, frames and files are affected. With X4.1, X4.2 and X4.4 written, 21 existing tests
+  in 6 files fail, all with hand-built rows or frames.
 
 **Decision.**
 - **X4.1** `append` raises `ValueError` before it reads or writes any file when a new row has no
   `offset` or no `nodata`: the column is missing from every row, or the row's cell is empty (`None`,
   NaN, or the key is absent while other rows have it). The message names the column, the ids of the
-  rows that lack it (at most the first five), and says to pass the value explicitly: for S2,
-  `offset_for_item`'s value; `0` for a collection with no offset. `offset` and `nodata` leave
-  `_APPEND_DEFAULTS`.
+  rows that lack it (at most the first five, quoted as `repr` quotes them), and says to pass the value
+  explicitly: for S2, `offset_for_item`'s value; `0` for a collection with no offset. `offset` and
+  `nodata` leave `_APPEND_DEFAULTS`.
 - **X4.2** `append` fills `scale` from the declaration it stamps (`effective.scale`, where `effective`
   is the `declaration=` argument, else the constructor's, else the existing file's stamp), when the
   column is missing from every row or a row's cell is empty. With no declaration at all it fills `1.0`,
@@ -713,17 +718,15 @@ values. Line numbers below are at `main` cdcba01, before the X4 code.
   which is wrong for S2 (1/10000). Sources write `declaration.scale` already, so their rows do not
   change. `scale` is filled, not refused, because the declaration states it exactly; `nodata` is not
   filled, because the sources write `config.NODATA` rather than the declaration's `nodata` (#181).
-- **X4.3** `read()` raises `ValueError` when the file lacks an `offset`, `scale` or `nodata` column, or
-  any of them holds NaN. The check runs after the spec-59 column check, in the same style: the message
-  names the file and the column and says "re-download" (or re-append the rows). No repair: D8's "No
-  shim" applies. `TileCatalog.filter` and `to_stac` read through `read()`, so they get the check.
-- **X4.4** The two readers stop defaulting: `flatten_catalog` reads `row["offset"]` and
-  `row["nodata"]`; `_granule_item` reads `row["offset"]`, `row["scale"]` and `row["nodata"]`, each
-  verbatim. A hand-built frame that lacks one raises `KeyError` naming it. One visible effect: a
-  hand-built `scale` of 0 now reaches `raster:bands` as 0 instead of being replaced by the
-  declaration's scale.
+- **X4.3** (dropped when narrowed) `read()` is unchanged: it does not check `offset`/`scale`/`nodata`.
+  After X4.1 no file `append` writes lacks them or holds NaN in them, so only a file written some other
+  way can. Such a file still fails loudly, at X4.4, when it is built.
+- **X4.4** `flatten_catalog` stops defaulting: it reads `row["offset"]` and `row["nodata"]` verbatim. A
+  frame that lacks one raises `KeyError` naming it. The STAC export (`_granule_item`) is unchanged
+  (dropped when narrowed): its only `src` caller passes `read()`'s output (`catalog.py:331`).
 - **X4.5** In the same PR, make these docstrings and comments true: the `_APPEND_DEFAULTS` comment
-  (`catalog.py:69-79`), `read()` (`:301-309`), `flatten_catalog` (`builder.py:213-229`: "missing
+  (`catalog.py:69-79`), `read()` (`:301-309`: a file without `offset`/`nodata` now passes `read()`
+  and fails in `flatten_catalog`), `flatten_catalog` (`builder.py:213-229`: "missing
   `offset`/`nodata` columns default every row to 0"), and `CollectionDeclaration`'s `nodata`
   (`catalog/declaration.py:119-120`): after X4 the fallback serves only a hand-built band-flattened
   frame passed straight to `build_datacube`.
@@ -733,52 +736,55 @@ values. Line numbers below are at `main` cdcba01, before the X4 code.
 - `offset_for_item` (`sources/_s2_radiometry.py`) already refuses to guess an offset for S2; X4.1 moves
   the same refusal to the point where any row is written.
 - #145 X3 (spec 58/59 shard rows, 2026-10-14): `download_shard` reads row keys strictly instead of
-  defaulting; X4.4 does the same in the readers.
+  defaulting; X4.4 does the same in `flatten_catalog`.
 - RFC 8259 §6 (https://www.rfc-editor.org/rfc/rfc8259.html, checked 2026-10-14): "Numeric values that
   cannot be represented in the grammar below (such as Infinity and NaN) are not permitted." This is why
-  a NaN in `raster:bands` makes the item invalid JSON (Problem). The STAC raster extension's rules for a
-  NaN `nodata` are not needed: after X4, NaN cannot reach the export.
+  a NaN in `raster:bands` makes the item invalid JSON (Problem). After X4.1, `append` cannot write that
+  NaN; the STAC raster extension's rules for a NaN `nodata` are not needed.
 
 **How to verify.** Tests go in a new file. Each names the mistake it catches that no existing test
 does.
 - **T1** `append`, parametrised over `offset` and `nodata` × {the column missing from every row; `None`
   in one of two rows}, to a catalog path that does not exist yet: raises `ValueError` whose message
-  names the column and the id of the row that lacks it; the file still does not exist. Catches: the
-  silent column default (old code writes 0) and the per-row NaN (old code writes a float column with
-  NaN). `test_append_rows_without_offset_or_nodata_default_to_zero` pins the opposite and is deleted.
+  names the column and the quoted id of the row that lacks it; the file still does not exist. Catches:
+  the silent column default (old code writes 0) and the per-row NaN (old code writes a float column
+  with NaN). `test_append_rows_without_offset_or_nodata_default_to_zero` pins the opposite and is
+  deleted.
 - **T2** `append` with `declaration=S2_L2A_DECLARATION`, parametrised over {the `scale` column missing
   from every row; `None` in one of two rows, the other row giving 1/10000}: every stored `scale` equals
   1/10000. Catches: filling `1.0` (old code, column missing) or leaving NaN (old code, empty cell).
-- **T3** `read()` on a file written with `fs.write_parquet` from a frame that otherwise passes `read()`,
-  parametrised over {no `offset` column; NaN `offset`; NaN `scale`; NaN `nodata`}: raises `ValueError`
-  whose message names the file path and the column. Catches: a check that skips one of the three
-  columns, or that tests presence but not NaN. The second half of
-  `test_read_does_not_backfill_a_legacy_catalog_missing_offset_nodata` pins the opposite (a file with
-  none of the three passes) and changes to expect this error.
-- **T4** `flatten_catalog` on a hand-built frame without `offset`, and `tile_catalog_to_items` on one
-  without `nodata`: each raises `KeyError`. Catches: a reader that keeps a default.
+- **T3** (dropped when narrowed.)
+- **T4** `flatten_catalog` on a hand-built frame with `nodata` but without `offset` raises `KeyError`.
+  Catches: a reader that keeps the default.
   `test_flatten_catalog_offset_and_nodata_default_to_zero_when_column_missing` pins the opposite and is
   deleted.
-- `grep -n -E 'get\("(offset|nodata|scale)"' src/fsd/datacube/builder.py src/fsd/catalog/stac.py` prints
-  nothing.
-- Existing tests whose hand-built rows or frames lack the columns gain `offset=0, nodata=0` (the 13 the
-  measurement found, plus the `flatten_catalog` frames in `test_datacube_builder.py`). In
-  `tests/test_stac_split_pins.py` (#170), the case with no `offset`/`scale`/`nodata` columns changes to
-  expect `KeyError`, and the case with `scale` 0 changes to expect 0 in `raster:bands` (X4.4). No other
-  expected value changes.
+- `grep -n -E 'get\("(offset|nodata)"' src/fsd/datacube/builder.py` prints nothing (covers `nodata`,
+  which T4 does not).
+- The 21 existing tests whose hand-built rows or frames lack the columns gain `offset=0, nodata=0`
+  (files: `test_catalog.py`, `test_cdse.py`, `test_datacube_builder.py`,
+  `test_p12b_characterisation.py`, `test_scale_runner.py`, `test_workflows.py`), less the two deleted
+  above. No expected value changes.
 - **Gate 4** (the builder change runs on AML nodes): `runbooks/145-x4-cube-equality.ipynb`, a copy of
   `145-p12-cube-equality.ipynb` with `BASE = "cdcba01"`, builds the cube from the tracked tutorial
   fixture with `BASE` and with this branch. PASS: the cubes, metadata and sidecars are equal as in P12.
   A local run counts: real catalogs always carry the columns, and nothing here depends on Azure.
 
 **Risks.**
-- A hand-built row or file without `offset`/`nodata` (a notebook, an fsd-agnostic top-up) now raises.
-  Fix: add the values. This is the point of Q5.
+- A hand-built row without `offset`/`nodata` (a notebook, an fsd-agnostic top-up) now raises at
+  `append`; a hand-built frame or file without them raises at the build. Fix: add the values. This is
+  the point of Q5.
+- A catalog file written without `append` and lacking the columns passes `read()`, `filter` and
+  `to_stac`, and fails only when built: on an AML node for `runner="aml"`.
 
 **Out of scope.**
+- A `read()` check on `offset`/`scale`/`nodata` and a strict STAC export (narrowed out; see the
+  Status line).
 - `build_datacube`'s own fallbacks on a band-flattened frame (`builder.py:391-394` → the declaration's
   `nodata`; `_apply_offsets` `:658-667`, a missing `offset` column is a no-op). After X4,
   `flatten_catalog` always fills both columns, so only a hand-built band-flattened frame reaches them.
+- `run_inference` wraps any `ValueError` from setup in "imagery … not present in the catalog — run
+  fsd.download first [<the error>]" (`api.py:2029-2033`, `:2365-2369`); the real error is kept in the
+  brackets. Unchanged.
 - #181: the sources write `config.NODATA` (0) as every row's `nodata`, including S1 RTC, whose
   declaration and rasters say −32768.
 - Casting `offset`/`nodata` to int64 on append. The column dtype follows the input: once empty cells
