@@ -19,6 +19,7 @@ import joblib
 import pytest
 
 from fsd.model import bundle, registry
+from fsd.registry import _core as core
 from fsd.storage import fs
 
 
@@ -148,7 +149,7 @@ def test_migrate_carries_the_deploy_record_across(tmp_path):
 def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_mid_write(
     tmp_path, monkeypatch,
 ):
-    """A write that fails before `_complete.json` lands leaves a version `_list_versions`
+    """A write that fails before `_complete.json` lands leaves a version `core.list_versions`
     does not show, and the next `publish` reuses that number (D1, D2, AC2, AC3)."""
     artifact = tmp_path / "model.bin"
     artifact.write_bytes(b"weights")
@@ -174,7 +175,7 @@ def test_publish_leaves_an_unmarked_invisible_version_if_interrupted_mid_write(
 
     v1 = registry.version_path(registry_root, "crop-rf", 1)
     assert not fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
-    assert registry._list_versions(os.path.join(registry_root, "crop-rf"), {}) == []
+    assert core.list_versions(os.path.join(registry_root, "crop-rf"), {}) == []
 
     # the next publish reuses v1 rather than skipping to v2
     version = registry.publish(src, "crop-rf", registry_root)
@@ -208,7 +209,7 @@ def test_publish_interrupted_just_before_the_marker_leaves_an_invisible_version(
     v1 = registry.version_path(registry_root, "crop-rf", 1)
     assert fs.exists(os.path.join(v1, bundle.BUNDLE_MANIFEST))
     assert not fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
-    assert registry._list_versions(name_root, {}) == []
+    assert core.list_versions(name_root, {}) == []
 
     assert registry.publish(src, "crop-rf", registry_root) == 1
     assert fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
@@ -353,7 +354,7 @@ def test_migrate_copies_registry_and_refs_resolve_identically(tmp_path):
 
 def test_migrate_marks_every_copied_version_complete(tmp_path):
     """`migrate` already does D1's write and re-digest steps, so each version it copies
-    gets `_complete.json`: without it `_list_versions` would not show the copy."""
+    gets `_complete.json`: without it `core.list_versions` would not show the copy."""
     src_root = str(tmp_path / "src_registry")
     dst_root = str(tmp_path / "dst_registry")
     b1 = _make_bundle(tmp_path, "b1")
@@ -527,7 +528,7 @@ def test_publish_against_a_url_registry_returns_within_a_timeout(tmp_path):
 # The tests below pin two of its exit paths, the idempotent-collision `return` and the
 # landed-digest guard, and the marker-only completeness rule. The two "race" tests written
 # during implementation look like they cover the collision path but cannot reach it -- their
-# competitor publishes *before* `_list_versions` runs, so allocation starts past the
+# competitor publishes *before* `core.list_versions` runs, so allocation starts past the
 # competitor's version and the loop body never sees an existing target. Reaching it needs the
 # listing to be stale, which is what the race actually is and what `monkeypatch` supplies.
 
@@ -546,7 +547,7 @@ def test_write_new_version_returns_a_complete_collision_holding_identical_conten
 
     files = registry._read_bundle_content(src, None)
     digest = registry._digest_of(files)
-    monkeypatch.setattr(registry, "_list_versions", lambda *a, **k: [])  # our stale listing
+    monkeypatch.setattr(core, "list_versions", lambda *a, **k: [])  # our stale listing
 
     assert registry._write_new_version(name_root, files, digest, {}) == 1
     assert fs.ls(os.path.join(registry_root, "crop-rf")) == [
@@ -569,7 +570,7 @@ def test_write_new_version_skips_a_complete_collision_holding_different_content(
 
     files = registry._read_bundle_content(mine, None)
     digest = registry._digest_of(files)
-    monkeypatch.setattr(registry, "_list_versions", lambda *a, **k: [])
+    monkeypatch.setattr(core, "list_versions", lambda *a, **k: [])
 
     assert registry._write_new_version(name_root, files, digest, {}) == 2
     v1 = registry.version_path(registry_root, "crop-rf", 1)
@@ -582,7 +583,7 @@ def test_publish_moves_on_when_the_landed_bytes_are_not_the_callers(tmp_path, mo
     """D1 step 2 / spec 52 §5: two publishers interleaved their files at the same `v<N>`, so
     the re-digest of what landed does not match what we were asked to publish. Claiming that
     directory would serve a model nobody published, so the loop leaves it unmarked and moves
-    to `v2`. `v1` has no `_complete.json`, so it is invisible to `_list_versions`."""
+    to `v2`. `v1` has no `_complete.json`, so it is invisible to `core.list_versions`."""
     artifact = tmp_path / "model.bin"
     artifact.write_bytes(b"weights")
     src = bundle.save(
@@ -609,7 +610,7 @@ def test_publish_moves_on_when_the_landed_bytes_are_not_the_callers(tmp_path, mo
     v2 = registry.version_path(registry_root, "crop-rf", 2)
     assert registry.content_digest(v2) == registry.content_digest(src)
     assert not fs.exists(os.path.join(v1, registry._COMPLETE_FILE))
-    assert registry._list_versions(os.path.join(registry_root, "crop-rf"), {}) == [2]
+    assert core.list_versions(os.path.join(registry_root, "crop-rf"), {}) == [2]
 
 
 def test_a_version_with_no_marker_is_invisible_and_is_replaced_by_the_next_publish(tmp_path):
@@ -624,7 +625,7 @@ def test_a_version_with_no_marker_is_invisible_and_is_replaced_by_the_next_publi
     v1 = registry.version_path(registry_root, "crop-rf", 1)
     fs.rm(os.path.join(v1, registry._COMPLETE_FILE))
 
-    assert registry._list_versions(name_root, {}) == []
+    assert core.list_versions(name_root, {}) == []
     assert registry.resolve("crop-rf:1", registry_root).path == v1
 
     nextone = _make_bundle(tmp_path, "nextone")
@@ -648,7 +649,7 @@ def test_publish_into_an_incomplete_version_clears_the_previous_attempts_leftove
     # what an interrupted publish leaves: files, but no manifest and no marker
     fs.write_bytes(os.path.join(v1, "stale.bin"), b"a previous attempt's weights")
     fs.write_text(os.path.join(v1, "code", "stale_adapter.py"), "raise RuntimeError('stale')")
-    assert registry._list_versions(name_root, {}) == []
+    assert core.list_versions(name_root, {}) == []
 
     src = _make_bundle(tmp_path, "fresh")
     assert registry.publish(src, "crop-rf", registry_root) == 1
