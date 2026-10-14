@@ -241,8 +241,8 @@ class TileCatalog:
         Spec 59 A3: every row must carry a non-empty `offset` and `nodata` (an S2 row at
         baseline >= 04.00 needs `offset_for_item`'s -1000; use 0 for a collection with no
         offset). A row without one raises `ValueError` before any file is read or written.
-        `scale` is filled from the effective declaration's `scale` (1.0 with no
-        declaration at all) when the column is missing or a row's cell is empty.
+        `scale` is filled from the effective declaration's `scale` (the `declaration=`
+        argument, else the constructor's, else the existing file's stamp; 1.0 with none) when the column is missing or a row's cell is empty.
         """
         if not rows:
             return
@@ -262,7 +262,9 @@ class TileCatalog:
                     "(spec 59 A3). Pass it explicitly: for Sentinel-2, "
                     "`offset_for_item`'s value; 0 for a collection with no offset/nodata."
                 )
-        fill_scale = effective.scale if effective is not None else 1.0
+        # The file's footer is read only here, after the offset/nodata refusal above.
+        scale_source = effective if effective is not None else self._existing_stamp()
+        fill_scale = scale_source.scale if scale_source is not None else 1.0
         if "scale" not in new.columns:
             new["scale"] = fill_scale
         else:

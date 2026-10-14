@@ -103,8 +103,8 @@ This is the field-by-field table (spec 34 §2a) — what the builder reads, and 
 | `mask_spec` | which band is the mask/QA band, how to interpret it, which values mean "masked" | `MaskSpec(band="SCL", mask_type="categorical_classes", classes=SCL_MASK_CLASSES)` | `CollectionDeclaration.mask_spec` (`None` = no mask) |
 | `mask_spec.mask_type` | how to interpret the mask band | `"categorical_classes"` | **only `"categorical_classes"` is implemented** — anything else raises `NotImplementedError` (spec 34 `[G3]`) |
 | `mask_keep` | keep the mask band in the output cube instead of dropping it | `False` | `CollectionDeclaration.mask_keep` |
-| per-row `offset` | additive radiometric offset, applied read-time before the mosaic | S2 baseline-derived | catalog column, carried by `flatten_catalog` |
-| per-row `nodata` | the missing-data sentinel | `0` | catalog column (falls back to `CollectionDeclaration.nodata` if the column is absent) |
+| per-row `offset` | additive radiometric offset, applied read-time before the mosaic | S2 baseline-derived | catalog column, required: `TileCatalog.append` refuses a row without it (spec 59 A3); carried by `flatten_catalog` |
+| per-row `nodata` | the missing-data sentinel | `0` | catalog column, required: `TileCatalog.append` refuses a row without it (spec 59 A3). `CollectionDeclaration.nodata` is only the fallback for a hand-built band-flattened frame passed straight to `build_datacube` |
 | `mosaic_method` | how images in a window are combined | `"median"` | `CollectionDeclaration.mosaic_method` (only `"median"` is implemented; a declared-but-unimplemented value is a seam for a future op, not silently ignored — see `ops.py` if you add one) |
 
 **The mask is opt-out per build, not per source**: if `mask_spec.band` is not in the
