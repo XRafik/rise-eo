@@ -1149,3 +1149,177 @@ Signed off when the user merges the PR that adds it. Line numbers at `main` `6df
   2022-11-30).
 - **Apache Software Foundation, "Voting"** (<https://www.apache.org/foundation/voting.html>, undated): binding votes
   against advisory ones (A10.1's prior art).
+
+## Amendment A11 — the new name is `rise-eo`, under a component convention for RISE (2026-10-14)
+
+**Status:** DRAFT, awaiting sign-off. Decided by the user on 2026-10-14, in an interview that followed the rename
+handoff. Signed off when the user merges the PR that adds it. Line numbers at `main` `cdcba01`. Amends D18
+("Rename") and the P5 row of §4.
+
+**Problem.**
+- **D18 left the name open.** Its shortlist (`sheaf`, `geosheaf`, `harvestac`, `cubecast`) was picked as a
+  stand-alone brand.
+- **fsd is now part of RISE.** [`nasaharvest/rise`](https://github.com/nasaharvest/rise) (Rapid Intelligence System
+  for the Environment) installs fsd through its `satellite` extra (`fsd @ git+…@v0.1.0`), next to RDM (reference
+  data management), which lives inside the RISE repo. The new name has to work as a RISE component, and RISE has no
+  rule yet for how a component is named or where its code lives. The maintainer also maintains RISE, so this
+  amendment sets that rule.
+- **The obvious names clash.** PyPI's `rise` (the Jupyter slideshow extension) ships a top-level `rise` package, and
+  RISE's own `pyproject.toml` uses the same distribution name. PyPI's `rdm` (an unrelated tool) ships a top-level
+  `rdm` package, the same import name as RISE's RDM.
+- **"No shim" had no list.** D18 says the rename has no back-compat shim but does not say what carries the name
+  outside `import fsd`: on-disk keys, saved bundles, the config folder, environment variables, STAC ids and AML
+  names all do.
+
+**Decision.**
+- **A11.1 RISE's structure.**
+  - The umbrella repo `nasaharvest/rise` holds no library code except the `rise` command (A11.4). It holds one extra
+    per component, each pinned to an exact tag, the notebooks that use more than one component, and the docs on how
+    the components fit together.
+  - Each component is its own repo, `nasaharvest/rise-<role>`, with its own CI, releases, issues and license. Each
+    picks its own visibility: `rise-eo` stays public (MIT); `rise-rdm` matches RISE's.
+  - Components never import each other. They meet through files with a documented schema; for example, RDM's
+    standardized field file is the label file `create_training_data` reads.
+  - A part becomes a new component only when its maintainer, release cadence or dependencies differ from every
+    existing one. Otherwise it is a module inside an existing component.
+  - The umbrella's `requires-python` is the highest minimum of its components. Components declare lower bounds only
+    on the dependencies they share.
+  - A deployed service (for example `ukrop`, the database RDM's output feeds) is not a component; RISE links to it
+    and never installs it.
+- **A11.2 Component names.** Repo `nasaharvest/rise-<role>`, distribution `rise-<role>`, import `rise_<role>`,
+  command `rise-<role>`, config folder `rise-<role>`, environment variables `RISE_<ROLE>_*`. Not a shared
+  `rise.<role>` namespace: PyPI's `rise` ships a regular `rise` package, and one regular package in an environment
+  breaks a namespace. Not bare role names: `rdm` already clashes.
+- **A11.3 fsd becomes `rise-eo`** (EO: Earth observation). The name covers the whole path, from imagery through
+  datacubes, training data and the model contract to inference and served maps; "fetch" was its first step only.
+  The D18 shortlist is dropped: brand names read badly next to RISE's role names.
+- **A11.4 The `rise` command.** The umbrella owns it; no component installs a script called `rise`.
+  - `rise init` runs `rise-<role> init` for each installed component that has one. Today that is only `rise-eo`, so
+    it does what `fsd init` does now.
+  - `rise <role> …` passes through to `rise-<role> …`.
+  - `rise-eo` ships the command `rise-eo` (`rise-eo init`, `rise-eo config`; today `fsd = "fsd.cli:main"`), so it
+    also works without the umbrella.
+  - The umbrella's distribution moves off the name `rise`, because pip treats two distributions with one name as one
+    project, so installing either replaces the other. The new name is chosen in the RISE PR (A11.6, step 5).
+- **A11.5 What the rename changes, with no shim.**
+
+  | What carries the name | After the rename |
+  |---|---|
+  | package, distribution, command | `src/rise_eo`, `rise-eo`, `rise-eo` |
+  | environment variables `FSD_CONFIG_DIR`, `FSD_WRITE_READ_LOG`, `FSD_WRITE_TIMINGS` | `RISE_EO_CONFIG_DIR`, `RISE_EO_WRITE_READ_LOG`, `RISE_EO_WRITE_TIMINGS` |
+  | config folder `~/.config/fsd` (`%APPDATA%\fsd`, `$XDG_CONFIG_HOME/fsd`; `config.py:195-216`) | `rise-eo` in each place. The old folder is not read. When config is missing and the old file exists, the error prints the command that moves it |
+  | on-disk keys `fsd_bundle_version` (`bundle.py:454`), `fsd_declaration_version` (`declaration.py:278`), the deploy record's `fsd_version` (`api.py:2655`) | **unchanged.** Renaming a key is a format change (D11) with nothing in it for a user; the formats and their golden files stay as they are |
+  | saved bundles whose embedded adapter imports `fsd` (`bundle.py:6-18`) | `load` fails and says the bundle was saved with fsd ≤ v0.2, and to change `fsd` to `rise_eo` in the named file under `code/` and save again. The two known bundles (the DemoRF bundle in the registry, RISE's `notebooks/demo_model/my_adapter.py`) are saved again once |
+  | the "is this fsd itself" checks in bundling (`bundle.py:147`, `bundle.py:368`) | test for `rise_eo` |
+  | STAC defaults `fsd-inference` (`stac.py:407`, `api.py:1569`, `api.py:1614`) | `rise-eo-inference`. Outputs already written keep their ids |
+  | AML job and experiment names `fsd-…` (`runners.py:729-1262`), temp-file prefixes | `rise-eo-…` |
+  | AML environment names in the docs (`fsd-aml-env`, `fsd-infer-sklearn`) | `rise-eo-aml-env`, `rise-eo-infer-sklearn`. The images are rebuilt anyway: node commands become `python -m rise_eo.workflows.…`. Old environments stay registered |
+  | point-in-time docs (specs, ADRs, findings, run-book records; ADR 0022) | unchanged; they keep "fsd" as written. Living docs, notebooks, examples and code change |
+
+- **A11.6 Order** (replaces the P5 row of §4):
+  1. #145's X4, X5 and C1 merge, and no other PR is open.
+  2. The rename PR (A11.7).
+  3. Release `v0.3.0`: the rename plus X1–X5 and C1, all `breaking`.
+  4. Transfer the repo to `nasaharvest` (D18's handover checklist), then rename it to `rise-eo`. GitHub redirects old
+     links after both, so RISE's current pin keeps installing.
+  5. A RISE PR: pin `rise-eo@v0.3.0`, rename the umbrella distribution, add the `rise` command, and write A11.1–A11.2
+     into RISE's docs.
+
+  Moving RDM to `nasaharvest/rise-rdm` is RISE work and does not wait on any of these steps.
+- **A11.7 The rename PR, for the session that does it.**
+  - One mechanical PR: move `src/fsd` to `src/rise_eo`; `pyproject.toml` (name, script, package data); every import
+    and call in `src/`, `tests/`, `scripts/` (including `docs_kwarg_sweep.py`'s import), `examples/`, `demos/`,
+    notebooks, Snakefiles and living docs; `test_docs.py`'s `startswith("fsd")`; then the rows of A11.5.
+  - Size: about 294 tracked files mention `fsd` as a word (150 `.py`, 131 `.md`, 6 notebooks, 3 Snakefiles,
+    `pyproject.toml`, 2 YAML files). That count includes the point-in-time docs, which stay.
+  - Reviewer: `pr-reviewer` (well over 200 lines under `src/`).
+  - Gate 4 applies: rebuild the images with the renamed package, then one real AML run (download, training data,
+    inference) and one local run, handed over as a run-book.
+
+**Prior art (D9).** Not homemade; each piece copies Jupyter, which split into separate repos under one name long
+before 2022-11-30.
+- A11.1's umbrella is Jupyter's metapackage (`jupyter` 1.0.0 on PyPI, 2015-08-12): "an empty metapackage for user
+  convenience, only expressing dependencies on multiple Jupyter packages".
+- A11.2's prefix is Jupyter's: `jupyter-server` (on PyPI since 2018-07-28) imports as `jupyter_server`, from its own
+  repo.
+- A11.4's command is Jupyter's: since 2015, `jupyter_core`'s `jupyter` command "searches PATH for `jupyter-name`"
+  and runs it, so `jupyter lab` runs `jupyter-lab`.
+- Rejected: a namespace package, the Open Data Cube style (`odc-geo` imports as `odc.geo`, first on PyPI
+  2022-01-25). It works when the project owns the top-level name; RISE does not (PyPA's rule, in Sources).
+- A11.1's rule on when to split. eo-learn shipped as subpackages that one umbrella pinned to exact versions (1.0,
+  2022), then merged back into one package in 1.5.0 (2023-09-06), a release that "focuses on making `eo-learn` much
+  simpler to install". This is
+  evidence of what a split by code layer costs, not a precedent: it postdates 2022-11-30.
+
+**Clash check for `rise-eo` (2026-10-14).**
+
+| Where | Searched | Found |
+|---|---|---|
+| PyPI | JSON API for `rise-eo`, `rise-rdm`, `rise-satellite`, `rise-reference`, `rise-core`, `rise-imagery`, `rise-sat`, `rise-labels`, `rdm` | all free except `rdm` (an unrelated tool, 0.11.1) |
+| GitHub | `gh search repos "<name> in:name"` for `rise-eo`, `rise_eo`, `rise-rdm`, `rise_rdm`, `rise-reference` | nothing in geospatial or remote sensing |
+| Web and literature | `"RISE-EO" remote sensing OR "earth observation"`; `"rise_eo" OR "rise-eo" python package satellite` | no tool, dataset or paper named RISE-EO |
+
+The umbrella's own name has namesakes in Earth observation: "RISE (Remote Imaging Support for Emergencies)", a
+rapid-mapping tool from the Luxembourg Red Cross, WASDI and LIST, and the RISESAT microsatellite. They are noted
+here, not acted on: RISE's name is not this spec's to choose, and `rise-eo` is distinct from both.
+
+**How to verify.**
+- This PR: the docs tests pass, and `grep -n "rise-eo" specs/102-contributor-readiness.md` prints A11.
+- The rename PR:
+  - `rise-eo --help` and `python -c "import rise_eo"` work in a fresh install;
+  - `grep -rnw fsd src tests` prints only the A11.5 rows marked unchanged and the bundle error message;
+  - the golden tests pass with no new golden file;
+  - loading a bundle saved by `v0.2.0` with an adapter that imports `fsd` fails with the A11.5 message;
+  - the gate-4 runs pass.
+- The RISE PR: `rise init` runs `rise-eo init`.
+
+**Out of scope.** The rename itself (A11.7 plans it). The RISE PR and RDM's move to `rise-rdm` (RISE work). The
+umbrella's new distribution name. Renaming RISE. Publishing to PyPI: free names keep it possible, and PyPI refuses a
+package that depends on a git URL, so the umbrella can be published only after its components are.
+
+**Outside the repo.** In `nasaharvest/rise`:
+- A11.6 step 5.
+- RDM's move:
+  1. Extract `rdm/` with its history into `nasaharvest/rise-rdm`.
+  2. Rename `src/rdm` to `src/rise_rdm`, add a `pyproject.toml` (dependencies from the umbrella's `rdm` extra) and a
+     license, and tag `v0.1.0`.
+  3. Point the umbrella's `rdm` extra at it.
+  4. Replace the notebooks' `sys.path` lines with the installed package.
+
+In the workspace: `CLAUDE.md` and memory say `rise-eo` once the rename merges.
+
+**Sources (per-source credit).**
+- **`nasaharvest/rise`** (read with `gh` on 2026-10-14): `README.md` and `docs/packaging.md` (FSD installed from its own
+  repo through the `satellite` extra; RDM bundled under `rdm/src/rdm`), `pyproject.toml` (`name = "rise"`, the pin
+  `fsd[…] @ git+…@v0.1.0`), `rdm/README.md` (RDM standardizes field data for `ukrop`). The Problem's account of RISE.
+- **PyPI, `rise`** (<https://pypi.org/project/rise/>, 5.7.1) and its source
+  [`damianavila/RISE`](https://github.com/damianavila/RISE) (`classic/rise/__init__.py`; `classic/setup.py` declares no
+  scripts): the slideshow owns the `rise` distribution and a top-level `rise` package but no `rise` command. Supports
+  A11.2's rejection of a namespace, A11.4's rename of the umbrella's distribution, and A11.4's free `rise` command.
+- **PyPI, `rdm`** (<https://pypi.org/project/rdm/>, 0.11.1, "Regulatory Documentation Manager") and its source
+  [`innolitics/rdm`](https://github.com/innolitics/rdm) (a top-level `rdm/` package): A11.2's "bare names clash".
+- **PyPA, "Packaging namespace packages"**
+  (<https://packaging.python.org/en/latest/guides/packaging-namespace-packages/>): "It is extremely important that every
+  distribution that uses the namespace package omits the `__init__.py`". Supports A11.2's rejection.
+- **PyPI, `jupyter`** (<https://pypi.org/project/jupyter/>, 1.0.0 uploaded 2015-08-12): "an empty metapackage for user
+  convenience, only expressing dependencies on multiple Jupyter packages". A11.1's umbrella.
+- **PyPI, `jupyter-server`** (<https://pypi.org/project/jupyter-server/>, first upload 2018-07-28) and
+  [`jupyter-server/jupyter_server`](https://github.com/jupyter-server/jupyter_server): distribution `jupyter-server`,
+  import `jupyter_server`, its own repo. A11.2's prefix.
+- **`jupyter/jupyter_core`, `jupyter_core/command.py`**
+  (<https://github.com/jupyter/jupyter_core/blob/main/jupyter_core/command.py>; subcommand commits from 2015-05-26):
+  the `jupyter` command "searches PATH for `jupyter-name`". A11.4's dispatch.
+- **`opendatacube/odc-geo`** (<https://github.com/opendatacube/odc-geo>, `pyproject.toml`; PyPI first upload
+  2022-01-25): distribution `odc-geo`, import `odc.geo`. The namespace style A11.2 rejects.
+- **eo-learn `CHANGELOG.md`** (<https://github.com/sentinel-hub/eo-learn/blob/master/CHANGELOG.md>): 1.0.x, "`eo-learn`
+  abstract package from now on requires fixed versions of `eo-learn` subpackages"; 1.5.0 (2023-09-06), "`eo-learn` is
+  now distributed as a single package", in a release that "focuses on making `eo-learn` much simpler to install".
+  A11.1's rule on when to split.
+- **PyPI's upload checks, `warehouse/forklift/metadata.py`**
+  (<https://github.com/pypi/warehouse/blob/main/warehouse/forklift/metadata.py>): uploads are rejected with "Can't
+  have direct dependency". Out of scope's note on PyPI.
+- **EURISY, "RISE – Rapid Mapping to Transform Humanitarian Response"** (<https://www.eurisy.eu/?p=12508>): RISE is
+  "Remote Imaging Support for Emergencies", built by the Luxembourg Red Cross, WASDI and LIST. The namesakes note.
+- **Clash-check searches** (2026-10-14): the PyPI JSON API and `gh search repos`, as listed in the table, and the two
+  web searches in the table. The first of those also returned a JpGU 2019 abstract on the RISESAT microsatellite
+  (<https://confit.atlas.jp/guide/event/jpgu2019/subject/MSD42-P01/detail>). The namesakes note.
