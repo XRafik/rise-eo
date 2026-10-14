@@ -193,9 +193,11 @@ def _min_row(id="t1", **kw):
     return row
 
 
-def test_b9_minimal_row_gets_the_eight_defaults(tmp_path):
+def test_b9_minimal_row_gets_the_remaining_defaults(tmp_path):
+    # offset and nodata are required since spec 59 A3, so they are supplied; the other
+    # defaults (scale 1.0 with no declaration, properties, acquisition_key, ...) still fill.
     cat = TileCatalog(str(tmp_path / "c.parquet"))
-    cat.append([_min_row()])
+    cat.append([_min_row(offset=0, nodata=0)])
     got = cat.read()
     assert list(got.columns) == COLUMNS
     assert pd.api.types.is_string_dtype(got["id"])

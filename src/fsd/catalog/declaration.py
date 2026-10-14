@@ -116,8 +116,9 @@ class CollectionDeclaration:
 
     `mask_keep` — `False` drops the mask band after masking; `True` keeps it in the cube.
 
-    `nodata` — fallback when the catalog rows carry no `nodata` column (older or hand-built
-    catalogs); a per-row value wins.
+    `nodata` — fallback when the frame passed to `build_datacube` carries no `nodata` column
+    (only a hand-built band-flattened frame: `flatten_catalog` always fills it, and a
+    catalog row must carry it, spec 59 A3); a per-row value wins.
 
     `mosaic_method` — only "median" is implemented (`fsd.datacube.ops.median_mosaic`).
 

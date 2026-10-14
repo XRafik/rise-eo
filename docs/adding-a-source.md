@@ -66,8 +66,8 @@ Every source's `download(...)` appends rows shaped like `fsd.catalog.catalog.COL
 | `local_folderpath` | where the artifact(s) landed | source (`put` step) |
 | `files` | comma-joined filenames in that folder | source |
 | `cloud_cover` | optional QA metric | source (0 if N/A) |
-| `offset` | additive radiometric offset for reflectance bands (spec 34 §1) | source; **0 for a source with no such concept** |
-| `nodata` | declared nodata value | source; **defaults to 0** for the S2 convention — do not assume 0 for an arbitrary new source (spec 34 §1c, ClearSKY warning) |
+| `offset` | additive radiometric offset for reflectance bands (spec 34 §1) | source; **required** — pass 0 for a source with no such concept; `TileCatalog.append` refuses a row without it (spec 59 A3) |
+| `nodata` | declared nodata value | source; **required** — `append` refuses a row without it (spec 59 A3). 0 is the S2 convention; do not assume 0 for an arbitrary new source (spec 34 §1c, ClearSKY warning; see #181) |
 | `geometry` | footprint, EPSG:4326 | source |
 
 A collection with no parser in `fsd/collections/` gets the "any other" row: its item id is
@@ -103,8 +103,8 @@ This is the field-by-field table (spec 34 §2a) — what the builder reads, and 
 | `mask_spec` | which band is the mask/QA band, how to interpret it, which values mean "masked" | `MaskSpec(band="SCL", mask_type="categorical_classes", classes=SCL_MASK_CLASSES)` | `CollectionDeclaration.mask_spec` (`None` = no mask) |
 | `mask_spec.mask_type` | how to interpret the mask band | `"categorical_classes"` | **only `"categorical_classes"` is implemented** — anything else raises `NotImplementedError` (spec 34 `[G3]`) |
 | `mask_keep` | keep the mask band in the output cube instead of dropping it | `False` | `CollectionDeclaration.mask_keep` |
-| per-row `offset` | additive radiometric offset, applied read-time before the mosaic | S2 baseline-derived | catalog column, carried by `flatten_catalog` |
-| per-row `nodata` | the missing-data sentinel | `0` | catalog column (falls back to `CollectionDeclaration.nodata` if the column is absent) |
+| per-row `offset` | additive radiometric offset, applied read-time before the mosaic | S2 baseline-derived | catalog column, required: `TileCatalog.append` refuses a row without it (spec 59 A3); carried by `flatten_catalog` |
+| per-row `nodata` | the missing-data sentinel | `0` | catalog column, required: `TileCatalog.append` refuses a row without it (spec 59 A3). `CollectionDeclaration.nodata` is only the fallback for a hand-built band-flattened frame passed straight to `build_datacube` |
 | `mosaic_method` | how images in a window are combined | `"median"` | `CollectionDeclaration.mosaic_method` (only `"median"` is implemented; a declared-but-unimplemented value is a seam for a future op, not silently ignored — see `ops.py` if you add one) |
 
 **The mask is opt-out per build, not per source**: if `mask_spec.band` is not in the

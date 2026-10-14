@@ -333,7 +333,7 @@ def test_flatten_catalog_skips_non_raster(tmp_path):
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": str(tmp_path), "timestamp": 0,
           "files": "B04.jp2,B08.jp2,MTD_TL.xml", "area_contribution": 50.0,
-          "geometry": TILE_BOX}], crs=CRS,
+          "offset": 0, "nodata": 0, "geometry": TILE_BOX}], crs=CRS,
     )
     flat = builder.flatten_catalog(gdf)
     assert sorted(flat["band"]) == ["B04", "B08"]      # xml skipped
@@ -344,21 +344,11 @@ def test_flatten_catalog_offset_exempts_non_reflectance_bands(tmp_path):
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": str(tmp_path), "timestamp": 0,
           "files": "B04.tif,SCL.tif", "area_contribution": 50.0,
-          "offset": -1000, "geometry": TILE_BOX}], crs=CRS,
+          "offset": -1000, "nodata": 0, "geometry": TILE_BOX}], crs=CRS,
     )
     flat = builder.flatten_catalog(gdf)
     offsets = dict(zip(flat["band"], flat["offset"]))
     assert offsets == {"B04": -1000, "SCL": 0}
-
-
-def test_flatten_catalog_offset_and_nodata_default_to_zero_when_column_missing(tmp_path):
-    gdf = gpd.GeoDataFrame(
-        [{"id": "x", "local_folderpath": str(tmp_path), "timestamp": 0,
-          "files": "B04.jp2", "area_contribution": 50.0, "geometry": TILE_BOX}], crs=CRS,
-    )
-    flat = builder.flatten_catalog(gdf)
-    assert flat["offset"].iloc[0] == 0
-    assert flat["nodata"].iloc[0] == 0
 
 
 def test_flatten_catalog_attaches_declaration():
@@ -367,7 +357,8 @@ def test_flatten_catalog_attaches_declaration():
     key -- `declaration.from_attrs` is how a caller reads it back typed."""
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": "/tmp", "timestamp": 0,
-          "files": "B04.jp2", "area_contribution": 50.0, "geometry": TILE_BOX}], crs=CRS,
+          "files": "B04.jp2", "area_contribution": 50.0, "offset": 0, "nodata": 0,
+          "geometry": TILE_BOX}], crs=CRS,
     )
     from fsd.catalog import declaration as declaration_module
     from fsd.catalog.declaration import S2_L2A_DECLARATION
@@ -417,7 +408,7 @@ def test_declaration_survives_ingest_filter_slice_reread_flatten():
         cat.append([{
             "id": "tile_t1", "collection": "s2-like-but-not", "timestamp": ts,
             "s3url": "s3://x", "local_folderpath": tmp, "files": "B04.tif",
-            "cloud_cover": 0.0, "geometry": geom_4326,
+            "cloud_cover": 0.0, "offset": 0, "nodata": 0, "geometry": geom_4326,
         }])
 
         shape_gdf = gpd.GeoDataFrame({"geometry": [TILE_BOX], "id": ["cell1"]}, crs=CRS)
@@ -468,7 +459,8 @@ def test_hand_built_gdf_keeps_s2_default_no_raise():
     an explicit choice, and this preserves synthetic-test/notebook ergonomics."""
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": "/tmp", "timestamp": 0,
-          "files": "B04.jp2", "area_contribution": 50.0, "geometry": TILE_BOX}], crs=CRS,
+          "files": "B04.jp2", "area_contribution": 50.0, "offset": 0, "nodata": 0,
+          "geometry": TILE_BOX}], crs=CRS,
     )
     flat = builder.flatten_catalog(gdf)
     from fsd.catalog import declaration as declaration_module

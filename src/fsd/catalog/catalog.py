@@ -8,10 +8,11 @@ Columns: id (unique; the **canonical granule name** since spec 59 D3), acquisiti
 sources that contributed files, unioned on append), collection (STAC collection id, e.g. "sentinel-2-l2a" -- spec 58 D12;
 renamed from "satellite", which always held this), timestamp (UTC), s3url,
 local_folderpath, files (comma-joined band filenames), cloud_cover, offset (the additive
-declared radiometric offset for radiometry bands; 0 when a collection has no such concept),
-scale (the declared multiplicative radiometric scale; 1.0 when a collection has no such
-concept -- spec 58 D5.1, declared metadata only, never applied to pixels), nodata (the
-declared nodata value; defaults 0), properties (JSON, the source item's STAC properties
+declared radiometric offset for radiometry bands; required, 0 when a collection has no such
+concept -- spec 59 A3), scale (the declared multiplicative radiometric scale; filled from the
+declaration when a row has none, 1.0 with no declaration -- spec 58 D5.1, spec 59 A3; declared
+metadata only, never applied to pixels), nodata (the declared nodata value; required -- spec 59
+A3), properties (JSON, the source item's STAC properties
 verbatim -- spec 58 D12; carries facts like `sat:orbit_state` the D9 partition guard
 needs, and nothing fsd interprets directly belongs here instead of a first-class column),
 geometry (EPSG:4326).
@@ -68,19 +69,15 @@ RESERVED_FILTER_COLUMNS = ("source", "processing_version")
 
 # Column defaults for a *fresh* `TileCatalog.append`, for a column the rows do not carry.
 #
-# offset/scale/nodata/properties are per-row declared values; a source that doesn't set one
-# (no radiometric-offset concept, or nodata already implicit) defaults rather than fail
-# column selection. This is an ergonomic default for a *fresh* append, not a legacy-catalog
-# shim (see `read()`, which does not backfill these).
+# `properties` is a per-row value a source may leave out; it defaults to "{}".
+# `offset` and `nodata` have NO default (spec 59 A3 / X4.1): `append` refuses a row without
+# them. `scale` is filled from the declaration, not from this table (X4.2).
 #
 # Spec 59 D8: the sources always supply `acquisition_key`, `processing_version`,
 # `processing_datetime` and `source`; a hand-built row (a test, an fsd-agnostic top-up) that
 # does not is its own acquisition (`acquisition_key` = its id, set in `append`) with no
 # version and no source -- the "any other" collection row of D3/D4.
 _APPEND_DEFAULTS = {
-    "offset": 0,
-    "scale": 1.0,
-    "nodata": 0,
     "properties": "{}",
     "processing_version": None,
     "processing_datetime": pd.NaT,
@@ -240,6 +237,12 @@ class TileCatalog:
         existing catalog raises `ValueError`; appending with `declaration=None` to
         an already-stamped catalog preserves the existing stamp (an fsd-agnostic
         top-up cannot erase it).
+
+        Spec 59 A3: every row must carry a non-empty `offset` and `nodata` (an S2 row at
+        baseline >= 04.00 needs `offset_for_item`'s -1000; use 0 for a collection with no
+        offset). A row without one raises `ValueError` before any file is read or written.
+        `scale` is filled from the effective declaration's `scale` (the `declaration=`
+        argument, else the constructor's, else the existing file's stamp; 1.0 with none) when the column is missing or a row's cell is empty.
         """
         if not rows:
             return
@@ -247,6 +250,25 @@ class TileCatalog:
         effective = declaration if declaration is not None else self._declaration_default
 
         new = gpd.GeoDataFrame(rows, crs=CRS)
+        for column in ("offset", "nodata"):
+            if column not in new.columns:
+                lacking = list(new["id"])
+            else:
+                lacking = list(new.loc[new[column].isna(), "id"])
+            if lacking:
+                raise ValueError(
+                    f"TileCatalog.append: {column!r} is missing or empty in {len(lacking)} "
+                    f"row(s), ids {lacking[:5]!r}{' ...' if len(lacking) > 5 else ''} "
+                    "(spec 59 A3). Pass it explicitly: for Sentinel-2, "
+                    "`offset_for_item`'s value; 0 for a collection with no offset/nodata."
+                )
+        # The file's footer is read only here, after the offset/nodata refusal above.
+        scale_source = effective if effective is not None else self._existing_stamp()
+        fill_scale = scale_source.scale if scale_source is not None else 1.0
+        if "scale" not in new.columns:
+            new["scale"] = fill_scale
+        else:
+            new["scale"] = new["scale"].astype("float64").fillna(fill_scale)
         # Normalize timestamp to tz-aware UTC for a stable on-disk dtype.
         new["timestamp"] = pd.to_datetime(new["timestamp"], utc=True)
         for column, default in _APPEND_DEFAULTS.items():
@@ -303,9 +325,8 @@ class TileCatalog:
         ⚠️ **No back-compat shim, deliberately.** A catalog predating the
         `offset`/`nodata` columns is NOT patched up here. It is disposable and must be
         re-ingested, never silently defaulted: `read()` raises `ValueError` on a
-        pre-spec-59 schema (`SPEC59_COLUMNS`). Every catalog `add()` writes carries
-        `offset` and `nodata`, but `read()` does not check them: a hand-built file without
-        them passes, and `flatten_catalog` then reads a missing value as 0.
+        pre-spec-59 schema (`SPEC59_COLUMNS`). It does not check `offset`/`nodata`: a hand-built
+        file without them passes, and `flatten_catalog` then raises `KeyError` (spec 59 A3).
         """
         gdf = fs.read_parquet(self.filepath)
         missing = [c for c in SPEC59_COLUMNS if c not in gdf.columns]
