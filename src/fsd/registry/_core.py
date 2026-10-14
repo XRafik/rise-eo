@@ -1,21 +1,16 @@
-"""Generic registry mechanics: version allocation, `_aliases.json`, `_complete.json`, the
-collision retry.
-
-`fsd.model.registry` proved this shape first, and its guarantees are documented
-in its own module docstring -- read that before touching this file. **This module is a
-parameterized copy of that logic, not an import of it**:
-`fsd/model/registry.py`'s tests monkeypatch its own module-level `_list_versions` /
-`_write_new_version` and call them directly, which only works if those functions stay defined
-in `fsd/model/registry.py`'s own namespace -- a real "move + re-export" would leave those
-patches inert (the moved functions would close over *this* module's globals, not the caller's).
-So the model registry is untouched, and this module exists purely for a second caller
-(`fsd.image.registry`) that has no such tests to preserve.
+"""The registry mechanics `fsd.model.registry` and `fsd.image.registry` share: version
+allocation, `_aliases.json`, `_complete.json`, the publish loop with its collision retry.
 
 Every function here is generic over the file set (`list[tuple[rel_path, bytes]]`) and the
-digest of what landed -- there is no bundle-specific, or image-specific, content assumed.
+digest of what landed -- no bundle-specific or image-specific content is assumed.
 `content_digest_fn` is the one thing a caller supplies: "digest the directory at this path",
 because what counts as a version's content differs per registry (a bundle's manifest-declared
-files; an image definition's `image.json`).
+files; an image definition's `image.json`). The user-facing parts -- ref parsing, name checks,
+their messages -- stay in each registry.
+
+The concurrency guarantees (what a reader and `publish` can rely on, and what is not
+guaranteed) are stated in `fsd.model.registry`'s module docstring; `write_new_version` below
+carries the publish-loop proof they rest on.
 """
 
 from __future__ import annotations
@@ -49,8 +44,7 @@ def name_root(registry: str, name: str) -> str:
 
 
 def is_version_complete(version_dir: str, storage_options: dict) -> bool:
-    """A version counts once `v<N>/_complete.json` exists, and not before; the model
-    registry (`fsd.model.registry`) uses the same rule."""
+    """A version counts once `v<N>/_complete.json` exists, and not before."""
     return fs.exists(os.path.join(version_dir, COMPLETE_FILE), **storage_options)
 
 
@@ -69,6 +63,9 @@ def list_versions(root: str, storage_options: dict) -> list[int]:
 def _holds_content(
     path: str, digest: str, storage_options: dict, content_digest_fn: ContentDigestFn,
 ) -> bool:
+    """True if `path` holds content that is exactly `digest`. Anything unreadable is "not
+    ours", never an error: this only runs on the retry path, where the single question is
+    whether to claim `path` or move on to the next version."""
     try:
         return content_digest_fn(path, storage_options) == digest
     except Exception:
@@ -82,18 +79,39 @@ def write_new_version(
     storage_options: dict,
     *,
     content_digest_fn: ContentDigestFn,
-    manifest_rel: str | None = None,
 ) -> int:
-    """Write `files` under the next free `v<N>` and mark it complete last, returning the
-    version that actually holds them. Mirrors `fsd.model.registry._write_new_version`,
-    generalized over the content digest, except that it sorts `files` by path and writes
-    `manifest_rel` (image.json for the image registry), when given, last among them.
+    """Write `files` directly under the next free `v<N>` of `root` and mark it complete
+    last, returning the version that actually holds them, in the caller's order. No staging
+    prefix, no directory rename -- `storage.fs.rename` is not used here.
+
+    `content_digest_fn(path, storage_options)` digests what a version directory holds,
+    over the same file set the caller's `digest` covers (a bundle's manifest-declared files;
+    an image definition's `image.json`).
+
+    Three steps land in order: (1) write every file straight into `v<N>/`; (2) re-digest
+    what actually landed and confirm it equals the caller's digest -- publishing is only
+    complete once the bytes are provably the caller's, the same proof `migrate` uses to
+    accept a copy; (3) write `v<N>/_complete.json` **last**, carrying that digest.
+    A single-object write is atomic on every backend fsd targets, so step 3 is the
+    all-or-nothing moment a directory rename would otherwise provide.
+
+    A target that already exists and is complete is a genuine collision only if it does not
+    hold the caller's digest, in which case the loop retries at `v<N+1>` -- idempotency,
+    reached without writing anything. A target that exists but is *not* complete (an
+    interrupted publish) is nobody's, so it is **cleared** and rewritten; clearing is what
+    keeps the previous attempt's undeclared leftovers out of the version the re-digest is
+    about to bless. A target whose freshly landed bytes do not match the caller's digest --
+    two publishers interleaving files at the same `v<N>` -- is left unmarked and the loop
+    moves on rather than claiming it.
+
+    A target without `_complete.json` is invisible to `list_versions`, whatever files it
+    holds, and is cleared by the next publish that allocates its number.
+
+    Bounded at `MAX_PUBLISH_ATTEMPTS`: the loop retries only genuine version
+    collisions, so an unbounded run here would mean something is structurally wrong, not a
+    transient race.
     """
     version = max(list_versions(root, storage_options), default=0) + 1
-    if manifest_rel is not None:
-        ordered_files = sorted(files, key=lambda item: (item[0] == manifest_rel, item[0]))
-    else:
-        ordered_files = sorted(files, key=lambda item: item[0])
 
     for _ in range(MAX_PUBLISH_ATTEMPTS):
         target = os.path.join(root, f"v{version}")
@@ -104,9 +122,19 @@ def write_new_version(
             continue
 
         if fs.exists(target, **storage_options):
+            # An incomplete target holds a *previous* attempt's leftovers, and the re-digest
+            # below cannot see them: a digest over only the declared files (for a bundle,
+            # `content_digest` covers manifest-declared files only) misses an artifact or a
+            # `code/*.py` that THIS bundle does not declare, so it survives into the version
+            # and is then marked complete. `bundle.load` puts a version's `code/` on
+            # `sys.path`, so a stale module left there is importable by the adapter that
+            # lands next. The old stage-then-rename got a clean directory for free -- a
+            # fresh staging prefix every attempt -- but publishing in place has to ask for
+            # one. Best-effort, like every other `discard`: a blob backend where recursive
+            # rm is unreliable (#50) is no worse off than if this call did not exist.
             discard(target, storage_options)
         try:
-            for rel, data in ordered_files:
+            for rel, data in files:
                 fs.write_bytes(os.path.join(target, rel), data, **storage_options)
             landed_digest = content_digest_fn(target, storage_options)
         except OSError as exc:
@@ -115,6 +143,9 @@ def write_new_version(
             ) from exc
 
         if landed_digest != digest:
+            # Someone else's bytes are interleaved with ours at this target.
+            # Leaving it unmarked is correct -- it stays invisible -- but claiming it
+            # as ours would be wrong, so move on rather than retry the same target.
             version += 1
             continue
 

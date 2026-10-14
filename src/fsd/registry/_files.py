@@ -19,7 +19,7 @@ STAGING_PREFIX = ".staging-"
 
 def discard(path: str, storage_options: dict) -> None:
     """Best-effort removal of an abandoned staging tree. A leftover is harmless -- it is
-    never visible as a version (`_list_versions` / `list_versions` match `v<N>` only) -- so a
+    never visible as a version (`list_versions` matches `v<N>` only) -- so a
     failure to clean up must not mask the error that caused it."""
     with contextlib.suppress(Exception):
         fs.rm(path, recursive=True, **storage_options)

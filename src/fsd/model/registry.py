@@ -22,7 +22,8 @@ collision. What is NOT guaranteed: two concurrent `set_alias` calls can lose an 
 two concurrent `publish` calls can leave a gap in the version sequence, and two
 simultaneous publishers writing the same `v<N>` can interleave their files -- a publisher
 whose re-digest then fails leaves the directory unmarked, so the damage is a stranded
-directory rather than a bad model being served. See `_write_new_version`.
+directory rather than a bad model being served. See
+`fsd.registry._core.write_new_version`.
 
 `resolve`/`publish` are the interface; the storage-seam layout is v1's only backend, but
 a second one can be added without either signature changing.
@@ -38,9 +39,9 @@ import re
 from typing import NamedTuple
 
 from fsd.model import bundle as bundle_mod
+from fsd.registry import _core as core
 from fsd.registry._files import STAGING_PREFIX, write_json_staged
 from fsd.registry._files import digest_files as _digest_of
-from fsd.registry._files import discard as _discard
 from fsd.storage import fs
 
 __all__ = [
@@ -57,15 +58,14 @@ __all__ = [
     "write_deploy_record",
 ]
 
-ALIASES_FILE = "_aliases.json"
+ALIASES_FILE = core.ALIASES_FILE
 DEPLOY_FILE = "_deploy.json"
-_COMPLETE_FILE = "_complete.json"
+_COMPLETE_FILE = core.COMPLETE_FILE
 _STAGING_PREFIX = STAGING_PREFIX
-_MAX_PUBLISH_ATTEMPTS = 16
+_discard = core.discard
 
 _REF_RE = re.compile(r"^(?P<name>[^:@]+)(?P<sep>[:@])(?P<value>.+)$")
 _VERSION_ALIAS_RE = re.compile(r"^v(\d+)$")
-_VERSION_DIR_RE = re.compile(r"^v(\d+)$")
 
 
 class Resolved(NamedTuple):
@@ -121,12 +121,7 @@ def check_name(name: str) -> None:
         )
 
 
-def version_path(registry: str, name: str, version: int) -> str:
-    return os.path.join(registry, name, f"v{version}")
-
-
-def _name_root(registry: str, name: str) -> str:
-    return os.path.join(registry, name)
+version_path = core.version_path
 
 
 def resolve(ref: str, registry: str, *, storage_options: dict | None = None) -> Resolved:
@@ -144,7 +139,7 @@ def resolve(ref: str, registry: str, *, storage_options: dict | None = None) -> 
         if m:
             version = int(m.group(1))
         else:
-            aliases = _read_aliases(registry, name, storage_options)
+            aliases = core.read_aliases(registry, name, storage_options or {})
             if value not in aliases:
                 raise ValueError(
                     f"alias {value!r} not found for {name!r} in {registry!r} "
@@ -152,16 +147,6 @@ def resolve(ref: str, registry: str, *, storage_options: dict | None = None) -> 
                 )
             version = aliases[value]
     return Resolved(name, version, version_path(registry, name, version))
-
-
-def _read_aliases(registry: str, name: str, storage_options: dict | None) -> dict:
-    opts = storage_options or {}
-    path = os.path.join(_name_root(registry, name), ALIASES_FILE)
-    try:
-        with fs.open(path, "r", **opts) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
 
 
 def set_alias(
@@ -179,25 +164,7 @@ def set_alias(
     still lose an update -- the registry has no lock -- but no reader ever
     sees a torn file.
     """
-    if _VERSION_ALIAS_RE.match(alias):
-        raise ValueError(
-            f"alias {alias!r} is shadowed by the 'name@v<N>' version-pin shorthand and "
-            "could never be resolved -- pick a different alias name."
-        )
-    opts = storage_options or {}
-    name_root = _name_root(registry, name)
-    target = os.path.join(name_root, f"v{version}")
-    if not fs.exists(target, **opts):
-        raise ValueError(f"cannot set alias {alias!r} -> v{version}: {target!r} does not exist")
-
-    path = os.path.join(name_root, ALIASES_FILE)
-    try:
-        with fs.open(path, "r", **opts) as f:
-            aliases = json.load(f)
-    except FileNotFoundError:
-        aliases = {}
-    aliases[alias] = version
-    write_json_staged(name_root, ALIASES_FILE, aliases, opts)
+    core.set_alias(name, alias, version, registry, storage_options or {})
 
 
 # --- content digest ------------------------------------------------------------
@@ -306,110 +273,13 @@ def _list_names(registry: str, storage_options: dict) -> list[str]:
     return sorted(names)
 
 
-def _is_version_complete(version_dir: str, storage_options: dict) -> bool:
-    """A version counts once `v<N>/_complete.json` exists, and not before."""
-    return fs.exists(os.path.join(version_dir, _COMPLETE_FILE), **storage_options)
-
-
-def _list_versions(name_root: str, storage_options: dict) -> list[int]:
-    if not fs.exists(name_root, **storage_options):
-        return []
-    versions = []
-    for entry in fs.ls(name_root, **storage_options):
-        leaf = entry.rstrip("/").rsplit("/", 1)[-1]
-        m = _VERSION_DIR_RE.match(leaf)
-        if m and _is_version_complete(os.path.join(name_root, leaf), storage_options):
-            versions.append(int(m.group(1)))
-    return sorted(versions)
-
-
-def _holds_content(path: str, digest: str, storage_options: dict) -> bool:
-    """True if `path` is a bundle directory whose content is exactly `digest`. Anything
-    unreadable is "not ours", never an error: this only runs on the retry path, where the
-    single question is whether to claim `path` or move on to the next version."""
-    try:
-        return content_digest(path, storage_options=storage_options) == digest
-    except Exception:
-        return False
-
-
 def _write_new_version(
     name_root: str, files: list[tuple[str, bytes]], digest: str, storage_options: dict,
 ) -> int:
-    """Write `files` directly under the next free `v<N>` and mark it complete last,
-    returning the version that actually holds them. No staging prefix,
-    no directory rename -- `storage.fs.rename` is unchanged by this and is not used here.
-
-    Three steps land in order: (1) write every file straight into `v<N>/`; (2) re-digest
-    what actually landed and confirm it equals the caller's digest -- publishing is only
-    complete once the bytes are provably the caller's, the same proof `migrate` uses to
-    accept a copy; (3) write `v<N>/_complete.json` **last**, carrying that digest.
-    A single-object write is atomic on every backend fsd targets, so step 3 is the
-    all-or-nothing moment the directory rename used to provide.
-
-    A target that already exists and is complete is a genuine collision only if it does not
-    hold the caller's digest, in which case the loop retries at `v<N+1>` -- idempotency,
-    reached without writing anything. A target that exists but is *not* complete (an
-    interrupted publish) is nobody's, so it is **cleared** and rewritten; clearing is what
-    keeps the previous attempt's undeclared leftovers out of the version the re-digest is
-    about to bless. A target whose freshly landed bytes do not match the caller's digest --
-    two publishers interleaving files at the same `v<N>` -- is left unmarked and the loop
-    moves on rather than claiming it.
-
-    A target without `_complete.json` is invisible to `_list_versions`, whatever files it
-    holds, and is cleared by the next `publish` that allocates its number.
-
-    Bounded at `_MAX_PUBLISH_ATTEMPTS`: the loop retries only genuine version
-    collisions, so an unbounded run here would mean something is structurally wrong, not a
-    transient race.
-    """
-    version = max(_list_versions(name_root, storage_options), default=0) + 1
-    for _ in range(_MAX_PUBLISH_ATTEMPTS):
-        target = os.path.join(name_root, f"v{version}")
-        if _is_version_complete(target, storage_options):
-            if _holds_content(target, digest, storage_options):
-                return version
-            version += 1
-            continue
-
-        if fs.exists(target, **storage_options):
-            # An incomplete target holds a *previous* attempt's leftovers, and the re-digest
-            # below cannot see them: `content_digest` covers
-            # only manifest-declared files, so an artifact or a `code/*.py` that THIS
-            # bundle does not declare survives into the version and is then marked
-            # complete. `bundle.load` puts a version's `code/` on `sys.path`, so a stale
-            # module left there is importable by the adapter that lands next. The old
-            # stage-then-rename got a clean directory for free -- a fresh staging prefix
-            # every attempt -- but publishing in place has to ask for one. Best-effort, like
-            # every other `_discard`: a blob backend where recursive rm is unreliable (#50) is
-            # no worse off than if this call did not exist.
-            _discard(target, storage_options)
-        try:
-            for rel, data in files:
-                fs.write_bytes(os.path.join(target, rel), data, **storage_options)
-            landed_digest = content_digest(target, storage_options=storage_options)
-        except OSError as exc:
-            raise OSError(
-                f"publish: writing v{version} under {name_root!r} failed: {exc}"
-            ) from exc
-
-        if landed_digest != digest:
-            # Someone else's bytes are interleaved with ours at this target.
-            # Leaving it unmarked is correct -- it stays invisible -- but claiming it
-            # as ours would be wrong, so move on rather than retry the same target.
-            version += 1
-            continue
-
-        fs.write_text(
-            os.path.join(target, _COMPLETE_FILE),
-            json.dumps({"digest": digest}, indent=2, sort_keys=True),
-            **storage_options,
-        )
-        return version
-
-    raise RuntimeError(
-        f"publish: exhausted {_MAX_PUBLISH_ATTEMPTS} attempts allocating a version under "
-        f"{name_root!r} -- repeated version collisions."
+    """See `fsd.registry._core.write_new_version`; this passes the bundle content digest."""
+    return core.write_new_version(
+        name_root, files, digest, storage_options,
+        content_digest_fn=lambda path, opts: content_digest(path, storage_options=opts),
     )
 
 
@@ -445,8 +315,8 @@ def publish(
     digest = _digest_of(files)
 
     opts = storage_options or {}
-    name_root = _name_root(registry, name)
-    for v in _list_versions(name_root, opts):
+    name_root = core.name_root(registry, name)
+    for v in core.list_versions(name_root, opts):
         vpath = version_path(registry, name, v)
         existing_digest = _read_deploy_digest(vpath, opts)
         if existing_digest is None:
@@ -485,8 +355,8 @@ def migrate(
     src_opts = src_storage_options or {}
     dst_opts = dst_storage_options or {}
     for name in _list_names(src_registry, src_opts):
-        name_src = _name_root(src_registry, name)
-        name_dst = _name_root(dst_registry, name)
+        name_src = core.name_root(src_registry, name)
+        name_dst = core.name_root(dst_registry, name)
 
         aliases_src = os.path.join(name_src, ALIASES_FILE)
         if fs.exists(aliases_src, **src_opts):
@@ -494,7 +364,7 @@ def migrate(
                 raw = f.read()
             fs.write_text(os.path.join(name_dst, ALIASES_FILE), raw, **dst_opts)
 
-        for version in _list_versions(name_src, src_opts):
+        for version in core.list_versions(name_src, src_opts):
             _migrate_version(
                 os.path.join(name_src, f"v{version}"),
                 os.path.join(name_dst, f"v{version}"),
@@ -514,7 +384,7 @@ def _migrate_version(vsrc: str, vdst: str, src_opts: dict, dst_opts: dict) -> No
             f"copied {after}) -- refusing a possibly-corrupted copy."
         )
     # Marked last, same as `_write_new_version`: migrate has already written and
-    # re-digest-confirmed above, and `_list_versions` shows only marked versions.
+    # re-digest-confirmed above, and `core.list_versions` shows only marked versions.
     fs.write_text(
         os.path.join(vdst, _COMPLETE_FILE),
         json.dumps({"digest": after}, indent=2, sort_keys=True),

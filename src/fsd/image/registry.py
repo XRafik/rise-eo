@@ -10,8 +10,7 @@
         v8/ ...
 
 Built on `fsd.registry._core` -- version allocation, `_aliases.json`,
-`_complete.json` and the collision retry are the same mechanism `fsd.model.registry` uses,
-generalized rather than shared by import (see `_core`'s docstring for why).
+`_complete.json` and the collision retry are the same code `fsd.model.registry` runs on.
 
 **The registry path is an argument, always**: every function here takes `registry=`;
 nothing under `src/fsd/` reads it from config or an environment variable.
@@ -120,7 +119,7 @@ def publish(
 
     version = core.write_new_version(
         root, [(DEFINITION_FILE, body)], digest, opts,
-        content_digest_fn=_content_digest, manifest_rel=DEFINITION_FILE,
+        content_digest_fn=_content_digest,
     )
     if alias:
         core.set_alias(name, alias, version, registry, opts)
