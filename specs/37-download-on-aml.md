@@ -11,8 +11,8 @@ summary: Download at scale on AML: CDSE as one job, MPC fanned out to blob.
 > re-resolved Open Q2 in §8, and the updated §4/§5/§7). → NEXT: a Sonnet@medium session implements the
 > D5-revision delta against the merged code.** The original (pre-D5-revision) history follows.
 >
-> **Amendment A1 (2026-10-13, DRAFT):** `download_shard` refuses a shard row with a missing key
-> instead of filling in defaults (#145 X3; end of this spec).
+> **Amendment A1 (2026-10-13, SIGNED OFF by the user 2026-10-14):** `download_shard` refuses a
+> shard row with a missing key instead of filling in defaults (#145 X3; end of this spec).
 >
 > **→ (historical) NEXT: implement in a Sonnet@medium session against
 > this spec** (§3 D1–D10, §4 reuse ledger, §5 deliverables, §7 tests). **Prerequisite spec 35 is already
@@ -417,7 +417,8 @@ identity via `AZURE_CLIENT_ID`.*
 
 ## Amendment A1 (2026-10-13) — `download_shard` refuses a shard row with a missing key (#145 X3)
 
-**Status:** DRAFT, awaiting the user's sign-off; no X3 code is written yet. Decided by the user on
+**Status:** SIGNED OFF (user, 2026-10-14), before any X3 code was written. At sign-off the
+user cut three tests and the gate-4 negative case as redundant (How to verify). Decided by the user on
 2026-10-09 (question Q3f of the refactor audit, #145 Decisions comment 6081711552: "Drop. A
 driver/image version mismatch fails with a clear `KeyError`") and 2026-10-13 (the four X3 questions:
 drop the defaults in both layers; one check up front that raises `ValueError`; record it in this spec;
@@ -493,24 +494,19 @@ numbers below are at `main` a4b5f3e, before the X3 code.
   the message contains `'properties'`, `'scale'`, `discover_shard_rows` and `different fsd version`;
   the sign stub was never called; the catalog received no append. Fails on the old code, which
   downloads.
-- **T2** Two rows, the first without `acquisition_key`, the second without `processing_datetime` →
-  one `ValueError` naming both keys. Fails on the old code.
-- **T3** One row with all 16 keys, `processing_version` and `processing_datetime` both NaN → no raise;
-  the appended catalog row has `None` for both. Guards A1.4; passes on the old code too.
-- **T4** `discover_shard_rows`, with the STAC search mocked → every row's keys equal the 16 in A1.1,
-  exactly. Guards drift between the producer and the check; passes on the old code too.
-- **T5** `_append_downloaded` given a `tile_meta` row without `scale` → `KeyError`. Fails on the old
-  code, which uses the declaration's scale.
-- **T6** `workflows.download.run_shard` on a `memory://` shard CSV with the `scale` column dropped →
+- **T2** One row with all 16 keys, `processing_version` and `processing_datetime` both NaN → no raise;
+  the appended catalog row has `None` for both. Guards A1.4 (a check that treats NaN as missing);
+  passes on the old code too.
+- **T3** `workflows.download.run_shard` on a `memory://` shard CSV with the `scale` column dropped →
   `ValueError` with the T1 wording, and no `_status` JSON written. Fails on the old code.
 - `grep -nE '\.get\("(scale|acquisition_key|processing_version|processing_datetime|properties)"' src/fsd/sources/mpc.py`
   prints nothing.
-- **Gate 4** (the check runs on the AML node): a run-book in `runbooks/`.
-  - Happy path: one MPC shard, one tile, B04 → the job completes; the catalog row has a non-empty
-    `acquisition_key` and `processing_version`.
-  - Negative case: the same shard CSV with `scale` and `properties` removed, submitted as an AML
-    command job running `python -m fsd.workflows.download --shard <url>` → the job fails, and its log
-    holds the A1.1 message naming both keys.
+- Already covered, so no new test: real `discover_shard_rows` output passes the check, through a CSV
+  and `run_shard` (`tests/test_spec59_p1.py:749`); A1.3's removed defaults (the grep line).
+- **Gate 4** (the check runs on the AML node): a run-book in `runbooks/`, happy path only. One MPC
+  shard, one tile, B04 → the job completes; the catalog row has a non-empty `acquisition_key` and
+  `processing_version`. The refusal itself is proved by T3 through the node's own entry point; on AML
+  it would add only that an exception reaches the job log.
 
 **Risks.**
 - A caller of the public `download_shard` that builds rows by hand without these keys now raises. Fix:
