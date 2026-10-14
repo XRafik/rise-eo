@@ -123,7 +123,7 @@ def _search_items(
     client = pystac_client.Client.open(config.MPC_STAC_URL, modifier=pc.sign_inplace)
     query = None
     if max_cloudcover is not None:
-        query = {"eo:cloud_cover": {"lt": max_cloudcover}}
+        query = {"eo:cloud_cover": {"lte": max_cloudcover}}
     search = client.search(
         collections=[collection],
         datetime=[startdate, enddate],
@@ -148,7 +148,7 @@ def _search_items_unsigned(
     client = pystac_client.Client.open(config.MPC_STAC_URL)
     query = None
     if max_cloudcover is not None:
-        query = {"eo:cloud_cover": {"lt": max_cloudcover}}
+        query = {"eo:cloud_cover": {"lte": max_cloudcover}}
     search = client.search(
         collections=[collection],
         datetime=[startdate, enddate],
