@@ -380,12 +380,17 @@ Line numbers below are at `main` cdfb764, before the X5 code.
   that window and its item (the fixture's catalog records 0.066284 for
   `S2B_MSIL2A_20180928T100019_R122_T33UWP`). PASS:
   (a) `fsd.sources.mpc.query_catalog(..., max_cloudcover=c)` returns that granule;
-  (b) the same raw `pystac_client` search sent with `{"lte": c}` returns an item at exactly `c` and
-  none above it, and sent with `{"lt": c}` returns none at `c`.
-  (a) alone would also pass if MPC ignored the filter, since fsd filters again locally with `<=`;
-  (b) shows MPC's server applies `lte` at exactly the threshold (the Query extension lists the
-  operator but does not define it; corrected in gate-3 review). All searches run on the driver, so
-  a local run counts; no AML run and no image build.
+  (b) at two thresholds `t` (`c`, and the median cover of an unfiltered raw search), a raw
+  `pystac_client` search with `{"lte": t}` returns **every** item the unfiltered search lists with
+  cover `<= t` (none dropped), and a raw search with `{"lt": c}` returns none at `c`.
+  (a) alone would also pass if MPC ignored the filter, since fsd filters again locally with `<=`.
+  (b) checks the property fsd relies on: MPC's `lte` never drops an item at or below the threshold.
+  It does not require MPC to drop items above it: the first gate-4 run (2026-10-14) showed MPC's
+  `lte` at `c` = 0.066284 returning 5 items, up to 0.176506, while `lt` returned none. The Query
+  extension lists the operator but does not define it. fsd's local `<=` filter
+  (`_finalize_catalog_gdf`) removes the extra items, so the result fsd returns is exactly "at
+  most". (Rewritten twice in gate-3 review and gate 4.) All searches run on the driver, so a local
+  run counts; no AML run and no image build.
 
 **Risks.**
 - A run whose `max_cloudcover` equals a granule's cloud cover gets one more granule on MPC than
