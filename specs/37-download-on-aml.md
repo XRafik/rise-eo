@@ -504,9 +504,10 @@ numbers below are at `main` a4b5f3e, before the X3 code.
 - `grep -nE '\.get\("(scale|acquisition_key|processing_version|processing_datetime|properties)"' src/fsd/sources/mpc.py`
   prints nothing.
 - Already covered, so no new test: real `discover_shard_rows` output passes the check, through a CSV
-  and `run_shard` (`tests/test_spec59_p1.py:749`); A1.3's removed defaults (the grep line).
+  and `run_shard` (`tests/test_spec59_p1.py:749`); that test also asserts the producer's keys equal
+  A1.1's 16 (one added line, gate-3 round 1); A1.3's removed defaults (the grep line).
 - **Gate 4** (the check runs on the AML node): a run-book in `runbooks/`, happy path only. One MPC
-  shard, one tile, B04 → the job completes; the catalog row has a non-empty `acquisition_key` and
+  shard, one granule (MGRS tile T33UWP), B04 → the job completes; the catalog row has a non-empty `acquisition_key` and
   `processing_version`. The refusal itself is proved by T3 through the node's own entry point; on AML
   it would add only that an exception reaches the job log.
 
