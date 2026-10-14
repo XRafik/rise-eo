@@ -1206,11 +1206,12 @@ handoff. Signed off when the user merges the PR that adds it. Line numbers at `m
   | What carries the name | After the rename |
   |---|---|
   | package, distribution, command | `src/rise_eo`, `rise-eo`, `rise-eo` |
+  | Python names that carry the name, e.g. the constant `FSD_DECLARATION_VERSION` (`declaration.py:52`) | renamed with the code (`RISE_EO_DECLARATION_VERSION`). The on-disk key it writes stays (row below) |
   | environment variables `FSD_CONFIG_DIR`, `FSD_WRITE_READ_LOG`, `FSD_WRITE_TIMINGS`, and `FSD_OUTPUTS_DIR` (used only in `demos/mini_mpc/` and `docs/howto/serve-xyz.md`) | `RISE_EO_CONFIG_DIR`, `RISE_EO_WRITE_READ_LOG`, `RISE_EO_WRITE_TIMINGS`, `RISE_EO_OUTPUTS_DIR` |
   | config folder `~/.config/fsd` (`%APPDATA%\fsd`, `$XDG_CONFIG_HOME/fsd`; `config.py:194-215`) | `rise-eo` in each place. The old folder is not read. When config is missing and the old file exists, the error prints the command that moves it |
   | on-disk keys `fsd_bundle_version` (`bundle.py:454`), `fsd_declaration_version` (`declaration.py:278`), the catalog footer and datacube key `fsd:declaration` (`declaration.py:53`), the deploy record's `fsd_version` (`api.py:2655`) | **unchanged.** Renaming a key is a format change (D11) with nothing in it for a user; the formats and their golden files stay as they are |
   | the image definition: the field `ImageDefinition(fsd=…)` (`definition.py:55`, documented in `docs/howto/build-the-images.md`) and its resolved `"fsd"` key, which goes into every image digest and into `image.json` in the image registry (`digest.py:184`; read at `aml/__init__.py:57`, `verify_image.py:185`) | field and key become `rise_eo`. Every digest changes, which the image rebuild below needs anyway. An image registered before the rename has no `rise_eo` key, so `verify_image` against it fails; it could not run the renamed code anyway |
-  | wheel globs `fsd-*.whl` (`definition.py:85-116`, `verify_image.py:91-93`, `.gitignore:97`) | `rise_eo-*.whl`, not `rise-eo-*.whl`: a wheel's file name replaces each run of `-_.` in the distribution name with `_` |
+  | wheel globs `fsd-*.whl` (`definition.py:85-146`, `verify_image.py:91-93`, `.gitignore:97`) | `rise_eo-*.whl`, not `rise-eo-*.whl`: a wheel's file name replaces each run of `-_.` in the distribution name with `_` |
   | saved bundles whose embedded adapter imports `fsd` (`bundle.py:6-18`) | `load` fails and says the bundle was saved with fsd ≤ v0.2, and to change `fsd` to `rise_eo` in the named file under `code/` and save again. The known bundle (DemoRF, in the registry) is saved again once; adapter files such as RISE's `notebooks/demo_model/my_adapter.py` change their import |
   | the "is this fsd itself" checks in bundling (`bundle.py:147`, `bundle.py:368`) | test for `rise_eo` |
   | STAC defaults: `catalog_id="fsd"` (`stac.py:618`), `fsd-inference` (`stac.py:407`, `api.py:1569`, `api.py:1614`) | `rise-eo`, `rise-eo-inference`. Outputs already written keep their ids |
@@ -1234,8 +1235,8 @@ handoff. Signed off when the user merges the PR that adds it. Line numbers at `m
     and call in `src/`, `tests/`, `scripts/` (including `docs_kwarg_sweep.py`'s import), `examples/`, `demos/`,
     notebooks, Snakefiles and living docs; `test_docs.py`'s `startswith("fsd")`; then the rows of A11.5.
   - Size: 301 tracked files mention `fsd` as a word (`git grep -lw fsd`; 134 of them `.md`). That count includes
-    the point-in-time docs, which stay, and two binary fixtures under `tests/data/tutorial/`, whose `fsd` strings
-    are the unchanged keys. Easy to miss: `.github/workflows/ci.yml`, `.gitignore`, both `NOTICE` files and the
+    the point-in-time docs, which stay, and two binary fixtures under `tests/data/tutorial/`: `catalog.parquet` holds
+    the unchanged key `fsd:declaration`, and `SCL.tif` matches only by chance in its compressed bytes. Neither changes. Easy to miss: `.github/workflows/ci.yml`, `.gitignore`, both `NOTICE` files and the
     agent files under `.claude/agents/`.
   - Reviewer: `pr-reviewer` (well over 200 lines under `src/`).
   - Gate 4 applies: rebuild the images with the renamed package, then one real AML run (download, training data,
