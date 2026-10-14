@@ -682,7 +682,7 @@ def download_shard(
     uses (`_transfer_and_stamp_one`); `download()` itself is untouched.
 
     Raises `ValueError`, before any work, if a row lacks a key `discover_shard_rows`
-    writes (spec 37 A1): the shard was written by a different fsd version.
+    writes (spec 37 A1): most likely a driver on a different fsd version wrote it.
     """
     import concurrent.futures
     import time

@@ -464,7 +464,9 @@ numbers below are at `main` a4b5f3e, before the X3 code.
   `acquisition_key`, `processing_version`, `processing_datetime`, `properties`, `geometry`.
 - **A1.2** `download_shard`'s `tile_meta` reads every key with `row[...]`. The five defaults and the
   `else 1.0` go.
-- **A1.3** `_append_downloaded` reads `scale`, `acquisition_key` and `properties` with `r[...]`.
+- **A1.3** `_append_downloaded` reads `scale`, `acquisition_key` and `properties` with `r[...]`;
+  `processing_version` / `processing_datetime` too, inside `_none_if_nan`, as the grep line under
+  How to verify requires (clarified 2026-10-14, during implementation; no behaviour change).
 - **A1.4** Unchanged: `_none_if_nan` on `processing_*` (`:439-440`). A key that is present with an
   empty value is not missing: the CSV round trip turns `""` into NaN, and `_none_if_nan` turns NaN into
   `None`. The check reads keys, never values.
