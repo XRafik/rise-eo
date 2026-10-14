@@ -753,6 +753,9 @@ does.
 - **T2** `append` with `declaration=S2_L2A_DECLARATION`, parametrised over {the `scale` column missing
   from every row; `None` in one of two rows, the other row giving 1/10000}: every stored `scale` equals
   1/10000. Catches: filling `1.0` (old code, column missing) or leaving NaN (old code, empty cell).
+  A third case (added in gate-3 review): a second `append` with no declaration at all, to a file
+  stamped S2, stores 1/10000 for its row without `scale`. Catches: a fill that ignores the file's
+  stamp (X4.2's last fallback).
 - **T3** (dropped when narrowed.)
 - **T4** `flatten_catalog` on a hand-built frame with `nodata` but without `offset` raises `KeyError`.
   Catches: a reader that keeps the default.

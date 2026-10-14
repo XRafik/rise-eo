@@ -47,7 +47,8 @@ def test_append_refuses_missing_or_empty_offset_nodata(tmp_path, column, shape):
             _min_row("b", **{other: 0, column: 0}),
         ]
     path = str(tmp_path / "c.parquet")
-    with pytest.raises(ValueError, match=column) as exc:
+    # Quoted: the message also says "offset/nodata" unquoted, which would match either column.
+    with pytest.raises(ValueError, match=f"'{column}'") as exc:
         TileCatalog(path).append(rows)
     # The first row lacks the value in both shapes, so its id is named (quoted, as repr does).
     assert "'a'" in str(exc.value)
@@ -74,6 +75,19 @@ def test_append_fills_scale_from_the_declaration(tmp_path, shape):
     assert len(got) == 2
     for value in got["scale"]:
         assert value == pytest.approx(config.S2_REFLECTANCE_SCALE)
+
+
+def test_append_fills_scale_from_the_existing_files_stamp(tmp_path):
+    # X4.2: with no `declaration=` and no constructor declaration, the fill comes from the
+    # declaration already stamped on the file.
+    path = str(tmp_path / "c.parquet")
+    TileCatalog(path).append(
+        [_min_row("a", offset=0, nodata=0, scale=config.S2_REFLECTANCE_SCALE)],
+        declaration=S2_L2A_DECLARATION,
+    )
+    TileCatalog(path).append([_min_row("b", offset=0, nodata=0)])
+    got = TileCatalog(path).read().set_index("id")
+    assert got.loc["b", "scale"] == pytest.approx(config.S2_REFLECTANCE_SCALE)
 
 
 # --- T4: flatten_catalog no longer defaults a missing column ----------------
