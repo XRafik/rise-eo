@@ -5,6 +5,9 @@ summary: MPC as a second source, plus processing-baseline radiometry harmonizati
 
 # Spec 32 — MPC source (Sentinel-2 L2A) + processing-baseline harmonization
 
+> **Amendment A1 (2026-10-14, DRAFT):** `max_cloudcover` means "at most" (≤) on MPC too:
+> the STAC query uses `lte`, not `lt` (#145 X5; end of this spec).
+
 > **Status: ✅ DONE — CODE REVIEWED + MERGED + RUNBOOK v2 FULLY VALIDATED ON REAL MPC DATA
 > (2026-07-16).** All three steps PASS; correctness debt **#10 is fixed for MPC and proven end to
 > end**. Verified independently from the artifacts, not from the `pass` flag (v1 taught us that flag
@@ -153,7 +156,8 @@ Two integration facts from the codebase shape the design:
 - **Discovery**: `pystac_client.Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")`
   with the `planetary_computer` **sign modifier** so returned assets carry SAS-signed HTTPS hrefs;
   search collection `sentinel-2-l2a`, `intersects=ROI`, `datetime=[start,end]`,
-  `query={"eo:cloud_cover": {"lt": max_cloudcover}}`. Anonymous; optional
+  `query={"eo:cloud_cover": {"lt": max_cloudcover}}` (**superseded by Amendment A1**: `lte`).
+  Anonymous; optional
   `PC_SDK_SUBSCRIPTION_KEY` env raises rate limits.
 - **Asset→band**: MPC keys bands directly (`"B04"`, `"SCL"`, …) — simpler than CDSE's `Bxx_YYm`.
   Map requested `bands` → asset keys; each asset href is a signed COG URL.
@@ -331,3 +335,60 @@ Per-source credit — **exactly what each reliable source contributed to a decis
   `/vsicurl`-based or `requests`-stream `get` is the fallback.
 - **Non-reflectance band set** — `_is_reflectance` must exempt exactly SCL/AOT/WVP/visual/preview;
   confirm no B-prefixed non-reflectance asset exists in the requested band list.
+
+## Amendment A1 (2026-10-14) — cloud cover "at most" on MPC too (#145 X5)
+
+**Status:** DRAFT. Decided by the user on 2026-10-09 (question Q6 of the refactor audit, #145
+Decisions comment: "'At most' (≤) on both sources. MPC's `lt` → `lte`.") and 2026-10-14 (the three X5
+questions: home here, one test, a small gate-4 run-book). Supersedes the `lt` in "Discovery" (§1).
+Line numbers below are at `main` cdfb764, before the X5 code.
+
+**Problem.**
+- MPC sends `{"eo:cloud_cover": {"lt": max_cloudcover}}` to the STAC API in both searches:
+  `_search_items` (`sources/mpc.py:126`, local `download` and `query_catalog`) and
+  `_search_items_unsigned` (`:151`, the AML driver's discovery). The server drops a granule whose
+  cloud cover equals the threshold.
+- Both sources then filter locally with `<=` (`cdse._finalize_catalog_gdf`, `sources/cdse.py:284`;
+  MPC imports it at `mpc.py:47`). CDSE sends no cloud query to its server, so on CDSE a granule at the
+  threshold is kept.
+- So the same `max_cloudcover` keeps a granule on CDSE and drops it on MPC, and `max_cloudcover=0`
+  returns no granule at all on MPC, not the cloud-free ones.
+
+**Decision.**
+- **X5.1** Both MPC searches send `{"eo:cloud_cover": {"lte": max_cloudcover}}`. `max_cloudcover`
+  means "cloud cover at most this" on every source. Nothing else changes: CDSE and the local `<=`
+  filter already mean that.
+
+**Prior art.**
+- STAC API Query extension (https://github.com/stac-api-extensions/query, checked 2026-10-14; maturity
+  "Stable"): the comparison operators are "eq, neq, lt, lte, gt, gte, startsWith, endsWith, contains,
+  in". This is where `lte` is defined.
+- MPC's conformance list (https://planetarycomputer.microsoft.com/api/stac/v1/conformance, checked
+  2026-10-14) includes `https://api.stacspec.org/v1.0.0/item-search#query`: MPC implements that
+  extension, `lte` included. Gate 4 checks it against a live search.
+- In-repo: the local filter already uses `<=` (`cdse.py:284`).
+
+**How to verify.**
+- **T1** (new file) parametrised over `_search_items` and `_search_items_unsigned`, with
+  `pystac_client.Client.open` replaced by a fake that records the `query` passed to `search` (and
+  `mpc._import_pc` stubbed for the signed one): called with `max_cloudcover=0.066284`, each records
+  `{"eo:cloud_cover": {"lte": 0.066284}}`. Catches: either site left at `lt` (no existing test reads
+  the query: every MPC test replaces the whole search function).
+- **Gate 4** (the change decides which real granules come back): `runbooks/145-x5-mpc-cloudcover.ipynb`,
+  one live MPC search with no download, on the tutorial fixture's ROI (`s2grid=4772924`) and window
+  (2018-04-01 to 2018-10-01). An unfiltered search first reads the lowest live cloud cover `c` in
+  that window and its item (the fixture's catalog records 0.066284 for
+  `S2B_MSIL2A_20180928T100019_R122_T33UWP`). PASS:
+  (a) `fsd.sources.mpc.query_catalog(..., max_cloudcover=c)` returns that granule;
+  (b) a raw `pystac_client` search with `{"lt": c}` does not.
+  Together they show MPC applies `lte` at exactly the threshold. Both searches run on the driver, so
+  a local run counts; no AML run and no image build.
+
+**Risks.**
+- A run whose `max_cloudcover` equals a granule's cloud cover gets one more granule on MPC than
+  before. Values are floats with six decimals, so this matters mostly for whole numbers such as 0.
+
+**Out of scope.**
+- Merging the two MPC search functions, which build the same query.
+- A run-book step for `discover_shard_rows` (the AML discovery path): T1 pins its query, and gate 4's
+  (a) shows MPC honours `lte`.
