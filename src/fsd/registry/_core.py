@@ -81,8 +81,9 @@ def write_new_version(
     content_digest_fn: ContentDigestFn,
 ) -> int:
     """Write `files` directly under the next free `v<N>` of `root` and mark it complete
-    last, returning the version that actually holds them, in the caller's order. No staging
-    prefix, no directory rename -- `storage.fs.rename` is not used here.
+    last, returning the version that actually holds them. `files` are written in the
+    caller's order. No
+    staging prefix, no directory rename -- `storage.fs.rename` is not used here.
 
     `content_digest_fn(path, storage_options)` digests what a version directory holds,
     over the same file set the caller's `digest` covers (a bundle's manifest-declared files;
@@ -90,8 +91,8 @@ def write_new_version(
 
     Three steps land in order: (1) write every file straight into `v<N>/`; (2) re-digest
     what actually landed and confirm it equals the caller's digest -- publishing is only
-    complete once the bytes are provably the caller's, the same proof `migrate` uses to
-    accept a copy; (3) write `v<N>/_complete.json` **last**, carrying that digest.
+    complete once the bytes are provably the caller's, the same proof
+    `fsd.model.registry.migrate` uses to accept a copy; (3) write `v<N>/_complete.json` **last**, carrying that digest.
     A single-object write is atomic on every backend fsd targets, so step 3 is the
     all-or-nothing moment a directory rename would otherwise provide.
 
@@ -229,7 +230,7 @@ def set_alias(
     name: str, alias: str, version: int, registry: str, storage_options: dict,
 ) -> None:
     """Repoint `alias` at `version`, staged and renamed so a reader never sees a
-    half-written `_aliases.json` (mirrors `fsd.model.registry.set_alias`)."""
+    half-written `_aliases.json`."""
     if VERSION_ALIAS_RE.match(alias):
         raise ValueError(
             f"alias {alias!r} is shadowed by the 'name@v<N>' version-pin shorthand and "
