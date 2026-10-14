@@ -477,7 +477,7 @@ def test_plan_download_diffs_needed_vs_present(monkeypatch, tmp_path):
     cat = TileCatalog(str(tmp_path / "c.parquet"))
     cat.append([{"id": "t1", "collection": "s2", "timestamp": "2018-01-01T00:00:00Z",
                  "s3url": "s3://x", "local_folderpath": "x", "files": "B04.tif",
-                 "cloud_cover": 1.0, "geometry": sg.box(0, 0, 1, 1)}])
+                 "cloud_cover": 1.0, "offset": 0, "nodata": 0, "geometry": sg.box(0, 0, 1, 1)}])
     plan = cdse.plan_download(
         "roi.geojson", datetime.datetime(2018, 4, 1), datetime.datetime(2018, 9, 30),
         ["B04", "B08"], catalog_filepath=str(tmp_path / "c.parquet"),

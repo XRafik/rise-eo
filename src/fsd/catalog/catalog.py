@@ -68,19 +68,15 @@ RESERVED_FILTER_COLUMNS = ("source", "processing_version")
 
 # Column defaults for a *fresh* `TileCatalog.append`, for a column the rows do not carry.
 #
-# offset/scale/nodata/properties are per-row declared values; a source that doesn't set one
-# (no radiometric-offset concept, or nodata already implicit) defaults rather than fail
-# column selection. This is an ergonomic default for a *fresh* append, not a legacy-catalog
-# shim (see `read()`, which does not backfill these).
+# `properties` is a per-row value a source may leave out; it defaults to "{}".
+# `offset` and `nodata` have NO default (spec 59 A3 / X4.1): `append` refuses a row without
+# them. `scale` is filled from the declaration, not from this table (X4.2).
 #
 # Spec 59 D8: the sources always supply `acquisition_key`, `processing_version`,
 # `processing_datetime` and `source`; a hand-built row (a test, an fsd-agnostic top-up) that
 # does not is its own acquisition (`acquisition_key` = its id, set in `append`) with no
 # version and no source -- the "any other" collection row of D3/D4.
 _APPEND_DEFAULTS = {
-    "offset": 0,
-    "scale": 1.0,
-    "nodata": 0,
     "properties": "{}",
     "processing_version": None,
     "processing_datetime": pd.NaT,
@@ -240,6 +236,12 @@ class TileCatalog:
         existing catalog raises `ValueError`; appending with `declaration=None` to
         an already-stamped catalog preserves the existing stamp (an fsd-agnostic
         top-up cannot erase it).
+
+        Spec 59 A3: every row must carry a non-empty `offset` and `nodata` (an S2 row at
+        baseline >= 04.00 needs `offset_for_item`'s -1000; use 0 for a collection with no
+        offset). A row without one raises `ValueError` before any file is read or written.
+        `scale` is filled from the effective declaration's `scale` (1.0 with no
+        declaration at all) when the column is missing or a row's cell is empty.
         """
         if not rows:
             return
@@ -247,6 +249,23 @@ class TileCatalog:
         effective = declaration if declaration is not None else self._declaration_default
 
         new = gpd.GeoDataFrame(rows, crs=CRS)
+        for column in ("offset", "nodata"):
+            if column not in new.columns:
+                lacking = list(new["id"])
+            else:
+                lacking = list(new.loc[new[column].isna(), "id"])
+            if lacking:
+                raise ValueError(
+                    f"TileCatalog.append: {column!r} is missing or empty in {len(lacking)} "
+                    f"row(s), ids {lacking[:5]!r}{' ...' if len(lacking) > 5 else ''} "
+                    "(spec 59 A3). Pass it explicitly: for Sentinel-2, "
+                    "`offset_for_item`'s value; 0 for a collection with no offset/nodata."
+                )
+        fill_scale = effective.scale if effective is not None else 1.0
+        if "scale" not in new.columns:
+            new["scale"] = fill_scale
+        else:
+            new["scale"] = new["scale"].astype("float64").fillna(fill_scale)
         # Normalize timestamp to tz-aware UTC for a stable on-disk dtype.
         new["timestamp"] = pd.to_datetime(new["timestamp"], utc=True)
         for column, default in _APPEND_DEFAULTS.items():
@@ -303,9 +322,8 @@ class TileCatalog:
         ⚠️ **No back-compat shim, deliberately.** A catalog predating the
         `offset`/`nodata` columns is NOT patched up here. It is disposable and must be
         re-ingested, never silently defaulted: `read()` raises `ValueError` on a
-        pre-spec-59 schema (`SPEC59_COLUMNS`). Every catalog `add()` writes carries
-        `offset` and `nodata`, but `read()` does not check them: a hand-built file without
-        them passes, and `flatten_catalog` then reads a missing value as 0.
+        pre-spec-59 schema (`SPEC59_COLUMNS`). It does not check `offset`/`nodata`: a hand-built
+        file without them passes, and `flatten_catalog` then raises `KeyError` (spec 59 A3).
         """
         gdf = fs.read_parquet(self.filepath)
         missing = [c for c in SPEC59_COLUMNS if c not in gdf.columns]

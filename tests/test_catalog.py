@@ -37,8 +37,8 @@ def test_append_read_roundtrip(tmp_path):
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     cat.append(
         [
-            _row("t1", "2024-08-01T10:00:00Z", "B02.jp2,SCL.jp2", _box(0, 0, 1, 1)),
-            _row("t2", "2024-08-05T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2)),
+            _row("t1", "2024-08-01T10:00:00Z", "B02.jp2,SCL.jp2", _box(0, 0, 1, 1), offset=0, nodata=0),
+            _row("t2", "2024-08-05T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2), offset=0, nodata=0),
         ]
     )
     gdf = cat.read()
@@ -50,7 +50,7 @@ def test_append_read_roundtrip(tmp_path):
 
 def test_files_union_on_reappend(tmp_path):
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
-    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1))])
+    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)])
     # Re-download more bands for the same tile + a higher cloud_cover value.
     cat.append(
         [
@@ -60,6 +60,8 @@ def test_files_union_on_reappend(tmp_path):
                 "B08.jp2,SCL.jp2",
                 _box(0, 0, 1, 1),
                 cloud_cover=12.5,
+                offset=0,
+                nodata=0,
             )
         ]
     )
@@ -76,13 +78,13 @@ def test_filter_date_and_spatial(tmp_path):
     cat.append(
         [
             # in range + overlaps ROI
-            _row("hit", "2024-08-10T10:00:00Z", "B02.jp2", _box(0, 0, 2, 2)),
+            _row("hit", "2024-08-10T10:00:00Z", "B02.jp2", _box(0, 0, 2, 2), offset=0, nodata=0),
             # in range but no spatial overlap
-            _row("far", "2024-08-11T10:00:00Z", "B02.jp2", _box(10, 10, 11, 11)),
+            _row("far", "2024-08-11T10:00:00Z", "B02.jp2", _box(10, 10, 11, 11), offset=0, nodata=0),
             # overlaps but before the date range
-            _row("early", "2024-07-01T10:00:00Z", "B02.jp2", _box(0, 0, 2, 2)),
+            _row("early", "2024-07-01T10:00:00Z", "B02.jp2", _box(0, 0, 2, 2), offset=0, nodata=0),
             # overlaps but after the date range
-            _row("late", "2024-09-01T10:00:00Z", "B02.jp2", _box(0, 0, 2, 2)),
+            _row("late", "2024-09-01T10:00:00Z", "B02.jp2", _box(0, 0, 2, 2), offset=0, nodata=0),
         ]
     )
     roi = gpd.GeoDataFrame(geometry=[_box(0, 0, 1, 1)], crs="EPSG:4326")
@@ -99,7 +101,7 @@ def test_filter_date_and_spatial(tmp_path):
 def test_filter_partial_area_contribution(tmp_path):
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     # Tile covers the left half of a 2x2 ROI -> 50% contribution.
-    cat.append([_row("half", "2024-08-10T10:00:00Z", "B02.jp2", _box(0, 0, 1, 2))])
+    cat.append([_row("half", "2024-08-10T10:00:00Z", "B02.jp2", _box(0, 0, 1, 2), offset=0, nodata=0)])
     roi = gpd.GeoDataFrame(geometry=[_box(0, 0, 2, 2)], crs="EPSG:4326")
     out = cat.filter(
         roi,
@@ -113,8 +115,8 @@ def test_filter_inclusive_bounds(tmp_path):
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     cat.append(
         [
-            _row("start", "2024-08-01T00:00:00Z", "B02.jp2", _box(0, 0, 1, 1)),
-            _row("end", "2024-08-31T00:00:00Z", "B02.jp2", _box(0, 0, 1, 1)),
+            _row("start", "2024-08-01T00:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0),
+            _row("end", "2024-08-31T00:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0),
         ]
     )
     roi = gpd.GeoDataFrame(geometry=[_box(0, 0, 1, 1)], crs="EPSG:4326")
@@ -134,7 +136,7 @@ def test_append_stamps_declaration_on_new_catalog(tmp_path):
 
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     cat.append(
-        [_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1))],
+        [_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)],
         declaration=S2_L2A_DECLARATION,
     )
     assert cat.declaration == S2_L2A_DECLARATION
@@ -144,7 +146,7 @@ def test_constructor_declaration_is_appends_default(tmp_path):
     from fsd.catalog.declaration import S2_L2A_DECLARATION
 
     cat = TileCatalog(str(tmp_path / "catalog.parquet"), declaration=S2_L2A_DECLARATION)
-    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1))])
+    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)])
     assert cat.declaration == S2_L2A_DECLARATION
 
 
@@ -155,9 +157,9 @@ def test_append_conflicting_declaration_raises(tmp_path):
     b = CollectionDeclaration(reference_band="B08", mask_spec=MaskSpec(band="SCL", classes=(1,)))
 
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
-    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1))], declaration=a)
+    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)], declaration=a)
     with pytest.raises(ValueError, match="declaration conflict"):
-        cat.append([_row("t2", "2024-08-02T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2))], declaration=b)
+        cat.append([_row("t2", "2024-08-02T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2), offset=0, nodata=0)], declaration=b)
     # the original stamp is untouched by the rejected append.
     assert cat.declaration == a
 
@@ -167,9 +169,9 @@ def test_append_declaration_none_preserves_existing_stamp(tmp_path):
 
     a = CollectionDeclaration(reference_band="B04")
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
-    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1))], declaration=a)
+    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)], declaration=a)
     # an fsd-agnostic top-up (no declaration= given) must not erase the stamp.
-    cat.append([_row("t2", "2024-08-02T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2))])
+    cat.append([_row("t2", "2024-08-02T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2), offset=0, nodata=0)])
     assert cat.declaration == a
     assert len(cat.read()) == 2
 
@@ -183,15 +185,6 @@ def test_append_empty_is_noop(tmp_path):
 
 
 # --- offset / nodata (spec 34 §1, retiring spec 32's boa_add_offset) -----------
-
-
-def test_append_rows_without_offset_or_nodata_default_to_zero(tmp_path):
-    # CDSE-shaped rows (no offset/nodata key) must not KeyError on write.
-    cat = TileCatalog(str(tmp_path / "catalog.parquet"))
-    cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1))])
-    gdf = cat.read()
-    assert gdf["offset"].iloc[0] == 0
-    assert gdf["nodata"].iloc[0] == 0
 
 
 def test_offset_and_nodata_round_trip(tmp_path):

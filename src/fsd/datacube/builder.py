@@ -220,8 +220,8 @@ def flatten_catalog(
     verbatim (JSON string), duplicated across its band rows. `offset` is the granule's
     declared additive offset for a band the resolved declaration says carries radiometry
     (`CollectionDeclaration.is_radiometry_band`), else 0 -- mask/QA bands are never
-    harmonized. `nodata` is the granule's declared nodata, 0 when absent; missing
-    `offset`/`nodata` columns default every row to 0.
+    harmonized. `nodata` is the granule's declared nodata. Both columns are required
+    (spec 59 A3): a frame without `offset` or `nodata` raises `KeyError`.
 
     The declaration is resolved by `_resolve_declaration` and attached as the JSON-able
     `attrs["fsd:declaration"]` -- never the dataclass itself -- which `build_datacube`
@@ -233,9 +233,8 @@ def flatten_catalog(
              "offset", "nodata", "properties", "collection", "acquisition_key",
              "processing_version", "processing_datetime", "source")}
     for _, row in catalog_gdf.iterrows():
-        tile_offset = row.get("offset", 0) or 0
-        tile_nodata = row.get("nodata", 0)
-        tile_nodata = 0 if tile_nodata is None else tile_nodata
+        tile_offset = row["offset"]
+        tile_nodata = row["nodata"]
         tile_properties = row.get("properties", "{}") or "{}"
         # Carried through band-flattening so `build_datacube` can apply the
         # per-acquisition `processing=` check and record provenance from the SAME rows

@@ -47,7 +47,7 @@ def _make_catalog(path, tmp, files="B04.tif,B08.tif,SCL.tif", with_ac=True):
     for i, ts in enumerate(TS):
         r = {"id": f"T_{i}", "acquisition_key": f"T_{i}", "processing_version": None, "processing_datetime": None, "source": "mpc", "satellite": "sentinel-2-l2a", "timestamp": ts,
              "s3url": f"s3://eodata/x{i}", "local_folderpath": str(tmp / f"prod{i}"),
-             "files": files, "cloud_cover": 0.0, "geometry": TILE_4326}
+             "files": files, "cloud_cover": 0.0, "offset": 0, "nodata": 0, "geometry": TILE_4326}
         if with_ac:
             r["area_contribution"] = 100.0
         rows.append(r)
