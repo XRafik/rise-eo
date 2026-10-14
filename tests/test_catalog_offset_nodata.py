@@ -53,8 +53,8 @@ def test_append_refuses_missing_or_empty_offset_nodata(tmp_path, column, shape):
     path = str(tmp_path / "c.parquet")
     with pytest.raises(ValueError, match=column) as exc:
         TileCatalog(path).append(rows)
-    # The first row lacks the value in both shapes, so its id is named.
-    assert "a" in str(exc.value)
+    # The first row lacks the value in both shapes, so its id is named (quoted, as repr does).
+    assert "'a'" in str(exc.value)
     if shape == "none_in_one_row":
         assert "'b'" not in str(exc.value)
     assert not os.path.exists(path)
