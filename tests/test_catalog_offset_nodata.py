@@ -1,8 +1,7 @@
 """Spec 59 Amendment A3 (#145 X4, #173): a missing or empty `offset` / `nodata` fails loudly.
 
-T1: `append` refuses it. T2: `append` fills `scale` from the declaration. T3: `read()` refuses a
-file whose `offset` / `scale` / `nodata` column is missing or NaN. T4: the two readers
-(`flatten_catalog`, `tile_catalog_to_items`) no longer default a missing column.
+T1: `append` refuses it. T2: `append` fills `scale` from the declaration. T4: `flatten_catalog`
+no longer defaults a missing column. (T3 was dropped when A3 was narrowed.)
 """
 
 from __future__ import annotations
@@ -10,16 +9,13 @@ from __future__ import annotations
 import os
 
 import geopandas as gpd
-import pandas as pd
 import pytest
 import shapely.geometry as sg
 
 from fsd import config
-from fsd.catalog import stac
 from fsd.catalog.catalog import TileCatalog
 from fsd.catalog.declaration import S2_L2A_DECLARATION
 from fsd.datacube import builder
-from fsd.storage import fs
 
 
 # Copied from tests/test_p12b_characterisation.py: CI runs bare `pytest`, which cannot import `tests.*`.
@@ -80,49 +76,7 @@ def test_append_fills_scale_from_the_declaration(tmp_path, shape):
         assert value == pytest.approx(config.S2_REFLECTANCE_SCALE)
 
 
-# --- T3: read() refuses a file with a missing / NaN offset, scale or nodata --
-
-
-def _write_mutated(tmp_path, mutate):
-    path = str(tmp_path / "c.parquet")
-    cat = TileCatalog(path)
-    cat.append([_min_row("a", offset=-1000, scale=0.0001, nodata=0)])
-    gdf = cat.read()
-    mutate(gdf)
-    fs.write_parquet(path, gdf)
-    return path
-
-
-def _drop_offset(gdf):
-    gdf.drop(columns=["offset"], inplace=True)
-
-
-def _nan_column(column):
-    def mutate(gdf):
-        gdf[column] = float("nan")
-
-    return mutate
-
-
-@pytest.mark.parametrize(
-    "column, mutate",
-    [
-        ("offset", _drop_offset),
-        ("offset", _nan_column("offset")),
-        ("scale", _nan_column("scale")),
-        ("nodata", _nan_column("nodata")),
-    ],
-    ids=["no_offset_column", "nan_offset", "nan_scale", "nan_nodata"],
-)
-def test_read_refuses_missing_or_nan_offset_scale_nodata(tmp_path, column, mutate):
-    path = _write_mutated(tmp_path, mutate)
-    with pytest.raises(ValueError) as exc:
-        TileCatalog(path).read()
-    assert path in str(exc.value)
-    assert column in str(exc.value)
-
-
-# --- T4: the readers no longer default a missing column ----------------------
+# --- T4: flatten_catalog no longer defaults a missing column ----------------
 
 _CRS = "EPSG:32633"
 _TILE_BOX = sg.box(500000, 4999960, 500040, 5000000)
@@ -136,21 +90,3 @@ def test_flatten_catalog_raises_keyerror_without_offset(tmp_path):
     )
     with pytest.raises(KeyError, match="offset"):
         builder.flatten_catalog(gdf)
-
-
-def test_tile_catalog_to_items_raises_keyerror_without_nodata():
-    gdf = gpd.GeoDataFrame(
-        [{
-            "id": "S2B_MSIL2A_20181231T080329_N0500_R035_T37PBP_20230726T205809",
-            "collection": "sentinel-2-l2a",
-            "timestamp": pd.Timestamp("2018-12-31T08:03:29", tz="UTC"),
-            "processing_version": "N0500", "processing_datetime": None,
-            "s3url": "s3://eodata/A.SAFE", "local_folderpath": "/data/A",
-            "files": "B04.tif,SCL.tif", "cloud_cover": 1.5,
-            "offset": -1000, "scale": 0.0001,
-            "geometry": sg.box(36.6, 12.6, 37.0, 13.0),
-        }],
-        geometry="geometry", crs="EPSG:4326",
-    )
-    with pytest.raises(KeyError, match="nodata"):
-        stac.tile_catalog_to_items(gdf)

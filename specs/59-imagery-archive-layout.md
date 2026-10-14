@@ -14,7 +14,7 @@ the byte copy was already atomic, the defect is stamping after publishing (§8).
 inner layout by hand (found in the D12 review: five hand-built `{root}/{collection}/catalog.parquet`).
 **Amendment A2 (2026-10-13, SIGNED OFF by the user 2026-10-13):** a `setup`-written `input.csv` with no `processing` column is
 refused, extending D8's "no shim" (#145 X2; end of this spec).
-**Amendment A3 (2026-10-14, SIGNED OFF by the user 2026-10-14; narrowed, re-sign-off PENDING):** `append` refuses a
+**Amendment A3 (2026-10-14, SIGNED OFF by the user 2026-10-14; narrowed and re-signed 2026-10-14):** `append` refuses a
 row with a missing or empty `offset` or `nodata`, and `flatten_catalog` no longer reads them as 0; an empty
 `scale` is filled from the declaration (#145 X4, #173; end of this spec).
 · **Opened:** 2026-09-29
@@ -673,7 +673,7 @@ Line numbers below are at `main` b839628, before the X2 code.
 ## Amendment A3 (2026-10-14) — a missing or empty `offset` / `nodata` fails loudly (#145 X4, #173)
 
 **Status:** SIGNED OFF (user, 2026-10-14), before any code in the X4 PR (#182) was written.
-**Narrowed** (user, 2026-10-14, after the first run of the X4 code; re-sign-off PENDING): the
+**Narrowed** (user, 2026-10-14, after the first run of the X4 code; re-signed off by the user 2026-10-14): the
 `read()` check and the STAC half of the strict readers are dropped (X4.3, X4.4). The signed-off text
 claimed 13 affected tests; with the code written, 87 tests in 14 files failed, 66 of them because
 `read()` refused catalog files the tests write straight to parquet for work that never reads
