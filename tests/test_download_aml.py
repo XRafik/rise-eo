@@ -176,6 +176,8 @@ def test_mpc_download_shard_signs_on_node_and_transfers(monkeypatch, tmp_path):
         "tile_id": "T1", "acquisition_key": "T1", "band": "B04", "href": "https://mpc/B04.tif",
         "dst": str(tmp_path / "T1" / "B04.tif"), "offset": 0,
         "collection": "sentinel-2-l2a", "timestamp": "2018-06-01T00:00:00+00:00",
+        "scale": 0.0001, "processing_version": "05.00",
+        "processing_datetime": "2018-06-01T00:00:00+00:00", "properties": "{}",
         "s3url": "", "cloud_cover": 0.0, "nodata": 0, "geometry": "POINT (0 0)",
     }]
 
@@ -198,6 +200,8 @@ def test_mpc_download_shard_appends_to_a_real_tile_catalog(monkeypatch, tmp_path
         "tile_id": "T1", "acquisition_key": "T1", "band": "B04", "href": "https://mpc/B04.tif",
         "dst": str(tmp_path / "T1" / "B04.tif"), "offset": -1000,
         "collection": "sentinel-2-l2a", "timestamp": "2018-06-01T00:00:00+00:00",
+        "scale": 0.0001, "processing_version": "05.00",
+        "processing_datetime": "2018-06-01T00:00:00+00:00", "properties": "{}",
         "s3url": "", "cloud_cover": 0.0, "nodata": 0, "geometry": "POINT (1 2)",
     }]
 

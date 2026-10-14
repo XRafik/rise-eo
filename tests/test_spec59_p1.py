@@ -758,6 +758,7 @@ def test_mpc_aml_shard_csv_round_trip_keeps_processing_version_a_string(monkeypa
     rows = mpc.discover_shard_rows(
         _roi(), datetime.datetime(2018, 9, 1), datetime.datetime(2018, 10, 1), ["B04"],
         str(root))
+    assert set(rows[0]) == set(mpc._SHARD_ROW_KEYS)       # spec 37 A1.1: producer == check
     shard_url = str(tmp_path / "shards" / "0.csv")
     with fs.open(shard_url, "w") as f:                          # as runners writes it
         pd.DataFrame(rows).to_csv(f, index=False)

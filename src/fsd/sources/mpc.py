@@ -433,13 +433,13 @@ def _append_downloaded(
             "files": ",".join(sorted(files)),
             "cloud_cover": r["cloud_cover"],
             "offset": r["offset"],
-            "scale": r.get("scale", declaration.scale),
+            "scale": r["scale"],
             "nodata": r["nodata"],
-            "acquisition_key": r.get("acquisition_key", tile_id),
-            "processing_version": _none_if_nan(r.get("processing_version")),
-            "processing_datetime": _none_if_nan(r.get("processing_datetime")),
+            "acquisition_key": r["acquisition_key"],
+            "processing_version": _none_if_nan(r["processing_version"]),
+            "processing_datetime": _none_if_nan(r["processing_datetime"]),
             "source": SOURCE,
-            "properties": r.get("properties", "{}"),
+            "properties": r["properties"],
             "geometry": r["geometry"],
         })
     if rows:
@@ -658,6 +658,14 @@ def _import_pc_sign():
     return _import_pc().sign
 
 
+# The 16 keys `discover_shard_rows` writes into every shard row (spec 37 A1.1).
+_SHARD_ROW_KEYS = (
+    "tile_id", "band", "href", "dst", "offset", "collection", "timestamp", "s3url",
+    "cloud_cover", "scale", "nodata", "acquisition_key", "processing_version",
+    "processing_datetime", "properties", "geometry",
+)
+
+
 def download_shard(
     rows: list[dict],
     root_folderpath: str,
@@ -672,9 +680,22 @@ def download_shard(
     before the transfer, so a SAS token never sits idle between AML job submit
     and the job actually starting. Reuses the same per-asset transfer `download()`
     uses (`_transfer_and_stamp_one`); `download()` itself is untouched.
+
+    Raises `ValueError`, before any work, if a row lacks a key `discover_shard_rows`
+    writes (spec 37 A1): most likely a driver on a different fsd version wrote it.
     """
     import concurrent.futures
     import time
+
+    missing = sorted({k for row in rows for k in _SHARD_ROW_KEYS if k not in row})
+    if missing:
+        raise ValueError(
+            f"shard row(s) lack key(s) {missing}. `discover_shard_rows` writes them, so "
+            "the shard CSV was most likely written by a driver running a different fsd "
+            "version than this node's image. Run both from one fsd version: update the "
+            "driver's fsd, or rebuild the AML environment image "
+            "(docs/howto/build-the-images.md)."
+        )
 
     sign = _import_pc_sign()
 
@@ -704,12 +725,12 @@ def download_shard(
                 "s3url": row["s3url"],
                 "cloud_cover": row["cloud_cover"],
                 "offset": row["offset"],
-                "scale": row.get("scale", declaration.scale if declaration else 1.0),
+                "scale": row["scale"],
                 "nodata": row["nodata"],
-                "acquisition_key": row.get("acquisition_key", tid),
-                "processing_version": row.get("processing_version"),
-                "processing_datetime": row.get("processing_datetime"),
-                "properties": row.get("properties", "{}"),
+                "acquisition_key": row["acquisition_key"],
+                "processing_version": row["processing_version"],
+                "processing_datetime": row["processing_datetime"],
+                "properties": row["properties"],
                 "geometry": shapely.from_wkt(row["geometry"])
                 if isinstance(row["geometry"], str) else row["geometry"],
             })
