@@ -66,8 +66,8 @@ Every source's `download(...)` appends rows shaped like `fsd.catalog.catalog.COL
 | `local_folderpath` | where the artifact(s) landed | source (`put` step) |
 | `files` | comma-joined filenames in that folder | source |
 | `cloud_cover` | optional QA metric | source (0 if N/A) |
-| `offset` | additive radiometric offset for reflectance bands (spec 34 §1) | source; **0 for a source with no such concept** |
-| `nodata` | declared nodata value | source; **defaults to 0** for the S2 convention — do not assume 0 for an arbitrary new source (spec 34 §1c, ClearSKY warning) |
+| `offset` | additive radiometric offset for reflectance bands (spec 34 §1) | source; **required** — pass 0 for a source with no such concept; `TileCatalog.append` refuses a row without it (spec 59 A3) |
+| `nodata` | declared nodata value | source; **required** — `append` refuses a row without it (spec 59 A3). 0 is the S2 convention; do not assume 0 for an arbitrary new source (spec 34 §1c, ClearSKY warning; see #181) |
 | `geometry` | footprint, EPSG:4326 | source |
 
 A collection with no parser in `fsd/collections/` gets the "any other" row: its item id is

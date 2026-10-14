@@ -8,10 +8,11 @@ Columns: id (unique; the **canonical granule name** since spec 59 D3), acquisiti
 sources that contributed files, unioned on append), collection (STAC collection id, e.g. "sentinel-2-l2a" -- spec 58 D12;
 renamed from "satellite", which always held this), timestamp (UTC), s3url,
 local_folderpath, files (comma-joined band filenames), cloud_cover, offset (the additive
-declared radiometric offset for radiometry bands; 0 when a collection has no such concept),
-scale (the declared multiplicative radiometric scale; 1.0 when a collection has no such
-concept -- spec 58 D5.1, declared metadata only, never applied to pixels), nodata (the
-declared nodata value; defaults 0), properties (JSON, the source item's STAC properties
+declared radiometric offset for radiometry bands; required, 0 when a collection has no such
+concept -- spec 59 A3), scale (the declared multiplicative radiometric scale; filled from the
+declaration when a row has none, 1.0 with no declaration -- spec 58 D5.1, spec 59 A3; declared
+metadata only, never applied to pixels), nodata (the declared nodata value; required -- spec 59
+A3), properties (JSON, the source item's STAC properties
 verbatim -- spec 58 D12; carries facts like `sat:orbit_state` the D9 partition guard
 needs, and nothing fsd interprets directly belongs here instead of a first-class column),
 geometry (EPSG:4326).
