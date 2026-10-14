@@ -5,7 +5,7 @@ summary: MPC as a second source, plus processing-baseline radiometry harmonizati
 
 # Spec 32 — MPC source (Sentinel-2 L2A) + processing-baseline harmonization
 
-> **Amendment A1 (2026-10-14, DRAFT):** `max_cloudcover` means "at most" (≤) on MPC too:
+> **Amendment A1 (2026-10-14, SIGNED OFF by the user 2026-10-14):** `max_cloudcover` means "at most" (≤) on MPC too:
 > the STAC query uses `lte`, not `lt` (#145 X5; end of this spec).
 
 > **Status: ✅ DONE — CODE REVIEWED + MERGED + RUNBOOK v2 FULLY VALIDATED ON REAL MPC DATA
@@ -338,7 +338,7 @@ Per-source credit — **exactly what each reliable source contributed to a decis
 
 ## Amendment A1 (2026-10-14) — cloud cover "at most" on MPC too (#145 X5)
 
-**Status:** DRAFT. Decided by the user on 2026-10-09 (question Q6 of the refactor audit, #145
+**Status:** SIGNED OFF (user, 2026-10-14), before any code in the X5 PR (#184) was written. Decided by the user on 2026-10-09 (question Q6 of the refactor audit, #145
 Decisions comment: "'At most' (≤) on both sources. MPC's `lt` → `lte`.") and 2026-10-14 (the three X5
 questions: home here, one test, a small gate-4 run-book). Supersedes the `lt` in "Discovery" (§1).
 Line numbers below are at `main` cdfb764, before the X5 code.
