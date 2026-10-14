@@ -375,13 +375,16 @@ Line numbers below are at `main` cdfb764, before the X5 code.
   `{"eo:cloud_cover": {"lte": 0.066284}}`. Catches: either site left at `lt` (no existing test reads
   the query: every MPC test replaces the whole search function).
 - **Gate 4** (the change decides which real granules come back): `runbooks/145-x5-mpc-cloudcover.ipynb`,
-  one live MPC search with no download, on the tutorial fixture's ROI (`s2grid=4772924`) and window
+  live MPC searches with no download, on the tutorial fixture's ROI (`s2grid=4772924`) and window
   (2018-04-01 to 2018-10-01). An unfiltered search first reads the lowest live cloud cover `c` in
   that window and its item (the fixture's catalog records 0.066284 for
   `S2B_MSIL2A_20180928T100019_R122_T33UWP`). PASS:
   (a) `fsd.sources.mpc.query_catalog(..., max_cloudcover=c)` returns that granule;
-  (b) a raw `pystac_client` search with `{"lt": c}` does not.
-  Together they show MPC applies `lte` at exactly the threshold. Both searches run on the driver, so
+  (b) the same raw `pystac_client` search sent with `{"lte": c}` returns an item at exactly `c` and
+  none above it, and sent with `{"lt": c}` returns none at `c`.
+  (a) alone would also pass if MPC ignored the filter, since fsd filters again locally with `<=`;
+  (b) shows MPC's server applies `lte` at exactly the threshold (the Query extension lists the
+  operator but does not define it; corrected in gate-3 review). All searches run on the driver, so
   a local run counts; no AML run and no image build.
 
 **Risks.**
