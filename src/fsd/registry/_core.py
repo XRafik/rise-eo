@@ -82,8 +82,8 @@ def write_new_version(
 ) -> int:
     """Write `files` directly under the next free `v<N>` of `root` and mark it complete
     last, returning the version that actually holds them. `files` are written in the
-    caller's order. No
-    staging prefix, no directory rename -- `storage.fs.rename` is not used here.
+    caller's order. No staging prefix, no directory rename -- `storage.fs.rename` is not
+    used here.
 
     `content_digest_fn(path, storage_options)` digests what a version directory holds,
     over the same file set the caller's `digest` covers (a bundle's manifest-declared files;
@@ -92,9 +92,10 @@ def write_new_version(
     Three steps land in order: (1) write every file straight into `v<N>/`; (2) re-digest
     what actually landed and confirm it equals the caller's digest -- publishing is only
     complete once the bytes are provably the caller's, the same proof
-    `fsd.model.registry.migrate` uses to accept a copy; (3) write `v<N>/_complete.json` **last**, carrying that digest.
-    A single-object write is atomic on every backend fsd targets, so step 3 is the
-    all-or-nothing moment a directory rename would otherwise provide.
+    `fsd.model.registry.migrate` uses to accept a copy; (3) write `v<N>/_complete.json`
+    **last**, carrying that digest. A single-object write is atomic on every backend fsd
+    targets, so step 3 is the all-or-nothing moment a directory rename would otherwise
+    provide.
 
     A target that already exists and is complete is a genuine collision only if it does not
     hold the caller's digest, in which case the loop retries at `v<N+1>` -- idempotency,
