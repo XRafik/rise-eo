@@ -1206,12 +1206,14 @@ handoff. Signed off when the user merges the PR that adds it. Line numbers at `m
   | What carries the name | After the rename |
   |---|---|
   | package, distribution, command | `src/rise_eo`, `rise-eo`, `rise-eo` |
-  | environment variables `FSD_CONFIG_DIR`, `FSD_WRITE_READ_LOG`, `FSD_WRITE_TIMINGS` | `RISE_EO_CONFIG_DIR`, `RISE_EO_WRITE_READ_LOG`, `RISE_EO_WRITE_TIMINGS` |
-  | config folder `~/.config/fsd` (`%APPDATA%\fsd`, `$XDG_CONFIG_HOME/fsd`; `config.py:195-216`) | `rise-eo` in each place. The old folder is not read. When config is missing and the old file exists, the error prints the command that moves it |
-  | on-disk keys `fsd_bundle_version` (`bundle.py:454`), `fsd_declaration_version` (`declaration.py:278`), the deploy record's `fsd_version` (`api.py:2655`) | **unchanged.** Renaming a key is a format change (D11) with nothing in it for a user; the formats and their golden files stay as they are |
-  | saved bundles whose embedded adapter imports `fsd` (`bundle.py:6-18`) | `load` fails and says the bundle was saved with fsd ≤ v0.2, and to change `fsd` to `rise_eo` in the named file under `code/` and save again. The two known bundles (the DemoRF bundle in the registry, RISE's `notebooks/demo_model/my_adapter.py`) are saved again once |
+  | environment variables `FSD_CONFIG_DIR`, `FSD_WRITE_READ_LOG`, `FSD_WRITE_TIMINGS`, and `FSD_OUTPUTS_DIR` (used only in `demos/mini_mpc/` and `docs/howto/serve-xyz.md`) | `RISE_EO_CONFIG_DIR`, `RISE_EO_WRITE_READ_LOG`, `RISE_EO_WRITE_TIMINGS`, `RISE_EO_OUTPUTS_DIR` |
+  | config folder `~/.config/fsd` (`%APPDATA%\fsd`, `$XDG_CONFIG_HOME/fsd`; `config.py:194-215`) | `rise-eo` in each place. The old folder is not read. When config is missing and the old file exists, the error prints the command that moves it |
+  | on-disk keys `fsd_bundle_version` (`bundle.py:454`), `fsd_declaration_version` (`declaration.py:278`), the catalog footer and datacube key `fsd:declaration` (`declaration.py:53`), the deploy record's `fsd_version` (`api.py:2655`) | **unchanged.** Renaming a key is a format change (D11) with nothing in it for a user; the formats and their golden files stay as they are |
+  | the image definition: the field `ImageDefinition(fsd=…)` (`definition.py:55`, documented in `docs/howto/build-the-images.md`) and its resolved `"fsd"` key, which goes into every image digest and into `image.json` in the image registry (`digest.py:184`; read at `aml/__init__.py:57`, `verify_image.py:185`) | field and key become `rise_eo`. Every digest changes, which the image rebuild below needs anyway. An image registered before the rename has no `rise_eo` key, so `verify_image` against it fails; it could not run the renamed code anyway |
+  | wheel globs `fsd-*.whl` (`definition.py:85-116`, `verify_image.py:91-93`, `.gitignore:97`) | `rise_eo-*.whl`, not `rise-eo-*.whl`: a wheel's file name replaces each run of `-_.` in the distribution name with `_` |
+  | saved bundles whose embedded adapter imports `fsd` (`bundle.py:6-18`) | `load` fails and says the bundle was saved with fsd ≤ v0.2, and to change `fsd` to `rise_eo` in the named file under `code/` and save again. The known bundle (DemoRF, in the registry) is saved again once; adapter files such as RISE's `notebooks/demo_model/my_adapter.py` change their import |
   | the "is this fsd itself" checks in bundling (`bundle.py:147`, `bundle.py:368`) | test for `rise_eo` |
-  | STAC defaults `fsd-inference` (`stac.py:407`, `api.py:1569`, `api.py:1614`) | `rise-eo-inference`. Outputs already written keep their ids |
+  | STAC defaults: `catalog_id="fsd"` (`stac.py:618`), `fsd-inference` (`stac.py:407`, `api.py:1569`, `api.py:1614`) | `rise-eo`, `rise-eo-inference`. Outputs already written keep their ids |
   | AML job and experiment names `fsd-…` (`runners.py:729-1262`), temp-file prefixes | `rise-eo-…` |
   | AML environment names in the docs (`fsd-aml-env`, `fsd-infer-sklearn`) | `rise-eo-aml-env`, `rise-eo-infer-sklearn`. The images are rebuilt anyway: node commands become `python -m rise_eo.workflows.…`. Old environments stay registered |
   | point-in-time docs (specs, ADRs, findings, run-book records; ADR 0022) | unchanged; they keep "fsd" as written. Living docs, notebooks, examples and code change |
@@ -1219,19 +1221,22 @@ handoff. Signed off when the user merges the PR that adds it. Line numbers at `m
 - **A11.6 Order** (replaces the P5 row of §4):
   1. #145's X4, X5 and C1 merge, and no other PR is open.
   2. The rename PR (A11.7).
-  3. Release `v0.3.0`: the rename plus X1–X5 and C1, all `breaking`.
+  3. Release `v0.3.0`: the rename plus #145's X1–X5 and C1. Before tagging, the maintainer labels each of those PRs
+     (D15); the merged #174, #177 and #180 have no label yet.
   4. Transfer the repo to `nasaharvest` (D18's handover checklist), then rename it to `rise-eo`. GitHub redirects old
      links after both, so RISE's current pin keeps installing.
-  5. A RISE PR: pin `rise-eo@v0.3.0`, rename the umbrella distribution, add the `rise` command, and write A11.1–A11.2
-     into RISE's docs.
+  5. A RISE PR: pin `rise-eo@v0.3.0`, raise `requires-python` from `>=3.10` to `>=3.11` (A11.1; `rise-eo` needs
+     3.11), rename the umbrella distribution, add the `rise` command, and write A11.1–A11.2 into RISE's docs.
 
   Moving RDM to `nasaharvest/rise-rdm` is RISE work and does not wait on any of these steps.
 - **A11.7 The rename PR, for the session that does it.**
   - One mechanical PR: move `src/fsd` to `src/rise_eo`; `pyproject.toml` (name, script, package data); every import
     and call in `src/`, `tests/`, `scripts/` (including `docs_kwarg_sweep.py`'s import), `examples/`, `demos/`,
     notebooks, Snakefiles and living docs; `test_docs.py`'s `startswith("fsd")`; then the rows of A11.5.
-  - Size: about 294 tracked files mention `fsd` as a word (150 `.py`, 131 `.md`, 6 notebooks, 3 Snakefiles,
-    `pyproject.toml`, 2 YAML files). That count includes the point-in-time docs, which stay.
+  - Size: 301 tracked files mention `fsd` as a word (`git grep -lw fsd`; 134 of them `.md`). That count includes
+    the point-in-time docs, which stay, and two binary fixtures under `tests/data/tutorial/`, whose `fsd` strings
+    are the unchanged keys. Easy to miss: `.github/workflows/ci.yml`, `.gitignore`, both `NOTICE` files and the
+    agent files under `.claude/agents/`.
   - Reviewer: `pr-reviewer` (well over 200 lines under `src/`).
   - Gate 4 applies: rebuild the images with the renamed package, then one real AML run (download, training data,
     inference) and one local run, handed over as a run-book.
@@ -1248,8 +1253,8 @@ before 2022-11-30.
   2022-01-25). It works when the project owns the top-level name; RISE does not (PyPA's rule, in Sources).
 - A11.1's rule on when to split. eo-learn shipped as subpackages that one umbrella pinned to exact versions (1.0,
   2022), then merged back into one package in 1.5.0 (2023-09-06), a release that "focuses on making `eo-learn` much
-  simpler to install". This is
-  evidence of what a split by code layer costs, not a precedent: it postdates 2022-11-30.
+  simpler to install". This is evidence of what a split by code layer costs, not a precedent: it postdates
+  2022-11-30.
 
 **Clash check for `rise-eo` (2026-10-14).**
 
@@ -1267,7 +1272,8 @@ here, not acted on: RISE's name is not this spec's to choose, and `rise-eo` is d
 - This PR: the docs tests pass, and `grep -n "rise-eo" specs/102-contributor-readiness.md` prints A11.
 - The rename PR:
   - `rise-eo --help` and `python -c "import rise_eo"` work in a fresh install;
-  - `grep -rnw fsd src tests` prints only the A11.5 rows marked unchanged and the bundle error message;
+  - `grep -rnw fsd src tests` prints only the A11.5 rows marked unchanged and the bundle error message, and
+    `git grep -n FSD_` prints nothing outside point-in-time docs;
   - the golden tests pass with no new golden file;
   - loading a bundle saved by `v0.2.0` with an adapter that imports `fsd` fails with the A11.5 message;
   - the gate-4 runs pass.
@@ -1318,6 +1324,9 @@ In the workspace: `CLAUDE.md` and memory say `rise-eo` once the rename merges.
 - **PyPI's upload checks, `warehouse/forklift/metadata.py`**
   (<https://github.com/pypi/warehouse/blob/main/warehouse/forklift/metadata.py>): uploads are rejected with "Can't
   have direct dependency". Out of scope's note on PyPI.
+- **PyPA, "Binary distribution format"**
+  (<https://packaging.python.org/en/latest/specifications/binary-distribution-format/>): in a wheel's file name, "any
+  run of `-_.` characters (HYPHEN-MINUS, LOW LINE and FULL STOP) should be replaced with `_`". A11.5's wheel-glob row.
 - **EURISY, "RISE – Rapid Mapping to Transform Humanitarian Response"** (<https://www.eurisy.eu/?p=12508>): RISE is
   "Remote Imaging Support for Emergencies", built by the Luxembourg Red Cross, WASDI and LIST. The namesakes note.
 - **Clash-check searches** (2026-10-14): the PyPI JSON API and `gh search repos`, as listed in the table, and the two
