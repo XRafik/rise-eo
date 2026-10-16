@@ -1,6 +1,6 @@
 [project]
 name = "rise-eo"
-version = "0.1.0"
+version = "0.3.0"
 description = "Fetch satellite tiles and build datacubes (clean rewrite). Sentinel-2 L2A via CDSE; cloud-agnostic by design."
 authors = [{ name = "Nikhil Sasi Rajan", email = "nsasiraj@umd.edu" }]
 readme = "README.md"
