@@ -2,7 +2,7 @@
 
 Written against the code before the C14/C16 helpers were extracted, and never edited
 after: they fix the staged-JSON write, the best-effort discard, the content-digest byte
-order and the error messages of `fsd.model.registry` and `fsd.registry._core`.
+order and the error messages of `rise_eo.model.registry` and `rise_eo.registry._core`.
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ import re
 
 import pytest
 
-from fsd.image import digest as image_digest
-from fsd.model import registry as model_registry
-from fsd.registry import _core as core
-from fsd.storage import fs
+from rise_eo.image import digest as image_digest
+from rise_eo.model import registry as model_registry
+from rise_eo.registry import _core as core
+from rise_eo.storage import fs
 
 _STAGE_RE = re.compile(r"\.staging-[0-9a-f]{32}\.json$")
 

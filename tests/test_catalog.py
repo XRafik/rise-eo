@@ -1,4 +1,4 @@
-"""Tests for fsd.catalog.TileCatalog (spec 02).
+"""Tests for rise_eo.catalog.TileCatalog (spec 02).
 
 Covers: append -> read round-trip, `files` union on re-append, and `filter`
 (inclusive date range + spatial overlap + area_contribution).
@@ -10,8 +10,8 @@ import geopandas as gpd
 import pytest
 import shapely.geometry as sg
 
-from fsd import config
-from fsd.catalog.catalog import TileCatalog
+from rise_eo import config
+from rise_eo.catalog.catalog import TileCatalog
 
 
 def _box(x0, y0, x1, y1):
@@ -132,7 +132,7 @@ def test_filter_inclusive_bounds(tmp_path):
 
 
 def test_append_stamps_declaration_on_new_catalog(tmp_path):
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     cat.append(
@@ -143,7 +143,7 @@ def test_append_stamps_declaration_on_new_catalog(tmp_path):
 
 
 def test_constructor_declaration_is_appends_default(tmp_path):
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     cat = TileCatalog(str(tmp_path / "catalog.parquet"), declaration=S2_L2A_DECLARATION)
     cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)])
@@ -151,7 +151,7 @@ def test_constructor_declaration_is_appends_default(tmp_path):
 
 
 def test_append_conflicting_declaration_raises(tmp_path):
-    from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
+    from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
 
     a = CollectionDeclaration(reference_band="B04")
     b = CollectionDeclaration(reference_band="B08", mask_spec=MaskSpec(band="SCL", classes=(1,)))
@@ -165,7 +165,7 @@ def test_append_conflicting_declaration_raises(tmp_path):
 
 
 def test_append_declaration_none_preserves_existing_stamp(tmp_path):
-    from fsd.catalog.declaration import CollectionDeclaration
+    from rise_eo.catalog.declaration import CollectionDeclaration
 
     a = CollectionDeclaration(reference_band="B04")
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
@@ -179,7 +179,7 @@ def test_append_declaration_none_preserves_existing_stamp(tmp_path):
 def test_append_empty_is_noop(tmp_path):
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     cat.append([])
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     assert not fs.exists(cat.filepath)
 
@@ -205,7 +205,7 @@ def test_read_does_not_backfill_a_legacy_catalog_missing_offset_nodata(tmp_path)
     import geopandas as gpd
     import pandas as pd
 
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     # `_row()` itself produces none of offset/nodata/scale/properties (they are only
     # added by `TileCatalog.append`'s backfill or an explicit kwarg), so this gdf is
@@ -240,7 +240,7 @@ def test_declaration_survives_catalog_roundtrip(tmp_path):
     tuples (replaces the deleted TODO-#42 pin, which this closes)."""
     import geopandas as gpd
 
-    from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
+    from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
 
     custom = CollectionDeclaration(
         reference_band="B04",

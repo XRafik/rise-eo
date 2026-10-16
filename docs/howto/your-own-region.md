@@ -1,8 +1,8 @@
 # How to: point fsd at your own region
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify after any
-> change to `fsd.download`, `fsd.create_training_data`, `fsd.grid`, or the merge logic in
-> `fsd.run_inference`.
+> change to `rise_eo.download`, `rise_eo.create_training_data`, `rise_eo.grid`, or the merge logic in
+> `rise_eo.run_inference`.
 
 You've finished [`docs/tutorial.md`](../tutorial.md) on the committed fixture. This page is the
 same pipeline over **your** ROI and **your** labels. Unlike the tutorial, this page **cannot
@@ -23,10 +23,10 @@ below before running.
 Three inputs, same call shapes:
 
 ```python
-import fsd
-from fsd.sources.cdse import CdseCredentials
+import rise_eo
+from rise_eo.sources.cdse import CdseCredentials
 
-catalog = fsd.download(
+catalog = rise_eo.download(
     roi="your_roi.geojson",
     startdate=..., enddate=..., bands=["B04", "B08", "B8A", "SCL"],
     dst_folderpath="data/imagery",   # one shared archive, reused across runs
@@ -34,7 +34,7 @@ catalog = fsd.download(
     max_tiles=20,                       # required cost guardrail -- see below
 )
 
-training = fsd.create_training_data(
+training = rise_eo.create_training_data(
     label_polygons="your_fields.geojson",
     catalog_filepath=catalog,
     startdate=..., enddate=..., mosaic_days=20,
@@ -46,7 +46,7 @@ training = fsd.create_training_data(
 
 Everything else — tiling, datacube build, masking, inference, merge — is unchanged, **including
 ROIs that straddle multiple MGRS tiles or UTM zones**: each S2 grid cell builds a datacube in its
-own tile/CRS, and `fsd.run_inference(..., merge="reproject")` reprojects all cells to one CRS for
+own tile/CRS, and `rise_eo.run_inference(..., merge="reproject")` reprojects all cells to one CRS for
 the merged output (area-dominant target by default, or pass `merge_crs=` yourself). **The tutorial
 fixture never exercises this path** — it is a single grid cell fully inside one MGRS tile
 (`T33UWP`) by design (spec 42 §5), so a multi-tile ROI is genuinely new territory for you, not
@@ -54,7 +54,7 @@ something the tutorial already validated for your case.
 
 ## `max_tiles` — read it before you run it
 
-`fsd.download` refuses to run if your ROI/window matches more MGRS granules than `max_tiles` — a
+`rise_eo.download` refuses to run if your ROI/window matches more MGRS granules than `max_tiles` — a
 required argument, not a default, because a wide ROI over a long window can silently mean hundreds
 of ~426 MB granules. Preflight checks the granule count **before any bytes move**. If it refuses,
 either narrow the ROI/window or raise `max_tiles` deliberately — don't raise it reflexively; read
@@ -66,14 +66,14 @@ costs.
 Query the granule and grid-cell counts without downloading anything:
 
 ```python
-from fsd import grid
+from rise_eo import grid
 
 cells = grid.roi_to_s2_grids("your_roi.geojson", grid_size_km=5)
 print(len(cells), "grid cells")
 ```
 
 For the granule count and byte estimate, use your source's own STAC search (CDSE's OData API or
-MPC's `pystac_client`) against the same ROI/window/bands before calling `fsd.download` — this is
+MPC's `pystac_client`) against the same ROI/window/bands before calling `rise_eo.download` — this is
 exactly what `max_tiles`'s preflight check does internally, just without the guardrail stopping you.
 
 ## The label-collapse trap (this cost real time once)

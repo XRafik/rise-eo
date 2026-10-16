@@ -9,7 +9,7 @@ import geopandas as gpd
 import numpy as np
 import shapely.geometry as sg
 
-from fsd.storage import fs
+from rise_eo.storage import fs
 
 
 def test_makedirs_and_exists(tmp_path):
@@ -128,7 +128,7 @@ def test_stamped_file_is_still_valid_geoparquet(tmp_path):
     p = str(tmp_path / "catalog.parquet")
     fs.write_parquet(p, gdf)
 
-    stock_back = gpd.read_parquet(p)  # stock geopandas, not fsd.storage.fs
+    stock_back = gpd.read_parquet(p)  # stock geopandas, not rise_eo.storage.fs
     assert stock_back.crs.to_epsg() == 4326
     assert list(stock_back["id"]) == ["t1", "t2"]
 
@@ -301,7 +301,7 @@ def test_the_three_todo_47_sites_accept_a_non_local_url():
     """`api._as_gdf` (create_training_data label polygons), `api`'s run_inference roi
     preflight, and `grid._as_gdf_4326` (roi_to_s2_grids) all went through
     `gpd.read_file` and broke identically on a blob-hosted input. One call each."""
-    from fsd import api, grid
+    from rise_eo import api, grid
 
     p, _ = _geojson_on_memory_fs()
 
@@ -386,7 +386,7 @@ def test_an_unmapped_protocol_import_error_is_re_raised_untouched(monkeypatch):
 
 
 # --- #80: the extras split is a gate, not a convention -----------------------------
-# snakemake and s3fs are declared nowhere in src/fsd/ -- one is a subprocess, one is an
+# snakemake and s3fs are declared nowhere in src/rise_eo/ -- one is a subprocess, one is an
 # fsspec backend -- so nothing at import time would notice them drifting back into core.
 # The measured cost of that drift is +53 packages / +111 MB on every core install.
 
@@ -416,7 +416,7 @@ def test_neither_extra_is_imported_anywhere_in_src():
     import pathlib
     import re
 
-    src = pathlib.Path(__file__).resolve().parent.parent / "src" / "fsd"
+    src = pathlib.Path(__file__).resolve().parent.parent / "src" / "rise_eo"
     pattern = re.compile(r"^\s*(?:import|from)\s+(?:snakemake|s3fs)\b", re.MULTILINE)
     offenders = [str(p) for p in src.rglob("*.py") if pattern.search(p.read_text())]
     assert not offenders, f"snakemake/s3fs imported in core code: {offenders}"

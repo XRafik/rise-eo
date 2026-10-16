@@ -1,4 +1,4 @@
-"""Tests for fsd.workflows (spec 08): setup, task, local dry-run."""
+"""Tests for rise_eo.workflows (spec 08): setup, task, local dry-run."""
 
 import datetime
 import importlib.util
@@ -16,11 +16,11 @@ from rasterio.crs import CRS as RioCRS
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from fsd import config
-from fsd.bands import modify
-from fsd.model import BaseModelAdapter, bundle
-from fsd.storage import fs
-from fsd.workflows import create_datacube, infer_only_task, infer_task, runners, task
+from rise_eo import config
+from rise_eo.bands import modify
+from rise_eo.model import BaseModelAdapter, bundle
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube, infer_only_task, infer_task, runners, task
 
 
 class _NDVIUp(BaseModelAdapter):
@@ -57,8 +57,8 @@ def _write_tile(path, value):
 
 
 def _make_catalog(path, tmp, files="B04.jp2,B08.jp2,SCL.jp2,MTD_TL.xml", with_ac=False):
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     rows = []
     for i, ts in enumerate(TS):
@@ -125,7 +125,7 @@ def test_setup_reads_catalog_once_regardless_of_shape_count(tmp_path, monkeypatc
     before a single job was dispatched (measured 2026-07-22 on the rise cluster).
     Counting reads is the only way to keep that from silently coming back.
     """
-    from fsd.storage import fs as storage_fs
+    from rise_eo.storage import fs as storage_fs
 
     cat = tmp_path / "catalog.parquet"
     shapes = tmp_path / "shapes.geojson"
@@ -155,7 +155,7 @@ def test_setup_reads_catalog_once_regardless_of_shape_count(tmp_path, monkeypatc
 
 
 def test_setup_progress_line_format_is_byte_identical_to_before(tmp_path, capsys):
-    """Spec 47 D4/AC4: `_tick`'s throttle+rate+ETA math moved to `fsd.progress.ticker`,
+    """Spec 47 D4/AC4: `_tick`'s throttle+rate+ETA math moved to `rise_eo.progress.ticker`,
     but the printed line shape must be unchanged -- users have already learned to read
     `[setup] done/total shapes (pct%) | rate shapes/s | elapsed Es | eta Xs`."""
     cat = tmp_path / "catalog.parquet"
@@ -192,7 +192,7 @@ def test_setup_manifest_order_is_shapefile_order_not_completion_order(tmp_path):
     behaviour change. Staggering the per-shape cost makes completion order differ
     from submission order with near-certainty.
     """
-    from fsd.storage import fs as storage_fs
+    from rise_eo.storage import fs as storage_fs
 
     cat = tmp_path / "catalog.parquet"
     shapes = tmp_path / "shapes.geojson"
@@ -286,7 +286,7 @@ def test_setup_export_folderpath_is_named_from_the_requested_window(tmp_path):
         csv_filepath=str(csv), label_col="label",
     )
 
-    from fsd import collections as _collections
+    from rise_eo import collections as _collections
 
     df = pd.read_csv(csv)
     key = create_datacube.params_key(
@@ -407,7 +407,7 @@ def test_run_task_builds_one_datacube(tmp_path):
     gpd.GeoDataFrame({"id": ["s1"], "geometry": [TILE_4326]},
                      crs="EPSG:4326").to_file(str(shape), driver="GeoJSON")
     out = tmp_path / "cube"
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     declaration_filepath = str(tmp_path / "declaration.json")
     with open(declaration_filepath, "w") as f:
@@ -452,7 +452,7 @@ def test_infer_task_builds_and_infers_to_cog(tmp_path):
 
     import json
 
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     declaration_filepath = str(tmp_path / "declaration.json")
     with open(declaration_filepath, "w") as f:

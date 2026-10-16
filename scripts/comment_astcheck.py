@@ -28,7 +28,7 @@ def sig(src):
 
 
 ref = sys.argv[1]
-root = Path(sys.argv[2] if len(sys.argv) > 2 else "src/fsd")
+root = Path(sys.argv[2] if len(sys.argv) > 2 else "src/rise_eo")
 bad = []
 checked = 0
 for p in sorted(root.rglob("*.py")):

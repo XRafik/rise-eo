@@ -19,14 +19,14 @@ import rasterio
 import shapely
 from rasterio.transform import from_origin
 
-from fsd import api, config
-from fsd import collections as _collections
-from fsd.catalog import catalog
-from fsd.catalog import declaration as declaration_module
-from fsd.datacube import builder
-from fsd.sources import mpc
-from fsd.storage import fs
-from fsd.workflows import create_datacube
+from rise_eo import api, config
+from rise_eo import collections as _collections
+from rise_eo.catalog import catalog
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.datacube import builder
+from rise_eo.sources import mpc
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube
 
 
 def _s1_flattened_gdf(rows: list[tuple[str, str, "shapely.geometry.base.BaseGeometry"]]):
@@ -316,7 +316,7 @@ def test_ac14_no_fsd_code_reads_pc_sdk_subscription_key():
     is free to MENTION it in comments/docstrings (it does, documenting that the
     package reads it) but no fsd code may itself read `os.environ`/`os.getenv` for it
     -- that would be a second source of truth for the same secret (D10's own text)."""
-    root = pathlib.Path(__file__).resolve().parents[1] / "src" / "fsd"
+    root = pathlib.Path(__file__).resolve().parents[1] / "src" / "rise_eo"
     read_patterns = (
         'os.environ["PC_SDK_SUBSCRIPTION_KEY"]', "os.environ['PC_SDK_SUBSCRIPTION_KEY']",
         'os.environ.get("PC_SDK_SUBSCRIPTION_KEY"', "os.environ.get('PC_SDK_SUBSCRIPTION_KEY'",
@@ -365,7 +365,7 @@ def test_s1_source_nodata_is_translated_to_the_build_sentinel_not_medianed(tmp_p
     them. Two acquisitions in one window, one all-nodata and one valid: the median must
     be the valid value, never a blend with -32768 (~ -16384).
 
-    (`fsd.config.NODATA = 0` is a workspace-wide convention, `CLAUDE.md`; D17's declared
+    (`rise_eo.config.NODATA = 0` is a workspace-wide convention, `CLAUDE.md`; D17's declared
     -32768 therefore documents the SOURCE's value, and does not reach the cube.)"""
     decl = _collections.get("sentinel-1-rtc")
     ingested_nodata = int(
@@ -602,7 +602,7 @@ def test_discover_shard_rows_honours_collection_and_properties_filter(monkeypatc
 
 
 def test_run_aml_download_mpc_forwards_collection_and_properties_filter(monkeypatch):
-    from fsd.workflows import runners
+    from rise_eo.workflows import runners
     seen = {}
 
     def _discover(*a, **kw):
@@ -626,7 +626,7 @@ def test_run_aml_download_mpc_forwards_collection_and_properties_filter(monkeypa
 
 
 def test_api_download_aml_forwards_collection_and_properties_filter(monkeypatch, tmp_path):
-    from fsd.workflows import runners
+    from rise_eo.workflows import runners
     seen = {}
     monkeypatch.setattr(runners, "run_aml_download", lambda **kw: seen.update(kw))
 
@@ -676,7 +676,7 @@ def test_create_training_data_forwards_properties_filter_to_its_download(monkeyp
 
 
 def test_run_aml_download_mpc_forwards_max_cloudcover_to_discovery(monkeypatch):
-    from fsd.workflows import runners
+    from rise_eo.workflows import runners
     seen = {}
 
     def _discover(*a, **kw):

@@ -21,11 +21,11 @@ _spec.loader.exec_module(mod)
     (["LICENSE"], False),
     (["notebooks/shapefiles/NOTICE"], False),
     (["README.md", "docs/a/b.md", "LICENSE"], False),
-    (["src/fsd/api.py"], True),
+    (["src/rise_eo/api.py"], True),
     ([".github/workflows/ci.yml"], True),
     (["pyproject.toml"], True),
     (["runbooks/x.ipynb"], True),
-    (["README.md", "src/fsd/api.py"], True),
+    (["README.md", "src/rise_eo/api.py"], True),
     (["x.md.py"], True),
     ([], True),
     ([""], True),
@@ -39,5 +39,5 @@ def test_cli_reads_stdin():
         return subprocess.run([sys.executable, str(SCRIPT)], input=text, capture_output=True,
                               text=True, check=True).stdout.strip()
     assert run("README.md\nLICENSE\n") == "false"
-    assert run("README.md\nsrc/fsd/api.py\n") == "true"
+    assert run("README.md\nsrc/rise_eo/api.py\n") == "true"
     assert run("") == "true"

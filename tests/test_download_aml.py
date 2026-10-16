@@ -5,7 +5,7 @@
 No test requires Azure, CDSE, or MPC (spec 37 §7): the AML submission surface is
 substituted exactly as spec 36's suite does it (`_FakeMLClient` + a fake
 `azure.ai.ml.command`/`CommandJobLimits`), and every real download call
-(`cdse.download`, `mpc.download_shard`) plus `fsd.secrets.get_secret` is mocked.
+(`cdse.download`, `mpc.download_shard`) plus `rise_eo.secrets.get_secret` is mocked.
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ import types
 import pandas as pd
 import pytest
 
-from fsd import api
-from fsd.catalog.catalog import TileCatalog
-from fsd.sources import cdse, mpc
-from fsd.storage import fs
-from fsd.workflows import download as download_cli
-from fsd.workflows import runners
+from rise_eo import api
+from rise_eo.catalog.catalog import TileCatalog
+from rise_eo.sources import cdse, mpc
+from rise_eo.storage import fs
+from rise_eo.workflows import download as download_cli
+from rise_eo.workflows import runners
 
 
 def _tiles(n: int):
@@ -364,7 +364,7 @@ def _write_mpc_catalog(path, tile_bands: dict[str, list[str]]):
     the exact shape `mpc._append_downloaded` writes."""
     from shapely.geometry import Point
 
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     catalog = TileCatalog(str(path))
     rows = [{
@@ -454,7 +454,7 @@ def test_run_aml_download_mpc_shortfall_prints_before_and_after_counts(
 
 
 def test_mpc_catalog_shortfall_absent_catalog_returns_all_rows(tmp_path):
-    from fsd.workflows.runners import _mpc_catalog_shortfall
+    from rise_eo.workflows.runners import _mpc_catalog_shortfall
 
     rows = _mpc_rows(3)
     assert _mpc_catalog_shortfall(str(tmp_path / "nope.parquet"), rows) == rows
@@ -464,7 +464,7 @@ def test_mpc_catalog_shortfall_checks_band_not_just_tile(tmp_path):
     """A tile already in the catalog but MISSING one of the requested bands must still
     show up in the shortfall -- 'already present' is keyed on (tile_id, band), not
     tile_id alone."""
-    from fsd.workflows.runners import _mpc_catalog_shortfall
+    from rise_eo.workflows.runners import _mpc_catalog_shortfall
 
     rows = [
         {"tile_id": "T0", "acquisition_key": "T0", "band": "B04", "dst": "x"},
@@ -716,10 +716,10 @@ def test_aml_download_preflight_warns_when_estimate_exceeds_remaining_quota():
     assert warnings and "quota" in warnings[0]
 
 
-# --- test 7: D5 -- fsd.secrets.get_secret is mocked; no KV network call ------
+# --- test 7: D5 -- rise_eo.secrets.get_secret is mocked; no KV network call ------
 
 def test_secrets_get_secret_is_mockable_without_azure_extra(monkeypatch):
-    from fsd import secrets
+    from rise_eo import secrets
 
     def _fake(vault_url, name):
         assert vault_url == "kv-x.vault.azure.net"

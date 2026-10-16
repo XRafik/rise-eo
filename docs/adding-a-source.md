@@ -1,7 +1,7 @@
 # Adding a new source to fsd
 
 Spec: `specs/34-ingest-normalization-contract.md`. This is the "how do I add a source"
-doc that spec 34 §2d requires — read it before implementing a new `fsd.sources.*`
+doc that spec 34 §2d requires — read it before implementing a new `rise_eo.sources.*`
 module or wiring a new declaration into `build_datacube`. It has two halves: **ingest**
 (getting bytes onto storage as a self-describing artifact) and **builder** (what
 `build_datacube` reads off that artifact, and where).
@@ -23,20 +23,20 @@ Every source's `download(...)` does three things, in order, for each unit of wor
 2. **normalize** — the *only* source-specific step, and the only place a new source
    needs real code:
    - **container transform** (if the native format isn't already a COG): e.g. CDSE's
-     jp2→COG (`fsd.raster.cog.to_cog`), a future ERA5 netCDF→COG. Skip if the source is
+     jp2→COG (`rise_eo.raster.cog.to_cog`), a future ERA5 netCDF→COG. Skip if the source is
      already COG (MPC).
    - **radiometry/metadata declaration**: stamp the artifact's GDAL scale/offset tag +
-     nodata-if-missing (`fsd.raster.cog.stamp_gdal_tags` / `stamp_or_reencode`) — this
+     nodata-if-missing (`rise_eo.raster.cog.stamp_gdal_tags` / `stamp_or_reencode`) — this
      is what makes the artifact *self-describing* instead of relying on ambient config.
      `stamp_or_reencode` falls back to a GDAL-COG-driver re-encode if the in-place tag
      edit breaks COG validity (a GDAL/source-dependent edge case, not the common path).
 3. **put** — write the normalized artifact to `root_folderpath` (local or blob; **into
    `{root}/{collection}/YYYY/MM/DD/{canonical granule name}/`, spec 59 D2/D3** — build the
-   path with `fsd.sources._granules.granule_folderpath` and get the name, acquisition key
-   and processing facts from `fsd.collections.naming.granule_info`, never from the provider
+   path with `rise_eo.sources._granules.granule_folderpath` and get the name, acquisition key
+   and processing facts from `rise_eo.collections.naming.granule_info`, never from the provider
    id; **stamp, then publish** — stage as `<dst>.stage`, stamp it there, `os.replace` it onto
    `<dst>`, so a final-named file is always a stamped one, spec 59 D10;
-   `fsd.storage.fs.transfer`/`fs.put`) and append a row to the `TileCatalog` (below),
+   `rise_eo.storage.fs.transfer`/`fs.put`) and append a row to the `TileCatalog` (below),
    **stamping the source's `CollectionDeclaration` at that `catalog.append(...)` call**
    (spec 35 §4) — this is a **required** step, not optional: `TileCatalog.append(rows,
    declaration=YOUR_DECLARATION)`. Without it, the collection-level declaration is never
@@ -50,9 +50,9 @@ alongside it. Do not write a source that "corrects" pixel values on ingest — t
 lossy mistake spec 34 fixed (`apply_boa_offset`'s old `clip(DN-1000, 0, 65535)` on the
 *stored* bytes).
 
-### 2. The catalog row (`fsd.catalog.catalog.TileCatalog`)
+### 2. The catalog row (`rise_eo.catalog.catalog.TileCatalog`)
 
-Every source's `download(...)` appends rows shaped like `fsd.catalog.catalog.COLUMNS`:
+Every source's `download(...)` appends rows shaped like `rise_eo.catalog.catalog.COLUMNS`:
 
 | Column | Meaning | Who sets it |
 |---|---|---|
@@ -80,9 +80,9 @@ back-compat shim** (spec 34 `[G4]`): `TileCatalog.read()` does not backfill a le
 catalog missing these columns. A source that predates this schema is disposable —
 re-ingest, don't migrate.
 
-### 3. The builder contract: `CollectionDeclaration` (`fsd.catalog.declaration`)
+### 3. The builder contract: `CollectionDeclaration` (`rise_eo.catalog.declaration`)
 
-`build_datacube` (`fsd.datacube.builder`) has **no `if source == ...`** anywhere. It
+`build_datacube` (`rise_eo.datacube.builder`) has **no `if source == ...`** anywhere. It
 reads a `CollectionDeclaration` — the collection-level facts it needs — resolved as
 (spec 35 §5): the explicit `declaration=` kwarg to `build_datacube`, else
 `catalog_subset`'s own stamp (`attrs["fsd:declaration"]`, restored by `fs.read_parquet`
@@ -92,7 +92,7 @@ hand-built `catalog_gdf`** — a `catalog_gdf` that came from a file
 (`fs.read_parquet`) and carries no stamp raises instead (spec 35 §5a): the artifact
 must self-describe, not be guessed at. This is what step 3 above's required stamping
 step exists for — see `specs/35-declaration-persistence.md` for the full design and
-`fsd.catalog.restamp_cli` for re-stamping a catalog written before this contract.
+`rise_eo.catalog.restamp_cli` for re-stamping a catalog written before this contract.
 
 This is the field-by-field table (spec 34 §2a) — what the builder reads, and where:
 
@@ -115,7 +115,7 @@ that *has* a mask (spec 34 #35).
 ## Pointing a run at another collection is not a rename
 
 The verbs take `collection=`, but changing it and `bands=` is not enough. Read the declaration
-first (`fsd.collections.get(id)`). Four things break when a sentinel-2-l2a run is pointed at
+first (`rise_eo.collections.get(id)`). Four things break when a sentinel-2-l2a run is pointed at
 `sentinel-1-rtc` (found 2026-09-12):
 
 1. **One catalog file holds one collection.** `TileCatalog.append` raises a *declaration conflict*
@@ -125,7 +125,7 @@ first (`fsd.collections.get(id)`). Four things break when a sentinel-2-l2a run i
    `None`.
 3. **`properties_filter` is required** when the declaration sets `mosaic_partition` with
    `partition_policy="raise"` (S1: one `sat:orbit_state` per window).
-4. **The feature sequence may stop making sense.** `fsd.bands.modify.compute_bands` knows only
+4. **The feature sequence may stop making sense.** `rise_eo.bands.modify.compute_bands` knows only
    optical indices (NDVI, SAVI, … on B02–B12) and raises when their bands are missing. The silent
    ones are `scale_bands` and `mask_invalid_and_interpolate` given a band list: they act only on
    names they find, so S2 band names do nothing on an S1 cube and nothing raises.
@@ -151,7 +151,7 @@ look like, to make the contract concrete:
 ```python
 # fsd/sources/chirps.py  (illustrative — not implemented)
 
-from fsd.catalog.declaration import CollectionDeclaration
+from rise_eo.catalog.declaration import CollectionDeclaration
 
 CHIRPS_DECLARATION = CollectionDeclaration(
     reference_band=None,   # no resample reference: one native grid
@@ -184,7 +184,7 @@ mask-opt-out has real test coverage (`tests/test_datacube_builder.py`).
 
 ## Pointer to the future `Source` ABC (#11)
 
-TODO #11 tracks formalizing this contract as a real `fsd.sources.base.Source` ABC
+TODO #11 tracks formalizing this contract as a real `rise_eo.sources.base.Source` ABC
 (`query_catalog`, `download`, a declared `CollectionDeclaration` property) instead of the
 current "a module that happens to match the documented signature." That work should
 start from this doc's field tables — they are the interface #11 will type-check.

@@ -15,7 +15,7 @@ model**), and records real timings you can extrapolate from. Driver: `demos/e2e_
 ## 1. What fsd does locally
 
 ```
-  fsd.download            fsd.create_training_data                 fsd.run_inference(roi=…)
+  rise_eo.download            rise_eo.create_training_data                 rise_eo.run_inference(roi=…)
  ┌────────────┐   catalog  ┌──────────────────────────┐   bundle   ┌───────────────────────────┐
  │ CDSE STAC  │──────────▶ │ build datacubes over the │ ─────────▶ │ tile ROI → S2 cells;      │
  │ + S3 .jp2  │  (parquet  │ label fields → FLATTEN → │  (model)   │ per cell: build cube +    │
@@ -24,19 +24,19 @@ model**), and records real timings you can extrapolate from. Driver: `demos/e2e_
    step 2                     steps 3–4                               step 5
 ```
 
-The user-facing surface is **four verbs**: `fsd.download`, `fsd.create_training_data`,
-`fsd.run_inference`, `fsd.deploy` (the last a P6 stub). Every verb **preflights** — it asserts
+The user-facing surface is **four verbs**: `rise_eo.download`, `rise_eo.create_training_data`,
+`rise_eo.run_inference`, `rise_eo.deploy` (the last a P6 stub). Every verb **preflights** — it asserts
 bands / T / inputs and fails fast with a clear message *before* any heavy compute, so most mistakes
 surface in seconds, not after an hour.
 
 ---
 
-## 2. Where the imagery comes from — `fsd.download` is a separate step, and why (CDSE now; MPC later)
+## 2. Where the imagery comes from — `rise_eo.download` is a separate step, and why (CDSE now; MPC later)
 
-- **Download is its own verb, run once, up front** (`fsd.download` → a `catalog.parquet` + local
+- **Download is its own verb, run once, up front** (`rise_eo.download` → a `catalog.parquet` + local
   COGs). The compute verbs (`create_training_data`, `run_inference`) **read** that catalog and
   **never call CDSE themselves.** If imagery is missing they stop with an **actionable download
-  plan** (the exact `fsd.download(...)` to run), never a silent auto-fetch. Step 2 of the demo *is*
+  plan** (the exact `rise_eo.download(...)` to run), never a silent auto-fetch. Step 2 of the demo *is*
   that download.
 - **Why separate — three reasons, not just quota:** (1) **CDSE quota** — one controlled pull, not N
   pulls from N workers; (2) **redundant fan-out** — 1,000 grid cells over overlapping MGRS tiles
@@ -58,10 +58,10 @@ surface in seconds, not after an hour.
   CDSE window, **just re-run the script; it resumes** and completes the remainder. A slow/failing
   pass is not a fsd bug.
 
-### The safe download runner (`fsd.sources.download_cli`)
+### The safe download runner (`rise_eo.sources.download_cli`)
 
 The demo calls the download **engine** (`cdse.download_resume`) in-process, but for real / large pulls
-there is a **standalone CLI over the same engine** — `python -m fsd.sources.download_cli` (spec 26) —
+there is a **standalone CLI over the same engine** — `python -m rise_eo.sources.download_cli` (spec 26) —
 that adds the operational controls a one-off call doesn't need (it's also what the Batch runner will
 dispatch later):
 
@@ -77,7 +77,7 @@ dispatch later):
 
 ```bash
 # size the full pull first (no bytes fetched):
-.venv-modeldeploy/bin/python -m fsd.sources.download_cli \
+.venv-modeldeploy/bin/python -m rise_eo.sources.download_cli \
     --roi shapefiles/AT_ROI.geojson --start 2018-04-01 --end 2018-09-30 \
     --bands B04 B08 B8A SCL --max-cloudcover 70 \
     --dst tests/outputs/imagery --catalog tests/outputs/imagery/sentinel-2-l2a/catalog.parquet \
@@ -105,7 +105,7 @@ tuned per environment, not baked in (§9; and the Azure re-tune, TODO #24).
   .venv-modeldeploy/bin/pip install -e ".[dev,grid,model-example]"
   ```
   The extras are split deliberately: **`[grid]`** = `s2`/`s2cell` (ROI→S2-cell tiling — *not* in
-  core, which is why `fsd.grid` is an optional import); **`[model-example]`** =
+  core, which is why `rise_eo.grid` is an optional import); **`[model-example]`** =
   `scikit-learn`/`joblib`/`matplotlib` (the demo model + plots, *not* fsd itself — fsd never
   trains); `[dev]` = ruff/pytest; `[azure]` = `adlfs` (Phase-2, unused in v1).
 - **CDSE credentials** — a gitignored `cdse_credentials.json` with the legacy keys
@@ -186,7 +186,7 @@ N → probabilities/regression).
 **6.2 Endpoint ① — datacube → model input** (developer-owned). The feature transform, declared
 **once** and run by fsd at **both** training and inference (the anti-skew guarantee — train and
 serve see identical features):
-- `feature_sequence` — a `fsd.bands.modify` pipeline `[(fn, kwargs), …]` on the 5-D
+- `feature_sequence` — a `rise_eo.bands.modify` pipeline `[(fn, kwargs), …]` on the 5-D
   `(samples, T, H, W, bands)` contract (the primary, declarative way); **or** override
   `features(data5d, band_indices)` for logic the sequence can't express.
 - `datacube_to_X(feats, band_indices)` — reshape features `(T,H,W,B)` → model input `(H*W, T*B)`.
@@ -206,7 +206,7 @@ trained model.)
 
 **6.6 Bundle it:**
 ```python
-from fsd.model import bundle
+from rise_eo.model import bundle
 bundle_dir = bundle.save(adapter, {"model": "rf.joblib"}, "…/bundle")
 bundle.read_spec(bundle_dir)          # the model-free manifest (no import, no model load)
 ```
@@ -365,7 +365,7 @@ this run's outputs.
   saves a bundle anyway; a live adapter runs sequentially.
 - **The datacube rectangle carries a nodata halo** and can't hug a slanted ROI edge — cosmetic;
   `flatten` drops the nodata. Don't be alarmed eyeballing a cube in QGIS.
-- **`fsd.deploy` is a P6 stub** (registration/push); local train + bundle + infer is the complete
+- **`rise_eo.deploy` is a P6 stub** (registration/push); local train + bundle + infer is the complete
   path today.
 
 ## Appendix C — Why run the full ROI (real bugs it has caught)

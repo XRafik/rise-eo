@@ -56,8 +56,6 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio.windows
-from shapely.ops import unary_union
-
 from fsd import config
 from fsd.catalog.catalog import COLUMNS as CATALOG_COLUMNS
 from fsd.catalog.declaration import S2_L2A_DECLARATION, to_attrs
@@ -65,6 +63,7 @@ from fsd.raster import rio_open
 from fsd.raster.cog import to_cog
 from fsd.raster.images import crop_tif, save_geotiff
 from fsd.storage import fs
+from shapely.ops import unary_union
 
 __all__ = [
     "select_granules", "check_archive", "estimate_bytes", "clip_granule",

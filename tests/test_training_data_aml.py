@@ -22,12 +22,12 @@ import pytest
 import shapely.geometry
 from rasterio.transform import from_origin
 
-import fsd
-from fsd import api
-from fsd.datacube import flatten as flatten_lib
-from fsd.storage import fs
-from fsd.workflows import flatten as flatten_cli
-from fsd.workflows import runners
+import rise_eo
+from rise_eo import api
+from rise_eo.datacube import flatten as flatten_lib
+from rise_eo.storage import fs
+from rise_eo.workflows import flatten as flatten_cli
+from rise_eo.workflows import runners
 
 JAN1 = datetime.datetime(2018, 1, 1)
 JAN1_NEXT = datetime.datetime(2019, 1, 1)
@@ -121,7 +121,7 @@ def test_flatten_training_data_local_stacks_cubes_and_labels_are_optional(tmp_pa
     export = tmp_path / "export"
     td = api.flatten_training_data(input_csv, str(export), label_col="label")
 
-    assert isinstance(td, fsd.TrainingData)
+    assert isinstance(td, rise_eo.TrainingData)
     assert td.n_pixels == 8  # 4 pixels/cube * 2 cubes, none nodata
     assert fs.exists(str(export / "labels.npy"))
     assert not fs.exists(str(export / "features.npy"))  # no adapter/feature_sequence given
@@ -240,7 +240,7 @@ def test_create_training_data_download_orchestrates_download_build_flatten_in_or
     monkeypatch.setattr(api._create_datacube, "run_create_datacube", fake_run_create_datacube)
     monkeypatch.setattr(api._flatten, "flatten", fake_flatten)
 
-    td = fsd.create_training_data(
+    td = rise_eo.create_training_data(
         label_polygons=_polys(), catalog_filepath=catalog,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=bands,
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "export"),
@@ -248,7 +248,7 @@ def test_create_training_data_download_orchestrates_download_build_flatten_in_or
     )
 
     assert order == ["download", "build", "flatten"]
-    assert isinstance(td, fsd.TrainingData)
+    assert isinstance(td, rise_eo.TrainingData)
     assert td.n_pixels == n_px
 
 
@@ -288,7 +288,7 @@ def test_create_training_data_download_stages_gdf_once_for_download_and_build(
     monkeypatch.setattr(api._create_datacube, "run_create_datacube", fake_run_create_datacube)
     monkeypatch.setattr(api._flatten, "flatten", fake_flatten)
 
-    fsd.create_training_data(
+    rise_eo.create_training_data(
         label_polygons=_polys(), catalog_filepath=catalog,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "export"),
@@ -339,7 +339,7 @@ def test_create_training_data_stages_gdf_with_timestamp_column(tmp_path, monkeyp
     gdf["obs_date"] = [pd.Timestamp("2018-05-01"), pd.Timestamp("2018-06-01")]  # the trap
 
     # must NOT raise TypeError: Object of type Timestamp is not JSON serializable
-    fsd.create_training_data(
+    rise_eo.create_training_data(
         label_polygons=gdf, catalog_filepath=catalog,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "export"),
@@ -391,7 +391,7 @@ def test_create_training_data_aml_features_written_locally_after_land_local(
     monkeypatch.setattr(runners, "run_aml_flatten", fake_run_aml_flatten)
 
     export = tmp_path / "export"
-    td = fsd.create_training_data(
+    td = rise_eo.create_training_data(
         label_polygons=_polys(), catalog_filepath=catalog,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=bands,
         id_col="fid", label_col="crop", export_folderpath=str(export),
@@ -444,7 +444,7 @@ def test_create_training_data_accepts_any_t_no_adapter_n_timestamps_preflight(
     monkeypatch.setattr(api._flatten, "flatten", fake_flatten)
 
     # no PreflightError despite adapter.n_timestamps=999 != computed T=19
-    fsd.create_training_data(
+    rise_eo.create_training_data(
         label_polygons=_polys(), catalog_filepath=catalog,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "export"),
@@ -513,7 +513,7 @@ def test_flatten_cli_reads_csv_and_calls_datacube_flatten(tmp_path, monkeypatch)
 def test_flatten_cli_uses_the_real_flatten_module_by_default():
     """Non-vacuousness for test 7: the CLI's `run()` really does delegate to
     `datacube.flatten.flatten`, not a stub -- proven by checking the module reference
-    the CLI calls is exactly `fsd.datacube.flatten`."""
+    the CLI calls is exactly `rise_eo.datacube.flatten`."""
     assert flatten_cli._flatten is flatten_lib
 
 

@@ -229,7 +229,7 @@ def q4_vsi_comparison(dst_prefix: str) -> dict:
         "question": "fsd /vsiadls/ read of the same object, for throughput comparison"
     }
     try:
-        import fsd  # noqa: F401
+        import rise_eo  # noqa: F401
     except ImportError as exc:
         result.update(
             {

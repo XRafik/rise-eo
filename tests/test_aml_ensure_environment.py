@@ -1,4 +1,4 @@
-"""Spec 56 §9 step 5 -- `fsd.aml.ensure_environment`: AC4 (check-then-build), builder
+"""Spec 56 §9 step 5 -- `rise_eo.aml.ensure_environment`: AC4 (check-then-build), builder
 stubbed throughout so no test reaches Azure (AC8)."""
 
 from __future__ import annotations
@@ -8,8 +8,8 @@ import os
 import fsspec
 import pytest
 
-from fsd.aml import ensure_environment
-from fsd.image import ImageDefinition
+from rise_eo.aml import ensure_environment
+from rise_eo.image import ImageDefinition
 
 
 @pytest.fixture()
@@ -162,7 +162,7 @@ def test_force_rebuilds_even_on_a_hit(tmp_path):
 # `:1` rather than `@current`: `ensure_environment` sets no alias by default (spec 102 D12), and
 # every caller below publishes only the unchanged `DEFN`, so v1 is the only version there is.
 def _aml_of(registry_root, ref="fsd-aml-env:1"):
-    from fsd.image import registry as ireg
+    from rise_eo.image import registry as ireg
     return ireg.resolve(ref, registry_root).aml
 
 
@@ -225,7 +225,7 @@ def test_force_rebuild_also_repoints_the_registry(tmp_path):
 def test_the_aml_sidecar_does_not_disturb_the_content_digest(tmp_path):
     """`_aml.json` sits beside `image.json`, never inside it -- so a repoint must leave the
     version resolvable by the same digest it was published under (AC5's immutability)."""
-    from fsd.image import registry as ireg
+    from rise_eo.image import registry as ireg
 
     registry_root = str(tmp_path / "registry")
     first = ensure_environment(
@@ -247,7 +247,7 @@ def test_the_aml_version_and_the_registry_version_are_reported_separately(tmp_pa
     `verify_image(image_ref=..., registry=...)` resolves the registry's number, `environment=`
     wants AML's. Handing over the wrong one fails as a missing `v<N>` directory, so both are
     named fields rather than one ambiguous `version`."""
-    from fsd.image import registry as ireg
+    from rise_eo.image import registry as ireg
 
     registry_root = str(tmp_path / "registry")
     r = ensure_environment(
@@ -278,7 +278,7 @@ def test_storage_is_configured_before_the_first_registry_read(
     `anon=False`, which makes a credential problem RAISE instead of degrading to an anonymous
     read that returns nothing and is indistinguishable from "not registered yet" -- i.e. a
     rebuild of a 10-20 minute image on every call (Opus review, 2026-08-27)."""
-    import fsd.aml as aml_mod
+    import rise_eo.aml as aml_mod
 
     order = []
     real_configure = aml_mod._configure_storage
@@ -323,7 +323,7 @@ CHANGED = ImageDefinition(name=DEFN.name, fsd=DEFN.fsd, extras=("azure", "mpc", 
 
 
 def _alias_version(registry_root, alias):
-    from fsd.image import registry as ireg
+    from rise_eo.image import registry as ireg
     return ireg.resolve(f"fsd-aml-env@{alias}", registry_root).version
 
 

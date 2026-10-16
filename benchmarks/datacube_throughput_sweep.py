@@ -27,8 +27,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from fsd.storage import fs
-from fsd.workflows import create_datacube, runners
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube, runners
 
 ROOT = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 CATALOG = f"{ROOT}/satellite_benchmark/sentinel-2-l2a/catalog.parquet"

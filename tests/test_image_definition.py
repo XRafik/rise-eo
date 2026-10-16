@@ -1,10 +1,10 @@
-"""Spec 56 §9 step 1 -- `fsd.image.definition.ImageDefinition`: declare, derive, render."""
+"""Spec 56 §9 step 1 -- `rise_eo.image.definition.ImageDefinition`: declare, derive, render."""
 
 from __future__ import annotations
 
 import os
 
-from fsd.image import ImageDefinition
+from rise_eo.image import ImageDefinition
 
 
 def test_derive_overrides_only_the_given_fields():

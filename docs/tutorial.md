@@ -1,8 +1,8 @@
 # Tutorial — download to crop map, offline, in one sitting
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify by re-running
-> this tutorial after any change to `fsd.create_training_data`, `fsd.run_inference`,
-> `fsd.workflows.create_datacube`, or `tests/data/tutorial/`; the underlying pipeline is pinned by
+> this tutorial after any change to `rise_eo.create_training_data`, `rise_eo.run_inference`,
+> `rise_eo.workflows.create_datacube`, or `tests/data/tutorial/`; the underlying pipeline is pinned by
 > `tests/test_tutorial_fixture.py`, which runs in `pytest -q`.
 
 **This tutorial cannot fail.** Every byte it reads is a real Sentinel-2 pixel already committed to
@@ -92,16 +92,16 @@ silently broke this fixture once already (every field collapsed to `other` until
 derived from clipped area instead of guessed). If you build your own fixture, print your own
 `value_counts()` — don't copy these names.
 
-## 3. Build training arrays — `fsd.create_training_data`
+## 3. Build training arrays — `rise_eo.create_training_data`
 
 ```python
 import datetime
-import fsd
+import rise_eo
 
 startdate = datetime.datetime(2018, 4, 1)
 enddate = datetime.datetime(2018, 9, 29)
 
-training = fsd.create_training_data(
+training = rise_eo.create_training_data(
     label_polygons="tests/data/tutorial/fields.geojson",
     catalog_filepath="tests/data/tutorial/sentinel-2-l2a/catalog.parquet",
     startdate=startdate, enddate=enddate, mosaic_days=20,
@@ -155,7 +155,7 @@ so this builds a single datacube via the same workflow entrypoint `create_traini
 the hood:
 
 ```python
-from fsd.workflows import create_datacube
+from rise_eo.workflows import create_datacube
 
 csv_filepath = "/tmp/fsd_tutorial/infer_build/input.csv"
 create_datacube.run_create_datacube(
@@ -169,11 +169,11 @@ create_datacube.run_create_datacube(
 
 The SCL mask is not passed: it is declared on the `sentinel-2-l2a` collection (spec 58 D3).
 `collection=` (default `"sentinel-2-l2a"`) and `properties_filter=` are the two knobs that
-replace it — see `fsd.collections.known()`.
+replace it — see `rise_eo.collections.known()`.
 
 This takes seconds — it's one cell, not 43 fields.
 
-## 6. Run inference — `fsd.run_inference`
+## 6. Run inference — `rise_eo.run_inference`
 
 Wrap the trained classifier as a `ModelAdapter` (the contract fsd calls at inference time — see
 [`docs/howto/bundle-your-model.md`](howto/bundle-your-model.md) for the full guide) and run it over
@@ -181,7 +181,7 @@ the datacube you just built:
 
 ```python
 import numpy as np
-from fsd.model import BaseModelAdapter
+from rise_eo.model import BaseModelAdapter
 
 class TutorialClassifier(BaseModelAdapter):
     required_bands = ["B04", "B08"]
@@ -206,7 +206,7 @@ class TutorialClassifier(BaseModelAdapter):
         return np.array([self.classes.index(p) for p in pred], dtype="uint8")
 
 adapter = TutorialClassifier(clf, classes)
-result = fsd.run_inference(adapter, csv_filepath, "/tmp/fsd_tutorial/out", progress=False)
+result = rise_eo.run_inference(adapter, csv_filepath, "/tmp/fsd_tutorial/out", progress=False)
 print(result.output_filepaths)
 print(result.stac_catalog_filepath)
 ```

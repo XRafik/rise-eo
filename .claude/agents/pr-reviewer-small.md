@@ -18,7 +18,7 @@ check before reviewing. The PR is small only if all three hold:
 1. **No contract change.** The linked issue is not a spec's tracking issue, and the PR adds or changes no
    spec or ADR (`gh pr view <N> --json body,files`).
 2. **Gate 4 does not apply.** The PR touches no real data, cloud or pixels. Code that runs as a cloud job
-   (`fsd.workflows.shard` / `infer_shard`, the runners they call, the AML runner) counts as the cloud
+   (`rise_eo.workflows.shard` / `infer_shard`, the runners they call, the AML runner) counts as the cloud
    (`CONTRIBUTING.md` gate 4).
 3. **At most 400 changed lines in total, and at most 200 under `src/`:**
    `gh pr view <N> --json files --jq '[.files[] | .additions + .deletions] | add'`, and the same with

@@ -2,10 +2,10 @@
 "how long would region X / window Y / bands Z take?" **without downloading it.**
 
 Runtime = counts × per-unit-costs. The counts are cheap *exact* queries (CDSE STAC for granules,
-`fsd.grid` for cells, `compute_n_timestamps` for T); the `cost_model` is calibrated by a real
+`rise_eo.grid` for cells, `compute_n_timestamps` for T); the `cost_model` is calibrated by a real
 run's `timings.json`. `estimate_from_counts` is the pure math (offline, unit-tested);
 `estimate_run` gathers the live counts then calls it. Kept demo-level for now — may graduate to a
-first-class `fsd.estimate` verb (D12). Caveats (see the doc §9): throughput is environment-bound,
+first-class `rise_eo.estimate` verb (D12). Caveats (see the doc §9): throughput is environment-bound,
 bytes/granule vary at ROI edges, and the estimate carries a low/high band from probe-vs-effective.
 """
 
@@ -48,15 +48,15 @@ def estimate_run(roi, startdate, enddate, bands, *, creds, cost_model,
     """Live wrapper: gather the exact counts (no download) then `estimate_from_counts`.
 
     granules = STAC query count; cells = `roi_to_s2_grids` count; T = `compute_n_timestamps`.
-    Needs the `[grid]` extra (for `fsd.grid`) and network (anonymous STAC).
+    Needs the `[grid]` extra (for `rise_eo.grid`) and network (anonymous STAC).
     """
-    import fsd
-    from fsd import grid
-    from fsd.sources import cdse
+    import rise_eo
+    from rise_eo import grid
+    from rise_eo.sources import cdse
 
     granules = len(cdse.query_catalog(roi, startdate, enddate, max_cloudcover=max_cloudcover))
     cells = len(grid.roi_to_s2_grids(roi, grid_size_km=grid_size_km, scale_fact=scale_fact))
-    t = fsd.compute_n_timestamps(startdate, enddate, mosaic_days)
+    t = rise_eo.compute_n_timestamps(startdate, enddate, mosaic_days)
     out = estimate_from_counts(granules=granules, cells=cells, t=t, bands=bands,
                                cost_model=cost_model)
     out["region"] = roi if isinstance(roi, str) else "<GeoDataFrame>"

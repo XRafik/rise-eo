@@ -9,7 +9,7 @@ Train side (your code, sklearn — fsd does not train):
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.preprocessing import LabelEncoder
     import joblib
-    td = fsd.create_training_data(..., adapter=EuroCropsRF())   # writes features.npy
+    td = rise_eo.create_training_data(..., adapter=EuroCropsRF())   # writes features.npy
     d = td.load()
     y = LabelEncoder().fit(d["feature_labels"])
     clf = RandomForestClassifier(n_estimators=200, n_jobs=-1).fit(
@@ -17,9 +17,9 @@ Train side (your code, sklearn — fsd does not train):
     joblib.dump((clf, y), "rf.joblib")
 
 Package + deploy:
-    from fsd.model import bundle
+    from rise_eo.model import bundle
     bundle.save(EuroCropsRF(), {"model": "rf.joblib"}, "eurocrops_bundle")
-    fsd.run_inference("eurocrops_bundle", inference_datacubes="…/grids", output_folderpath="…/out")
+    rise_eo.run_inference("eurocrops_bundle", inference_datacubes="…/grids", output_folderpath="…/out")
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ from __future__ import annotations
 import joblib
 import numpy as np
 
-from fsd.bands import modify
-from fsd.model import BaseModelAdapter
+from rise_eo.bands import modify
+from rise_eo.model import BaseModelAdapter
 
 S2_L2A_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12"]
 
@@ -50,7 +50,7 @@ class EuroCropsRF(BaseModelAdapter):
 
     # --- lifecycle (you own; sklearn here, any framework in general) ---
     def load(self) -> None:
-        # self.artifacts["model"] is an absolute path injected by fsd.model.bundle.load.
+        # self.artifacts["model"] is an absolute path injected by rise_eo.model.bundle.load.
         self.clf, self.label_encoder = joblib.load(self.artifacts["model"])
 
     def predict(self, X_chunk: np.ndarray) -> np.ndarray:

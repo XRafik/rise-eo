@@ -3,7 +3,7 @@
 > ⚠️ **Read this first (spec 41 D10 / ADR 0026).** Despite the folder name, **these are timing
 > harnesses and their `.md` files are benchmark reports.** `e2e_austria.py` is 531 lines of which
 > **12 touch `fsd`** (2.3 %), and `step_download` deliberately calls `cdse.probe_throughput` and
-> `cdse.download_resume` **directly, bypassing `fsd.download`**, because it wants the single-stream
+> `cdse.download_resume` **directly, bypassing `rise_eo.download`**, because it wants the single-stream
 > baseline probe and the transfer-vs-convert split. Those are measurement concerns. **A newcomer
 > reading this as a reference implementation learns the wrong API.**
 >

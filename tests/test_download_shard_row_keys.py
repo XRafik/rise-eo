@@ -10,9 +10,9 @@ import fsspec
 import pandas as pd
 import pytest
 
-from fsd.sources import mpc
-from fsd.storage import fs
-from fsd.workflows import download as download_cli
+from rise_eo.sources import mpc
+from rise_eo.storage import fs
+from rise_eo.workflows import download as download_cli
 
 
 def _full_row(dst: str) -> dict:

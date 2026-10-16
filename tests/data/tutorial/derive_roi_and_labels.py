@@ -27,7 +27,6 @@ import os
 import sys
 
 import geopandas as gpd
-
 from fsd.grid import roi_to_s2_grids
 
 # spec 42 D3 (as revised by amendment A3): the raw multi-class crop label

@@ -16,8 +16,8 @@ import types
 import fsspec
 import pytest
 
-from fsd.storage import azure as fsd_azure
-from fsd.storage.fs import to_vsi
+from rise_eo.storage import azure as fsd_azure
+from rise_eo.storage.fs import to_vsi
 
 pytest_adlfs = pytest.importorskip("adlfs", reason="needs the [azure] extra (adlfs)")
 
@@ -103,7 +103,7 @@ def test_configure_storage_bad_backend_raises(_clean_fsspec_conf):
 def test_api_storage_local_or_none_leaves_env_unset(tmp_path, monkeypatch):
     """`storage="local"`/`None` on a verb must not touch FSSPEC_ABFSS_*."""
     monkeypatch.delenv("FSSPEC_ABFSS_ANON", raising=False)
-    from fsd import api
+    from rise_eo import api
 
     assert api._check_local_seams("local", None) == []
     assert api._check_local_seams("local", "local") == []
@@ -118,21 +118,21 @@ def test_configure_storage_local_string_is_noop(_clean_fsspec_conf):
 
 
 def test_api_check_local_seams_accepts_azure_storage():
-    from fsd import api
+    from rise_eo import api
 
     assert api._check_local_seams("local", "azure") == []
     assert api._check_local_seams("local", {"backend": "azure"}) == []
 
 
 def test_api_check_local_seams_rejects_bad_backend():
-    from fsd import api
+    from rise_eo import api
 
     errs = api._check_local_seams("local", "s3")
     assert errs and "s3" in errs[0]
 
 
 def test_api_check_local_seams_runner_still_rejected():
-    from fsd import api
+    from rise_eo import api
 
     errs = api._check_local_seams("batch", None)
     assert errs and "batch" in errs[0]
@@ -148,7 +148,7 @@ def test_deploy_calls_configure_storage_before_its_first_storage_access(_clean_f
     `configure_storage` call this spec adds but before any storage read) is the cheapest way
     to reach a guaranteed raise without needing a real bundle."""
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    from fsd import api
+    from rise_eo import api
 
     with pytest.raises(api.PreflightError):
         api.deploy(
@@ -171,7 +171,7 @@ def test_run_inference_calls_configure_storage_before_its_first_storage_access(
     authenticated adlfs, which is the global side effect D4 exists to stop, not the
     behavior D4 asks for. Storage is now configured only on a call the seam accepts."""
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    from fsd import api
+    from rise_eo import api
 
     with pytest.raises(Exception):  # noqa: B017 - any failure proves nothing else ran first
         api.run_inference(
@@ -191,7 +191,7 @@ def test_run_inference_rejects_a_bad_backend_as_preflight_not_a_bare_value_error
     `deploy`. Also pins the no-side-effect half: a refused call must not leave this
     process switched to authenticated adlfs."""
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    from fsd import api
+    from rise_eo import api
 
     with pytest.raises(api.PreflightError, match="s3"):
         api.run_inference(
@@ -206,7 +206,7 @@ def test_run_inference_refusing_azure_here_does_not_configure_storage(_clean_fss
     ROI+AML). Refusing it must also leave the process's fsspec state alone -- configuring
     adlfs as a side effect of a rejected call is exactly the accident D4 removes."""
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    from fsd import api
+    from rise_eo import api
 
     with pytest.raises(api.PreflightError, match="not supported here yet"):
         api.run_inference(
@@ -224,7 +224,7 @@ def test_verify_adapter_calls_configure_storage_before_its_first_storage_access(
     storage at all (`storage_allowed=(runner == "aml")`) -- see the `run_inference`
     counterpart above for why a seam-rejected call must no longer configure storage."""
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    from fsd import api
+    from rise_eo import api
 
     with pytest.raises(Exception):  # noqa: B017 - any failure proves nothing else ran first
         api.verify_adapter(
@@ -244,7 +244,7 @@ def test_verify_image_calls_configure_storage_before_its_first_storage_access(
     (spec 24: always a shaped result, never a bare traceback) and returns `pass: False`
     rather than raising -- either way, `configure_storage` must already have run."""
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    from fsd.model.verify_image import verify_image
+    from rise_eo.model.verify_image import verify_image
 
     result = verify_image(
         "/nonexistent/bundle", environment="fsd-infer-sklearn:1", runner="aml",
@@ -259,7 +259,7 @@ def test_api_check_local_seams_storage_allowed_false_rejects_azure():
     """`run_inference`'s pre-built-cubes / local-ROI paths pass storage_allowed=False --
     inference-on-blob is spec 38 P4 scope, gated separately from `deploy`'s registry-on-blob
     gate, which spec 52 D4 removed."""
-    from fsd import api
+    from rise_eo import api
 
     errs = api._check_local_seams("local", "azure", storage_allowed=False)
     assert errs and "not supported here yet" in errs[0]
@@ -323,7 +323,7 @@ def test_storage_token_reuses_one_credential_instance(monkeypatch):
 
 
 def test_rio_open_local_path_is_plain_passthrough(monkeypatch):
-    from fsd import raster
+    from rise_eo import raster
 
     calls = []
 
@@ -348,7 +348,7 @@ def test_rio_open_per_handle_env_breaks_when_many_are_held_open(monkeypatch):
     """
     import rasterio.errors
 
-    from fsd import raster
+    from rise_eo import raster
 
     stack = []                       # stand-in for rasterio's thread-local env stack
 
@@ -391,14 +391,14 @@ def test_rio_open_per_handle_env_breaks_when_many_are_held_open(monkeypatch):
 
 
 def test_rio_env_is_a_null_context_for_local_paths():
-    from fsd import raster
+    from rise_eo import raster
 
     with raster.rio_env(["/local/a.tif", "/local/b.tif"]):
         pass            # no token fetch, no Env -- the zero-behaviour-change hinge
 
 
 def test_rio_env_refuses_datasets_on_two_storage_accounts(monkeypatch):
-    from fsd import raster
+    from rise_eo import raster
 
     monkeypatch.setattr(raster, "storage_token", lambda: "tok")
     with pytest.raises(ValueError, match="multiple storage accounts"):
@@ -409,7 +409,7 @@ def test_rio_env_refuses_datasets_on_two_storage_accounts(monkeypatch):
 
 
 def test_rio_open_remote_path_translates_and_uses_env(monkeypatch):
-    from fsd import raster
+    from rise_eo import raster
 
     calls = []
     env_calls = []
@@ -461,7 +461,7 @@ def test_rio_open_worker_thread_gets_its_own_env_not_the_drivers(monkeypatch):
 
     import rasterio.env
 
-    from fsd import raster
+    from rise_eo import raster
 
     monkeypatch.setattr(raster, "storage_token", lambda: "worker-token")
 
@@ -499,8 +499,8 @@ def test_rio_open_and_rio_env_disable_sidecar_probing_on_remote_opens(monkeypatc
     from it reads as non-existent -- so it must list EVERY extension the cube builder can hand to
     `rio_open` (review, 2026-08-27; `.tif` alone would have made a remote `.jp2` band file, i.e.
     any `cog=False` download, unopenable)."""
-    from fsd import raster
-    from fsd.datacube.builder import _RASTER_EXTS
+    from rise_eo import raster
+    from rise_eo.datacube.builder import _RASTER_EXTS
 
     env_calls = []
 
@@ -537,7 +537,7 @@ def test_rio_open_and_rio_env_disable_sidecar_probing_on_remote_opens(monkeypatc
 
 
 def test_rio_open_write_mode_on_remote_raises():
-    from fsd import raster
+    from rise_eo import raster
 
     with pytest.raises(ValueError):
         raster.rio_open("abfss://data@acct.dfs.core.windows.net/p/x.tif", mode="w")
@@ -551,7 +551,7 @@ def test_memory_scheme_roundtrip_parquet_and_npy():
     import numpy as np
     import shapely.geometry as sg
 
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     gdf = gpd.GeoDataFrame({"id": ["a"]}, geometry=[sg.Point(0, 0)], crs="EPSG:4326")
     fs.write_parquet("memory://cat/catalog.parquet", gdf)
@@ -579,7 +579,7 @@ def test_os_path_join_is_url_safe_on_abfss():
     [("s3", "'s3'"), ({"backend": "gcs"}, "'gcs'"), ({}, "None"), (123, "None")],
 )
 def test_unsupported_backend_text_in_both_places(_clean_fsspec_conf, storage, shown):
-    from fsd import api
+    from rise_eo import api
 
     line = f"storage backend {shown} not supported (only 'azure' in P1)."
     assert api._check_local_seams("local", storage) == [line]

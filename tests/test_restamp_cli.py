@@ -1,4 +1,4 @@
-"""Tests for fsd.catalog.restamp_cli / inspect_cli (spec 35 §6/§8.11)."""
+"""Tests for rise_eo.catalog.restamp_cli / inspect_cli (spec 35 §6/§8.11)."""
 
 import uuid
 
@@ -6,11 +6,11 @@ import geopandas as gpd
 import pytest
 import shapely.geometry as sg
 
-from fsd.catalog import declaration as declaration_module
-from fsd.catalog.declaration import S2_L2A_DECLARATION, CollectionDeclaration
-from fsd.catalog.inspect_cli import inspect_catalog
-from fsd.catalog.restamp_cli import restamp_catalog
-from fsd.storage import fs
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.catalog.declaration import S2_L2A_DECLARATION, CollectionDeclaration
+from rise_eo.catalog.inspect_cli import inspect_catalog
+from rise_eo.catalog.restamp_cli import restamp_catalog
+from rise_eo.storage import fs
 
 
 def _unstamped_catalog(path):

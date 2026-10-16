@@ -1,6 +1,6 @@
 # Manual tests — real satellite data (raster + bands)
 
-Validates `fsd.raster.images` and `fsd.bands.modify` against a **real** locally
+Validates `rise_eo.raster.images` and `rise_eo.bands.modify` against a **real** locally
 downloaded Sentinel-2 L2A tile, with the outputs inspected **visually in QGIS**
 (LLMs are unreliable on GeoTIFFs, so green unit tests are not enough — see
 issue #8). Unit tests (`tests/test_raster.py`, `tests/test_bands.py`)
@@ -38,8 +38,8 @@ From the repo root (`fsd/`), with the dev env active (`source .venv/bin/activate
 import os
 import numpy as np
 import geopandas as gpd
-from fsd.raster import images
-from fsd.bands import modify
+from rise_eo.raster import images
+from rise_eo.bands import modify
 
 # Workspace root that holds satellite/ and shapefiles/ (parent of fsd/)
 ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))

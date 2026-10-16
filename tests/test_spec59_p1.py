@@ -19,19 +19,19 @@ import rasterio
 import shapely.geometry as sg
 from rasterio.transform import from_origin
 
-import fsd
-from fsd import api, config
-from fsd import collections as _collections
-from fsd.catalog import processing as processing_module
-from fsd.catalog.catalog import TileCatalog, filter_by_properties
-from fsd.catalog.declaration import S2_L2A_DECLARATION
-from fsd.collections import naming
-from fsd.datacube import builder
-from fsd.sources import cdse, mpc
-from fsd.sources._granules import granule_folderpath, select_granules
-from fsd.storage import fs
-from fsd.workflows import create_datacube, runners
-from fsd.workflows import stamp as _stamp
+import rise_eo
+from rise_eo import api, config
+from rise_eo import collections as _collections
+from rise_eo.catalog import processing as processing_module
+from rise_eo.catalog.catalog import TileCatalog, filter_by_properties
+from rise_eo.catalog.declaration import S2_L2A_DECLARATION
+from rise_eo.collections import naming
+from rise_eo.datacube import builder
+from rise_eo.sources import cdse, mpc
+from rise_eo.sources._granules import granule_folderpath, select_granules
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube, runners
+from rise_eo.workflows import stamp as _stamp
 
 S2 = config.SATELLITE_S2L2A
 S1 = "sentinel-1-rtc"
@@ -345,7 +345,7 @@ def test_ac9_cdse_keeps_the_later_of_two_processings_and_prints_the_skip(
     got = cdse.query_catalog(_roi(), datetime.datetime(2018, 1, 1), datetime.datetime(2019, 1, 1))
     assert list(got["id"]) == [_canon(new)]
     tiles = select_granules(_cdse_gdf([old, new]), processing="latest",
-                            prefix="[fsd.cdse.download]")
+                            prefix="[rise_eo.cdse.download]")
     assert list(tiles["id"]) == [_canon(new)]
     out = capsys.readouterr().out
     assert f"skipped {_canon(old)}" in out and "superseded" in out
@@ -518,7 +518,7 @@ def test_ac12_cdse_publishes_a_stamped_file(tmp_path):
 
 
 def test_ac12_stamping_a_dot_stage_name_takes_the_inplace_path(monkeypatch, tmp_path):
-    from fsd.raster import cog
+    from rise_eo.raster import cog
 
     stage = tmp_path / "B04.tif.stage"        # GDAL identifies GeoTIFF by content, not name
     _write_cog(stage)
@@ -541,7 +541,7 @@ def test_ac12_stamping_a_dot_stage_name_takes_the_inplace_path(monkeypatch, tmp_
 
 
 def test_ac12_the_reencode_fallback_writes_a_cog_without_a_tif_extension(monkeypatch, tmp_path):
-    from fsd.raster import cog
+    from rise_eo.raster import cog
 
     stage = tmp_path / "B04.tif.stage"
     _write_cog(stage)
@@ -642,7 +642,7 @@ def test_ac16_a_specifier_fetches_a_at_0500_skips_b_and_says_so(monkeypatch, tmp
                                      processing=">=05.00", max_tiles=10)
     assert fetched == [f"https://mpc/{A_NEW.id}/B04.tif"]
     assert catalog == str(tmp_path / "archive" / S2 / "catalog.parquet")   # D5
-    assert catalog == fsd.archive_catalog_filepath(str(tmp_path / "archive"), S2)   # A1 / AC22
+    assert catalog == rise_eo.archive_catalog_filepath(str(tmp_path / "archive"), S2)   # A1 / AC22
     assert list(TileCatalog(catalog).read()["id"]) == [_canon(A_NEW)]
     out = capsys.readouterr().out
     assert "dropped acquisition S2B_MSIL2A_20180928T100019_R122_T33UWP" in out
@@ -750,7 +750,7 @@ def test_mpc_aml_shard_csv_round_trip_keeps_processing_version_a_string(monkeypa
     """Review finding: the shard CSV round trip read "05.00" back as the float 5.0, so an AML
     download into an archive a local download already wrote failed the parquet append, and
     `properties_filter={"processing_version": "05.00"}` never matched (D8: a normalized string)."""
-    from fsd.workflows import download as download_workflow
+    from rise_eo.workflows import download as download_workflow
 
     root = tmp_path / "archive"
     _mpc_download(monkeypatch, tmp_path, [A_OLD], max_tiles=10)     # local: "02.12", a string
@@ -795,7 +795,7 @@ def test_ac15_cdse_aml_carries_the_specifier_on_the_node_command_line(monkeypatc
 
 
 def test_ac15_the_cdse_job_entrypoint_forwards_it(monkeypatch):
-    from fsd.workflows import download as dl
+    from rise_eo.workflows import download as dl
 
     seen = {}
     monkeypatch.setattr(dl.cdse, "download", lambda *a, **kw: (seen.update(kw), cdse.DownloadResult(
@@ -839,7 +839,7 @@ def test_ac15_create_training_data_forwards_a_specifier_and_latest_for_none(
 
 
 def test_d8_stac_export_writes_the_processing_extension_fields(tmp_path):
-    from fsd.catalog import stac
+    from rise_eo.catalog import stac
 
     folder = tmp_path / "g"
     folder.mkdir()
@@ -858,9 +858,9 @@ def test_d8_stac_export_writes_the_processing_extension_fields(tmp_path):
 # --- Amendment A1: the archive's catalog path has one owner ---------------------
 
 def test_ac22_archive_catalog_filepath_is_pure_and_exported():
-    assert "archive_catalog_filepath" in fsd.__all__
-    assert fsd.archive_catalog_filepath("/data/imagery", S2) == f"/data/imagery/{S2}/catalog.parquet"
-    assert (fsd.archive_catalog_filepath("abfss://fs@acct.dfs.core.windows.net/imagery", S2)
+    assert "archive_catalog_filepath" in rise_eo.__all__
+    assert rise_eo.archive_catalog_filepath("/data/imagery", S2) == f"/data/imagery/{S2}/catalog.parquet"
+    assert (rise_eo.archive_catalog_filepath("abfss://fs@acct.dfs.core.windows.net/imagery", S2)
             == f"abfss://fs@acct.dfs.core.windows.net/imagery/{S2}/catalog.parquet")
 
 
@@ -890,4 +890,4 @@ def test_ac23_nothing_outside_src_rebuilds_the_catalog_path_by_hand():
         for cell in json.loads(nb.read_text())["cells"]:
             if cell["cell_type"] == "code" and by_hand.search(code("".join(cell["source"]))):
                 offenders.append(str(nb.relative_to(root)))
-    assert not offenders, f"hand-built catalog path (use fsd.archive_catalog_filepath): {offenders}"
+    assert not offenders, f"hand-built catalog path (use rise_eo.archive_catalog_filepath): {offenders}"

@@ -1,5 +1,5 @@
 [project]
-name = "fsd"
+name = "rise-eo"
 version = "0.1.0"
 description = "Fetch satellite tiles and build datacubes (clean rewrite). Sentinel-2 L2A via CDSE; cloud-agnostic by design."
 authors = [{ name = "Nikhil Sasi Rajan", email = "nsasiraj@umd.edu" }]
@@ -24,10 +24,10 @@ dependencies = [
 ]
 
 [project.scripts]
-fsd = "fsd.cli:main"
+rise-eo = "rise_eo.cli:main"
 
 [project.optional-dependencies]
-# Neither of these is ever imported by src/fsd/, so both are config, not code (#80).
+# Neither of these is ever imported by src/rise_eo/, so both are config, not code (#80).
 # snakemake is invoked as a subprocess (`sys.executable -m snakemake`) and s3fs is an
 # fsspec backend resolved by URL scheme -- so moving them out costs zero import-time
 # risk and takes the core closure from 104 packages / 689 MB to 51 / 578.
@@ -50,7 +50,7 @@ model-example = [  # for examples/eurocrops_rf.py + tests/manual/deploy.md + dem
     "matplotlib",
     "seaborn",
 ]
-grid = [           # ROI → S2-grid tiling (fsd.grid); optional so core stays lean (spec 19)
+grid = [           # ROI → S2-grid tiling (rise_eo.grid); optional so core stays lean (spec 19)
     "s2",
     "s2cell",
 ]
@@ -94,7 +94,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fsd" = ["workflows/_snakefiles/**/*"]
+"rise_eo" = ["workflows/_snakefiles/**/*"]
 
 [tool.ruff]
 line-length = 100

@@ -14,8 +14,8 @@ import types
 import pandas as pd
 import pytest
 
-from fsd.storage import fs
-from fsd.workflows import runners
+from rise_eo.storage import fs
+from rise_eo.workflows import runners
 
 
 def _ts(seconds: float, base: str = "2024-01-01T00:00:00Z") -> str:

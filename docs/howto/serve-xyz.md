@@ -1,10 +1,10 @@
 # How to: serve fsd output on an XYZ map viewer
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify after any
-> change to `fsd.run_inference`'s STAC export (`fsd.catalog.stac`) or the mini-MPC serving stack in
+> change to `rise_eo.run_inference`'s STAC export (`rise_eo.catalog.stac`) or the mini-MPC serving stack in
 > `demos/mini_mpc/`.
 
-`fsd.run_inference` (see [`docs/tutorial.md`](../tutorial.md) §6 and
+`rise_eo.run_inference` (see [`docs/tutorial.md`](../tutorial.md) §6 and
 [`bundle-your-model.md`](bundle-your-model.md)) already produces standard artifacts — COGs +
 a STAC catalog. **fsd builds no dashboard and no server of its own.** Serving is stock software
 pointed at those artifacts; this page names two proven ways to do it and where the worked examples

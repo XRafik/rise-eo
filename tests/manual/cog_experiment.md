@@ -2,7 +2,7 @@
 
 Measure what switching Sentinel-2 tiles from native CDSE **JP2** to **COG** buys in
 datacube-build **time**, and costs in **disk** — the numbers for a team space-vs-time call.
-Runs entirely off a parallel COG dataset + catalog; **no `src/fsd/` change** (rasterio reads
+Runs entirely off a parallel COG dataset + catalog; **no `src/rise_eo/` change** (rasterio reads
 `.tif` transparently). Three steps: **prep** (convert + storage) → **A/B sweep** (time) →
 **compare** (the team report).
 

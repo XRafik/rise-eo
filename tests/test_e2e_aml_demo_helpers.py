@@ -24,7 +24,7 @@ import sys
 
 import pytest
 
-from fsd.storage import fs
+from rise_eo.storage import fs
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _DEMOS_DIR = os.path.join(os.path.dirname(_HERE), "demos")
@@ -186,9 +186,9 @@ def _build_archive(tmp_path, *, granules=3, sidecar=True, offset=-1000, nodata=N
     """
     import shapely.geometry as sg
 
-    from fsd import config
-    from fsd.catalog.catalog import TileCatalog
-    from fsd.catalog.declaration import CollectionDeclaration
+    from rise_eo import config
+    from rise_eo.catalog.catalog import TileCatalog
+    from rise_eo.catalog.declaration import CollectionDeclaration
 
     imagery = tmp_path / "imagery"
     eff_nodata = config.NODATA if nodata is None else nodata
@@ -321,7 +321,7 @@ def test_archive_trust_rejects_an_offset_outside_the_two_esa_values(tmp_path):
 
 
 def test_archive_trust_requires_a_stamped_source_declaration(tmp_path):
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     catalog_fp, imagery = _build_archive(tmp_path)
     rows = TileCatalog(catalog_fp).read()
@@ -457,7 +457,7 @@ def test_preflight_deps_cover_what_the_steps_actually_import():
     declared = {m.split(".")[0] for m, _, _ in demo._DRIVER_DEPS}
     stdlib_or_local = {
         "__future__", "os", "sys", "json", "time", "re", "signal", "datetime", "contextlib",
-        "argparse", "importlib", "ast", "statistics", "fsd", "adapters",
+        "argparse", "importlib", "ast", "statistics", "rise_eo", "adapters",
         "numpy", "pandas", "geopandas", "shapely", "rasterio",  # fsd CORE deps
     }
 

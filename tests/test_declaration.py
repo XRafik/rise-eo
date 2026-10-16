@@ -1,4 +1,4 @@
-"""Tests for fsd.catalog.declaration's serialization (spec 35 §2a/§3).
+"""Tests for rise_eo.catalog.declaration's serialization (spec 35 §2a/§3).
 
 Pure functions, no I/O: `to_json`/`from_json` (dataclass <-> JSON dict) and
 `to_attrs`/`from_attrs` (JSON dict <-> `GeoDataFrame.attrs`).
@@ -11,8 +11,8 @@ import geopandas as gpd
 import pytest
 import shapely
 
-from fsd.catalog import declaration as declaration_module
-from fsd.catalog.declaration import (
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.catalog.declaration import (
     S2_L2A_DECLARATION,
     CollectionDeclaration,
     MaskSpec,

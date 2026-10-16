@@ -1,11 +1,11 @@
 # How to: build the two AML node images
 
 > **Last verified:** 2026-08-27 @ spec 56. Re-verify after any change to
-> `fsd.image`/`fsd.aml`, to the extras in `pyproject.toml`, or to the base image.
+> `rise_eo.image`/`rise_eo.aml`, to the extras in `pyproject.toml`, or to the base image.
 
 Everything on an Azure ML cluster runs inside a container. fsd needs **two**, and neither of them
-is per-model. Since spec 56 the recipe for each is an `fsd.image.ImageDefinition` -- declared in
-Python, resolved, digested, and handed to `fsd.aml.ensure_environment`, which checks the image
+is per-model. Since spec 56 the recipe for each is an `rise_eo.image.ImageDefinition` -- declared in
+Python, resolved, digested, and handed to `rise_eo.aml.ensure_environment`, which checks the image
 registry before building anything. No Dockerfile lives in this repo any more; `render_dockerfile()`
 generates one at build time.
 
@@ -41,7 +41,7 @@ identically with the last dependency swapped.
 ## Declare the definitions
 
 ```python
-from fsd.image import ImageDefinition
+from rise_eo.image import ImageDefinition
 
 # fsd developer, from a checkout: fsd="path:..." -- the ONE case that builds a wheel and hashes
 # its content (spec 56 D5). A consumer with no checkout uses a pinned git ref instead:
@@ -55,7 +55,7 @@ INFER = BASE.derive(name="fsd-infer-sklearn", extra_pip=("scikit-learn", "joblib
 ```
 
 > **`local` is not optional here (#80).** `snakemake` lives in the `[local]` extra, and the
-> in-job entrypoints (`fsd.workflows.shard`, `fsd.workflows.infer_shard`) call back into
+> in-job entrypoints (`rise_eo.workflows.shard`, `rise_eo.workflows.infer_shard`) call back into
 > `runners.run_local` — a node runs the same Snakemake orchestration a laptop does. Leave it
 > out and the build succeeds, then the dispatch fails ~30 min in. If you built images before
 > 2026-09-04, rebuild them with `local` added.
@@ -72,12 +72,12 @@ a directory you own; fsd digests its file contents (never the path) and builds i
 ## Ensure the environments
 
 ```python
-import fsd
-import fsd.aml
+import rise_eo
+import rise_eo.aml
 
-cfg = fsd.config.load()
+cfg = rise_eo.config.load()
 
-result = fsd.aml.ensure_environment(
+result = rise_eo.aml.ensure_environment(
     BASE, registry=cfg.image_registry,
     resource_group=cfg.resource_group, workspace=cfg.workspace,
 )
@@ -130,7 +130,7 @@ terminal` for ten minutes while both builds completed normally in Studio, 2026-0
 environment show` proves the **asset** is registered, never that the image is built.
 
 So open `result.build_url` (or `az ml environment show -n <name> -v <version> ...` and build the
-Studio URL from the `WSID`/tenant it needs -- `fsd.aml.environment.build_link` does exactly that)
+Studio URL from the `WSID`/tenant it needs -- `rise_eo.aml.environment.build_link` does exactly that)
 and read it. Wait for **Build status: Succeeded** on *both* images before running anything against
 them.
 
@@ -139,7 +139,7 @@ them.
 ```python
 runner_kwargs = dict(environment=result.ref, ...)
 
-from fsd.model.verify_image import verify_image
+from rise_eo.model.verify_image import verify_image
 
 vres = verify_image(
     bundle_dir, environment=result.ref, runner="aml", runner_kwargs=runner_kwargs,
@@ -164,7 +164,7 @@ matches how the image was built; `build_context` wins if both are given.
 
 [`notebooks/build_images.ipynb`](../../notebooks/build_images.ipynb) is this page as a
 runnable notebook, and is **the one notebook this repo tracks**. It reads every Azure coordinate
-(including `image_registry`) from `~/.config/fsd/config.toml` via `fsd.config.load()` rather than
+(including `image_registry`) from `~/.config/fsd/config.toml` via `rise_eo.config.load()` rather than
 carrying them, and `tests/test_notebooks.py` fails the build if it ever gains a saved output or a
 hardcoded identifier -- that guard is why it can be public at all. Clear its outputs
 (*Kernel -> Restart & Clear All Outputs*) before committing.

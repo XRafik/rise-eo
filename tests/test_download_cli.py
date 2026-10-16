@@ -1,8 +1,8 @@
-"""Tests for fsd.sources.download_cli (spec 26 §2/§7). Monkeypatched, no network."""
+"""Tests for rise_eo.sources.download_cli (spec 26 §2/§7). Monkeypatched, no network."""
 
 import json
 
-from fsd.sources import cdse, download_cli
+from rise_eo.sources import cdse, download_cli
 
 DUMMY_FIELDS = {
     "sh_client_id": "id-123",

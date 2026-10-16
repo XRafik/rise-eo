@@ -19,11 +19,11 @@ import textwrap
 
 import pytest
 
-from fsd.model import bundle
+from rise_eo.model import bundle
 
 # A minimal adapter module, written to disk so it has a real, importable source file.
 ADAPTER_SRC = '''
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 class TinyAdapter(BaseModelAdapter):
@@ -109,7 +109,7 @@ def test_package_adapter_preserves_layout_and_intra_package_imports(tmp_path, im
     importable(
         "mypkg/adapters.py",
         src='''
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
         from mypkg.helpers import BANDS
 
 
@@ -149,8 +149,8 @@ def test_installed_adapter_is_not_embedded(tmp_path):
 
 
 def test_fsd_own_classes_are_never_embedded():
-    """An adapter subclassing fsd's base must not drag src/fsd/ into the bundle."""
-    from fsd.model.adapter import BaseModelAdapter
+    """An adapter subclassing fsd's base must not drag src/rise_eo/ into the bundle."""
+    from rise_eo.model.adapter import BaseModelAdapter
 
     assert bundle.classify_adapter_source(BaseModelAdapter)[0] == "installed"
 
@@ -203,7 +203,7 @@ def test_load_works_when_the_module_is_importable_from_nowhere_else(tmp_path, im
 
     script = textwrap.dedent(f"""
         import sys
-        from fsd.model import bundle
+        from rise_eo.model import bundle
         assert "lonely_mod" not in sys.modules
         try:
             import lonely_mod
@@ -279,7 +279,7 @@ def test_collision_guard_checks_ancestor_packages_not_just_the_leaf(tmp_path, im
     importable(
         "ancpkg/adapters.py",
         src="""
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
 
 
         class AncAdapter(BaseModelAdapter):
@@ -380,7 +380,7 @@ def test_oversized_code_is_refused_and_names_the_override(tmp_path, importable, 
     importable(
         "bigpkg/adapters.py",
         src='''
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
 
 
         class BigAdapter(BaseModelAdapter):
@@ -456,10 +456,10 @@ def test_manifest_code_files_enumerates_without_listing_directories(tmp_path, im
 
 def test_stage_and_fetch_transfer_every_code_file(tmp_path, importable):
     """`_stage_bundle` (driver -> blob) and `fetch_bundle_to_scratch` (blob -> node scratch) both
-    read the same manifest. Exercised over local paths, which is what `fsd.storage` gives us
+    read the same manifest. Exercised over local paths, which is what `rise_eo.storage` gives us
     without credentials — the seam is identical for abfss://."""
-    from fsd.workflows import runners
-    from fsd.workflows.infer_shard import fetch_bundle_to_scratch
+    from rise_eo.workflows import runners
+    from rise_eo.workflows.infer_shard import fetch_bundle_to_scratch
 
     importable("moved_mod.py")
     import moved_mod
@@ -510,7 +510,7 @@ def test_requirements_are_recorded_in_the_manifest(tmp_path, importable):
 
 def test_smoke_job_names_the_dependency_instead_of_a_traceback(tmp_path, importable):
     """D5: a missing dep must fail once, on the smoke node, as a NAMED dependency."""
-    from fsd.workflows import adapter_smoke
+    from rise_eo.workflows import adapter_smoke
 
     importable("smoke_mod.py")
     import smoke_mod
@@ -530,7 +530,7 @@ def test_smoke_job_names_the_dependency_instead_of_a_traceback(tmp_path, importa
 
 
 def test_smoke_job_passes_for_a_bundled_adapter(tmp_path, importable):
-    from fsd.workflows import adapter_smoke
+    from rise_eo.workflows import adapter_smoke
 
     importable("smokeok_mod.py")
     import smokeok_mod

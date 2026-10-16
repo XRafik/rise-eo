@@ -23,12 +23,12 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from fsd import api
-from fsd.catalog.catalog import TileCatalog
-from fsd.model import BaseModelAdapter, bundle, engine
-from fsd.raster.cog import to_cog
-from fsd.storage import fs
-from fsd.workflows import adapter_smoke, create_datacube, infer_shard, infer_task, runners
+from rise_eo import api
+from rise_eo.catalog.catalog import TileCatalog
+from rise_eo.model import BaseModelAdapter, bundle, engine
+from rise_eo.raster.cog import to_cog
+from rise_eo.storage import fs
+from rise_eo.workflows import adapter_smoke, create_datacube, infer_shard, infer_task, runners
 
 CRS = "EPSG:32633"
 TRANSFORM = from_origin(500000, 5000000, 10, 10)
@@ -390,13 +390,13 @@ def test_run_inference_roi_mode_threads_runner_kwargs_to_run_aml_inference(tmp_p
     # cells csv the same way `_run_inference_roi` would produce it, by monkeypatching
     # the grid step to a single already-known cell.
     monkeypatch.setattr(
-        "fsd.grid.roi_to_s2_grids",
+        "rise_eo.grid.roi_to_s2_grids",
         lambda roi, **kw: gpd.GeoDataFrame({"id": ["s1"], "geometry": [TILE_4326]}, crs="EPSG:4326"),
     )
 
     cat = tmp_path / "sentinel-2-l2a" / "catalog.parquet"
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
     gdf = gpd.GeoDataFrame(
         [{"id": "T_0", "acquisition_key": "T_0", "processing_version": None, "processing_datetime": None, "source": "mpc", "collection": "sentinel-2-l2a", "timestamp": TS[0], "s3url": "s3://x",
           "local_folderpath": str(tmp_path), "files": "B04.tif,B08.tif", "cloud_cover": 0.0,
@@ -422,7 +422,7 @@ def test_run_inference_roi_mode_threads_runner_kwargs_to_run_aml_inference(tmp_p
 def test_run_inference_roi_stages_grids_geojson_via_seam_on_non_gdal_dst(tmp_path, monkeypatch):
     """Regression: a blob/seam-only `output_folderpath` made `grids.to_file(grids_filepath)` fail
     (GDAL/pyogrio has no abfss:// write driver -- "Failed to create GeoJSON datasource"). The
-    gridded ROI must be staged through `fsd.storage`. `memory://` stands in for a GDAL-unwritable,
+    gridded ROI must be staged through `rise_eo.storage`. `memory://` stands in for a GDAL-unwritable,
     seam-writable dst (same trick as the D5 to_cog tests). Non-vacuous: on the pre-fix `grids.to_file`
     this asserts False (grids.geojson never lands on the memory fs)."""
     bundle_dir = _write_bundle(tmp_path)
@@ -437,7 +437,7 @@ def test_run_inference_roi_stages_grids_geojson_via_seam_on_non_gdal_dst(tmp_pat
 
     monkeypatch.setattr(runners, "run_aml_inference", _fake_run_aml_inference)
     monkeypatch.setattr(
-        "fsd.grid.roi_to_s2_grids",
+        "rise_eo.grid.roi_to_s2_grids",
         lambda roi, **kw: gpd.GeoDataFrame({"id": ["s1"], "geometry": [TILE_4326]}, crs="EPSG:4326"),
     )
     # short-circuit the STAC/merge tail -- rasterio on a memory:// COG is out of scope for THIS test.
@@ -445,8 +445,8 @@ def test_run_inference_roi_stages_grids_geojson_via_seam_on_non_gdal_dst(tmp_pat
         output_folderpath=folder, output_filepaths=list(outs), stac_catalog_filepath="memory://x"))
 
     cat = tmp_path / "sentinel-2-l2a" / "catalog.parquet"
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
     gdf = gpd.GeoDataFrame(
         [{"id": "T_0", "acquisition_key": "T_0", "processing_version": None, "processing_datetime": None, "source": "mpc", "collection": "sentinel-2-l2a", "timestamp": TS[0], "s3url": "s3://x",
           "local_folderpath": str(tmp_path), "files": "B04.tif,B08.tif", "cloud_cover": 0.0,
@@ -498,7 +498,7 @@ def test_to_cog_local_dst_is_unchanged(tmp_path):
 
 
 def test_engine_write_output_cog_lands_on_memory_dst_via_to_cog(tmp_path, monkeypatch):
-    from fsd.model.adapter import Output
+    from rise_eo.model.adapter import Output
 
     # Run in a clean, empty cwd so the non-vacuous assertion below can see any junk a
     # local-path-op-on-a-remote-URL would scatter.
@@ -544,7 +544,7 @@ def test_run_infer_task_returns_early_when_output_exists_and_not_overwrite(tmp_p
         f.write("already there")
 
     called = {}
-    monkeypatch.setattr("fsd.workflows.task.run_task", lambda **kw: called.setdefault("built", True))
+    monkeypatch.setattr("rise_eo.workflows.task.run_task", lambda **kw: called.setdefault("built", True))
 
     result = infer_task.run_infer_task(
         "g.geojson", "c.parquet", TS[0], TS[1], str(tmp_path),
@@ -561,7 +561,7 @@ def test_run_infer_task_rebuilds_when_overwrite_true(tmp_path, monkeypatch):
         f.write("stale")
 
     called = {}
-    monkeypatch.setattr("fsd.workflows.task.run_task", lambda **kw: called.setdefault("built", True))
+    monkeypatch.setattr("rise_eo.workflows.task.run_task", lambda **kw: called.setdefault("built", True))
     monkeypatch.setattr(engine, "_adapter_from_bundle_cached", lambda p: _NDVIUp())
     monkeypatch.setattr(engine, "infer_datacube_to_cog", lambda *a, **kw: output_fp)
 
@@ -652,7 +652,7 @@ def test_run_infer_group_shares_one_cached_adapter_across_a_group(tmp_path, monk
         })
     pd.DataFrame(rows).to_csv(csv, index=False)
 
-    monkeypatch.setattr("fsd.workflows.task.run_task", lambda **kw: None)
+    monkeypatch.setattr("rise_eo.workflows.task.run_task", lambda **kw: None)
     monkeypatch.setattr(engine, "infer_datacube_to_cog",
                         lambda adapter, dc, out, **kw: __import__("pathlib").Path(out).write_text("x") or out)
 
@@ -785,8 +785,8 @@ def test_run_inference_roi_invalid_startdate_raises_preflight():
 def test_run_aml_download_mpc_merges_per_shard_catalogs_into_the_canonical(
     fake_aml_command, monkeypatch,
 ):
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     rows = [
         {"tile_id": "T0", "acquisition_key": "T0", "band": "B04", "href": "h0", "dst": "d0", "offset": 0,
@@ -840,8 +840,8 @@ def test_run_aml_download_mpc_merges_per_shard_catalogs_into_the_canonical(
 def test_merge_shard_catalogs_is_non_vacuous(tmp_path):
     """A mutation reverting to a shared writer would leave only ONE shard catalog to
     merge -- prove the merge helper actually needs both files by dropping one."""
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     def _make(url, tile_id):
         gdf = gpd.GeoDataFrame([{
@@ -879,8 +879,8 @@ def _two_shapes(path):
 
 
 def _make_catalog(path, tmp):
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     rows = []
     for i, ts in enumerate(TS):
@@ -964,7 +964,7 @@ def test_dedupe_on_unit_identity_is_non_vacuous(tmp_path):
     """A mutation removing the dedupe would leave 4 rows (2 shapes x 2 runs) -- prove
     the row-count assertion above actually catches that by calling the helper directly
     with pre-deduped-vs-not input."""
-    from fsd.workflows.create_datacube import _dedupe_on_unit_identity
+    from rise_eo.workflows.create_datacube import _dedupe_on_unit_identity
 
     rows = pd.DataFrame([
         {"id": "s1", "startdate": "2018-01-01", "enddate": "2019-01-01", "bands": "B04",

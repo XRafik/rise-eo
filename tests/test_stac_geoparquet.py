@@ -16,7 +16,7 @@ import shapely.geometry
 
 pytest.importorskip("stac_geoparquet", reason="needs the [serving] extra (stac-geoparquet)")
 
-from fsd.catalog import stac, stac_geoparquet  # noqa: E402
+from rise_eo.catalog import stac, stac_geoparquet  # noqa: E402
 
 
 def _make_output_cog(folder, *, epsg=32637):

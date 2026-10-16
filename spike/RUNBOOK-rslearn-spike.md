@@ -302,7 +302,7 @@ python -c "import fsspec,os; fsspec.filesystem('abfss').rm(os.environ['AZ_ROOT']
 > ⚠️ **Compare WARM against probe 03, not cold — the cold pair is not like for like.** Found
 > after the first run (2026-07-31, cold 3.7 MB/s vs rslearn's 21.8). fsd's first `rio_open` pays
 > a one-time AAD token round-trip inside the timed section (`storage_token()`,
-> `src/fsd/storage/azure.py:48-56`; the credential is module-cached so calls 2..N are ~free),
+> `src/rise_eo/storage/azure.py:48-56`; the credential is module-cached so calls 2..N are ~free),
 > whereas **probe 03 resolves its filesystem in `q1_upath` before timing `q2`** — so rslearn's
 > number is measured with auth already warm. Charging fsd one-time auth and not rslearn would
 > overstate the gap. The probe now reports `aad_token_seconds` separately so the split is

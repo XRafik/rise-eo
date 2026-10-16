@@ -21,8 +21,8 @@ import pandas as pd
 import pytest
 from shapely.geometry import box
 
-from fsd.storage import fs
-from fsd.workflows import create_datacube
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube
 
 W1 = dict(startdate=datetime.datetime(2018, 1, 1), enddate=datetime.datetime(2019, 1, 1))
 W2 = dict(startdate=datetime.datetime(2018, 2, 1), enddate=datetime.datetime(2019, 2, 1))

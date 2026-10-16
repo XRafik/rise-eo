@@ -43,10 +43,10 @@ The Planetary Computer needs **no account and no credentials** — this runs as 
 
 ```python
 import datetime
-import fsd
+import rise_eo
 
 # 1. Imagery for an ROI and a window -> a GeoParquet tile catalog.
-catalog = fsd.download(
+catalog = rise_eo.download(
     roi="my_roi.geojson",
     startdate=datetime.datetime(2018, 1, 1),
     enddate=datetime.datetime(2019, 1, 1),
@@ -57,7 +57,7 @@ catalog = fsd.download(
 )                   # than this many MGRS granules. Preflight checks it before any spend.
 
 # 2. Labelled polygons + that catalog -> flattened training arrays.
-training = fsd.create_training_data(
+training = rise_eo.create_training_data(
     label_polygons="my_labeled_fields.geojson",
     catalog_filepath=catalog,
     startdate=datetime.datetime(2018, 1, 1),
@@ -73,7 +73,7 @@ arrays = training.load()   # {"data", "ids", "labels", "coords", "metadata"}
 # arrays["data"] is (samples, timestamps, bands) -- train whatever you like on it.
 
 # 3. Your trained model, bundled as a ModelAdapter, run over a region -> COGs + STAC.
-result = fsd.run_inference(
+result = rise_eo.run_inference(
     "my_bundle/",                    # the bundle is the first positional argument
     output_folderpath="data/predictions",
     roi="my_roi.geojson",            # ROI mode needs all five of the next arguments
@@ -90,22 +90,22 @@ result = fsd.run_inference(
 
 ## Publish a model, then run it by name
 
-`fsd.deploy` publishes a saved bundle into a registry and **refuses unless that bundle has been
+`rise_eo.deploy` publishes a saved bundle into a registry and **refuses unless that bundle has been
 proven to run on the image you name** — one real node, before anything is recorded. It returns a
 ref that `run_inference` takes in place of a path:
 
 ```python
-ref = fsd.deploy(
-    "my_bundle/",                    # must be SAVED (fsd.save_bundle), not a live adapter
+ref = rise_eo.deploy(
+    "my_bundle/",                    # must be SAVED (rise_eo.save_bundle), not a live adapter
     name="crop-rf",
     registry="abfss://.../models",
     environment="fsd-infer-sklearn:3",
 )                                    # -> "crop-rf:1"
 
-fsd.run_inference(ref, registry="abfss://.../models")   # + the ROI arguments from step 3
+rise_eo.run_inference(ref, registry="abfss://.../models")   # + the ROI arguments from step 3
 ```
 
-`fsd.verify_adapter` does the same proof for an adapter against real imagery before you bundle it.
+`rise_eo.verify_adapter` does the same proof for an adapter against real imagery before you bundle it.
 Both exist because the alternative is discovering a broken adapter thirty minutes into a dispatch.
 
 ## Running on a cluster

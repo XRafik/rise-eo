@@ -1,4 +1,4 @@
-"""Tests for `fsd.config`'s user-level config loader (spec 54, §4 criteria 3-8).
+"""Tests for `rise_eo.config`'s user-level config loader (spec 54, §4 criteria 3-8).
 
 Every test that touches disk goes through `isolated_config_dir`, which points
 `FSD_CONFIG_DIR` at `tmp_path` -- spec 37 §7's rule, generalised: no test may reach the
@@ -11,8 +11,8 @@ import os
 
 import pytest
 
-import fsd
-import fsd.config as config
+import rise_eo
+import rise_eo.config as config
 
 
 @pytest.fixture
@@ -30,11 +30,11 @@ def _write_required(config_mod, **overrides):
     return config_mod.write_config(values)
 
 
-# --- AC 3: fsd.config resolves off a bare `import fsd` ------------------------------
+# --- AC 3: rise_eo.config resolves off a bare `import rise_eo` ------------------------------
 
 
 def test_config_reachable_off_bare_import():
-    assert fsd.config.load is config.load
+    assert rise_eo.config.load is config.load
 
 
 # --- AC 4: precedence -----------------------------------------------------------------

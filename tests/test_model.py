@@ -19,11 +19,11 @@ import shapely.geometry
 from rasterio.crs import CRS
 from rasterio.transform import from_origin
 
-import fsd
-from fsd.bands import modify
-from fsd.model import bundle, engine, features
-from fsd.model.adapter import BaseModelAdapter
-from fsd.storage import fs
+import rise_eo
+from rise_eo.bands import modify
+from rise_eo.model import bundle, engine, features
+from rise_eo.model.adapter import BaseModelAdapter
+from rise_eo.storage import fs
 
 BANDS = ["B04", "B08"]           # enough to compute NDVI
 EPSG = 32637
@@ -136,7 +136,7 @@ def test_predict_batch_size_matches_whole_tile(tmp_path):
 def test_run_inference_writes_cogs_and_stac(tmp_path):
     dcs = [_make_datacube_folder(str(tmp_path / f"dc{i}")) for i in range(2)]
     out_dir = str(tmp_path / "out")
-    result = fsd.run_inference(ArgmaxNDVI(), dcs, out_dir, progress=False)
+    result = rise_eo.run_inference(ArgmaxNDVI(), dcs, out_dir, progress=False)
 
     assert len(result.output_filepaths) == 2
     for fp in result.output_filepaths:
@@ -181,7 +181,7 @@ def test_run_inference_from_csv_uses_manifest_geometry(tmp_path):
     }).to_csv(csv_fp, index=False)
 
     out_dir = str(tmp_path / "out")
-    result = fsd.run_inference(ArgmaxNDVI(), csv_fp, out_dir, progress=False)
+    result = rise_eo.run_inference(ArgmaxNDVI(), csv_fp, out_dir, progress=False)
 
     cat = pystac.Catalog.from_file(result.stac_catalog_filepath)
     items = list(cat.get_items(recursive=True))
@@ -197,14 +197,14 @@ def test_preflight_rejects_band_and_timestamp_mismatch(tmp_path):
     class NeedsMore(ArgmaxNDVI):
         required_bands = ["B04", "B08", "B11"]   # B11 absent from the datacube
 
-    with pytest.raises(fsd.PreflightError, match="required bands"):
-        fsd.run_inference(NeedsMore(), [dc_fp], str(tmp_path / "o1"), progress=False)
+    with pytest.raises(rise_eo.PreflightError, match="required bands"):
+        rise_eo.run_inference(NeedsMore(), [dc_fp], str(tmp_path / "o1"), progress=False)
 
     class WrongT(ArgmaxNDVI):
         n_timestamps = 5                          # datacube has T=2
 
-    with pytest.raises(fsd.PreflightError, match="needs T=5"):
-        fsd.run_inference(WrongT(), [dc_fp], str(tmp_path / "o2"), progress=False)
+    with pytest.raises(rise_eo.PreflightError, match="needs T=5"):
+        rise_eo.run_inference(WrongT(), [dc_fp], str(tmp_path / "o2"), progress=False)
 
 
 # --- F4 aggregation ----------------------------------------------------------
@@ -280,6 +280,6 @@ def test_run_inference_from_bundle_path(tmp_path):
     thresh_fp.write_text("0.0")
     bundle_dir = bundle.save(BundledArgmax(), {"thresh": str(thresh_fp)}, str(tmp_path / "bundle"))
     dc_fp = _make_datacube_folder(str(tmp_path / "dc"))
-    result = fsd.run_inference(bundle_dir, [dc_fp], str(tmp_path / "out"), progress=False)
+    result = rise_eo.run_inference(bundle_dir, [dc_fp], str(tmp_path / "out"), progress=False)
     with rasterio.open(result.output_filepaths[0]) as src:
         assert src.read(1)[0, 0] == 1

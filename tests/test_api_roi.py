@@ -14,9 +14,9 @@ from rasterio.crs import CRS
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-import fsd
-from fsd.api import _merge_outputs
-from fsd.model import BaseModelAdapter
+import rise_eo
+from rise_eo.api import _merge_outputs
+from rise_eo.model import BaseModelAdapter
 
 
 class _Tiny(BaseModelAdapter):
@@ -40,8 +40,8 @@ ROI = gpd.GeoDataFrame({"geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326")
 # --- entry-point guards (before any build) -----------------------------------
 
 def test_roi_and_cubes_mutually_exclusive(tmp_path):
-    with pytest.raises(fsd.PreflightError, match="not both"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="not both"):
+        rise_eo.run_inference(
             _Tiny(), inference_datacubes=["x"], output_folderpath=str(tmp_path),
             roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
@@ -50,25 +50,25 @@ def test_roi_and_cubes_mutually_exclusive(tmp_path):
 
 
 def test_neither_roi_nor_cubes(tmp_path):
-    with pytest.raises(fsd.PreflightError, match="pass roi="):
-        fsd.run_inference(_Tiny(), output_folderpath=str(tmp_path))
+    with pytest.raises(rise_eo.PreflightError, match="pass roi="):
+        rise_eo.run_inference(_Tiny(), output_folderpath=str(tmp_path))
 
 
 def test_output_folderpath_required():
-    with pytest.raises(fsd.PreflightError, match="output_folderpath is required"):
-        fsd.run_inference(_Tiny(), inference_datacubes=["x"])
+    with pytest.raises(rise_eo.PreflightError, match="output_folderpath is required"):
+        rise_eo.run_inference(_Tiny(), inference_datacubes=["x"])
 
 
 def test_bad_merge_value(tmp_path):
-    with pytest.raises(fsd.PreflightError, match="merge must be"):
-        fsd.run_inference(_Tiny(), inference_datacubes=["x"],
+    with pytest.raises(rise_eo.PreflightError, match="merge must be"):
+        rise_eo.run_inference(_Tiny(), inference_datacubes=["x"],
                           output_folderpath=str(tmp_path), merge="bogus")
 
 
 def test_roi_preflight_t_mismatch(tmp_path):
     # 2018-06-01..06-11 @ 20d -> T=1, but the model wants T=2 -> refuse before tiling
-    with pytest.raises(fsd.PreflightError, match="needs T=2"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="needs T=2"):
+        rise_eo.run_inference(
             _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 6, 11),
             mosaic_days=20, bands=["B04", "B08"],
@@ -76,8 +76,8 @@ def test_roi_preflight_t_mismatch(tmp_path):
 
 
 def test_roi_preflight_missing_bands(tmp_path):
-    with pytest.raises(fsd.PreflightError, match="missing model-required"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="missing model-required"):
+        rise_eo.run_inference(
             _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
             mosaic_days=20, bands=["B04"],                       # missing B08
@@ -93,8 +93,8 @@ def test_roi_preflight_refuses_duplicate_cell_ids(tmp_path, monkeypatch):
     `roi_to_s2_grids` prevents them at source; this pins the preflight seatbelt AND that
     it fires before the expensive steps (blob makedirs, the bundle upload, setup's N
     writes, AML dispatch). Tiling is stubbed so the test needs no [grid] extra."""
-    import fsd.api as api
-    import fsd.grid as _grid_mod
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
 
     dupes = gpd.GeoDataFrame(
         {"id": ["cell_a", "cell_a", "cell_b"]},
@@ -106,8 +106,8 @@ def test_roi_preflight_refuses_duplicate_cell_ids(tmp_path, monkeypatch):
     monkeypatch.setattr(api.fs, "makedirs", lambda *a, **kw: spent.append("makedirs"))
     monkeypatch.setattr(api, "_ensure_bundle", lambda *a, **kw: spent.append("bundle"))
 
-    with pytest.raises(fsd.PreflightError, match="only 2 distinct cell ids"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="only 2 distinct cell ids"):
+        rise_eo.run_inference(
             _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
             mosaic_days=20, bands=["B04", "B08"],
@@ -116,16 +116,16 @@ def test_roi_preflight_refuses_duplicate_cell_ids(tmp_path, monkeypatch):
 
 
 def test_roi_preflight_refuses_an_roi_that_tiles_to_nothing(tmp_path, monkeypatch):
-    import fsd.api as api
-    import fsd.grid as _grid_mod
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
 
     empty = gpd.GeoDataFrame({"id": []}, geometry=[], crs="EPSG:4326")
     monkeypatch.setattr(_grid_mod, "roi_to_s2_grids", lambda *a, **kw: empty)
     monkeypatch.setattr(api, "_ensure_bundle",
                         lambda *a, **kw: pytest.fail("bundle staged despite a bad roi"))
 
-    with pytest.raises(fsd.PreflightError, match="0 grid cells"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="0 grid cells"):
+        rise_eo.run_inference(
             _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
             mosaic_days=20, bands=["B04", "B08"],
@@ -152,17 +152,17 @@ def _write_grids_and_csv(tmp_path, cached_ids, fresh_ids):
 
 
 def test_resume_identity_same_id_set_does_not_raise(tmp_path):
-    from fsd.api import _check_resume_identity
+    from rise_eo.api import _check_resume_identity
 
     csv_filepath, grids = _write_grids_and_csv(tmp_path, ["a", "b", "c"], ["c", "b", "a"])
     _check_resume_identity(csv_filepath, grids, str(tmp_path))   # no raise
 
 
 def test_resume_identity_disjoint_id_set_raises_naming_folder_counts_and_sample(tmp_path):
-    from fsd.api import _check_resume_identity
+    from rise_eo.api import _check_resume_identity
 
     csv_filepath, grids = _write_grids_and_csv(tmp_path, ["a", "b", "c"], ["x", "y", "z"])
-    with pytest.raises(fsd.PreflightError) as exc_info:
+    with pytest.raises(rise_eo.PreflightError) as exc_info:
         _check_resume_identity(csv_filepath, grids, str(tmp_path))
     msg = str(exc_info.value)
     assert str(tmp_path) in msg
@@ -175,10 +175,10 @@ def test_resume_identity_disjoint_id_set_raises_naming_folder_counts_and_sample(
 def test_resume_identity_small_superset_names_spec46_drift(tmp_path):
     """D2: cached ⊋ fresh by a handful of ids reads as the spec-46 D4 cell-count change
     (e.g. AT_ROI 300->299), not a different roi -- the message must say so."""
-    from fsd.api import _check_resume_identity
+    from rise_eo.api import _check_resume_identity
 
     csv_filepath, grids = _write_grids_and_csv(tmp_path, ["a", "b", "c"], ["a", "b"])
-    with pytest.raises(fsd.PreflightError, match="spec-46"):
+    with pytest.raises(rise_eo.PreflightError, match="spec-46"):
         _check_resume_identity(csv_filepath, grids, str(tmp_path))
 
 
@@ -186,8 +186,8 @@ def test_roi_resume_raises_before_setup_when_cached_ids_differ(tmp_path, monkeyp
     """Integration: a stale input.csv from a DIFFERENT roi must not silently win (#66) --
     the raise must happen before `_create_datacube.setup` (and therefore before any node
     ever fans out on the stale work list)."""
-    import fsd.api as api
-    import fsd.grid as _grid_mod
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
 
     fresh = gpd.GeoDataFrame(
         {"id": ["fresh_a", "fresh_b"]}, geometry=[box(0, 0, 1, 1), box(1, 1, 2, 2)],
@@ -200,8 +200,8 @@ def test_roi_resume_raises_before_setup_when_cached_ids_differ(tmp_path, monkeyp
 
     _write_grids_and_csv(tmp_path, ["stale_a", "stale_b", "stale_c"], [])
 
-    with pytest.raises(fsd.PreflightError, match="output_folderpath"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="output_folderpath"):
+        rise_eo.run_inference(
             _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
             mosaic_days=20, bands=["B04", "B08"],
@@ -213,8 +213,8 @@ def test_roi_resume_refusal_does_not_touch_the_run_folder(tmp_path, monkeypatch)
     check used to run AFTER `grids.geojson` was overwritten and a bundle staged, so a
     refused resume left the old run folder describing the NEW roi while its
     `cells/input.csv` still described the old one."""
-    import fsd.api as api
-    import fsd.grid as _grid_mod
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
 
     fresh = gpd.GeoDataFrame(
         {"id": ["fresh_a"]}, geometry=[box(0, 0, 1, 1)], crs="EPSG:4326",
@@ -226,8 +226,8 @@ def test_roi_resume_refusal_does_not_touch_the_run_folder(tmp_path, monkeypatch)
     _write_grids_and_csv(tmp_path, ["stale_a", "stale_b"], [])
     before = sorted(p.name for p in tmp_path.iterdir())
 
-    with pytest.raises(fsd.PreflightError, match="output_folderpath"):
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError, match="output_folderpath"):
+        rise_eo.run_inference(
             _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
             mosaic_days=20, bands=["B04", "B08"],
@@ -240,9 +240,9 @@ def test_roi_resume_refusal_does_not_touch_the_run_folder(tmp_path, monkeypatch)
 def test_roi_resume_same_ids_skips_setup_and_dispatches(tmp_path, monkeypatch):
     """Re-running with the SAME roi (same id set) still resumes: `setup` is skipped and
     the runner is invoked, exactly as it was before D1/D2 (AC1)."""
-    import fsd.api as api
-    import fsd.grid as _grid_mod
-    from fsd.workflows import runners as _runners
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
+    from rise_eo.workflows import runners as _runners
 
     fresh = gpd.GeoDataFrame(
         {"id": ["cell_a", "cell_b"]}, geometry=[box(0, 0, 1, 1), box(1, 1, 2, 2)],
@@ -275,7 +275,7 @@ def test_roi_resume_same_ids_skips_setup_and_dispatches(tmp_path, monkeypatch):
         "shapefilepath": ["a.geojson", "b.geojson"],
     }).to_csv(csv_filepath, index=False)
 
-    result = fsd.run_inference(
+    result = rise_eo.run_inference(
         _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
         startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
         mosaic_days=20, bands=["B04", "B08"],
@@ -293,9 +293,9 @@ def test_roi_passes_in_memory_footprints_not_geometry_geojson_paths(tmp_path, mo
     import pandas as pd
     from shapely.geometry import Polygon
 
-    import fsd.api as api
-    import fsd.grid as _grid_mod
-    from fsd.workflows import runners as _runners
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
+    from rise_eo.workflows import runners as _runners
 
     # slanted, not a box: `.buffer(0)` on a box is a no-op, which would hide a missing buffer.
     cell_a = Polygon([(0.0, 0.0), (1.0, 0.2), (0.9, 1.0), (0.1, 0.8)])
@@ -329,7 +329,7 @@ def test_roi_passes_in_memory_footprints_not_geometry_geojson_paths(tmp_path, mo
         "shapefilepath": ["/nope/a.geojson", "/nope/b.geojson"],
     }).to_csv(csv_filepath, index=False)
 
-    fsd.run_inference(
+    rise_eo.run_inference(
         _Tiny(), output_folderpath=str(tmp_path), roi=ROI, catalog_filepath="sentinel-2-l2a/c.parquet",
         startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
         mosaic_days=20, bands=["B04", "B08"],
@@ -367,7 +367,7 @@ def test_merge_strict_refuses_mixed_crs(tmp_path):
     a, b = tmp_path / "a.tif", tmp_path / "b.tif"
     _write_cog(a, 32636, 500000, 1300000, 1)
     _write_cog(b, 32637, 400000, 1300000, 2)
-    with pytest.raises(fsd.PreflightError, match="multiple CRS"):
+    with pytest.raises(rise_eo.PreflightError, match="multiple CRS"):
         _merge_outputs([str(a), str(b)], str(tmp_path / "m.tif"), nodata=255)
 
 
@@ -449,8 +449,8 @@ def test_merge_uses_one_env_for_all_inputs_not_one_per_file(tmp_path, monkeypatc
        order tears down the root env first and the next close raises
        `EnvError: No GDAL environment exists`. ONE `rio_env` must cover the whole merge.
     """
-    import fsd.raster as _raster
-    import fsd.storage.azure as _az
+    import rise_eo.raster as _raster
+    import rise_eo.storage.azure as _az
 
     a, b = tmp_path / "a.tif", tmp_path / "b.tif"
     _write_cog(a, 32636, 500000, 1300000, 1)
@@ -511,7 +511,7 @@ def test_output_key_is_scheme_independent():
     """The reason the collect can use `fs.glob` at all: a globbed hit and a caller-built
     url never string-equal on blob (adlfs drops the `abfss://` scheme), but their trailing
     `<window>/<cell>/output.tif` do match."""
-    from fsd.api import _output_key
+    from rise_eo.api import _output_key
 
     url = "abfss://data@acct.dfs.core.windows.net/pfx/out/cells/20180406_20180928/165b09c/output.tif"
     globbed = "data/pfx/out/cells/20180406_20180928/165b09c/output.tif"
@@ -523,7 +523,7 @@ def test_output_key_is_scheme_independent():
 def test_existing_outputs_uses_one_listing_and_keeps_order(tmp_path, monkeypatch):
     """One `fs.glob` for the whole run, zero `fs.exists` — the TODO #61 fix. Order must
     still follow the caller's candidate list, as the comprehension it replaced did."""
-    from fsd import api as _api
+    from rise_eo import api as _api
 
     run = tmp_path / "cells"
     window = "20180406_20180928"
@@ -550,7 +550,7 @@ def test_existing_outputs_uses_one_listing_and_keeps_order(tmp_path, monkeypatch
 def test_existing_outputs_empty_when_nothing_matches(tmp_path):
     """A pattern that matches nothing returns empty so the caller raises its own loud
     'no per-cell outputs were produced' — never a silent success."""
-    from fsd.api import _existing_outputs
+    from rise_eo.api import _existing_outputs
 
     run = tmp_path / "cells"
     run.mkdir()
@@ -561,7 +561,7 @@ def test_existing_outputs_prints_progress_before_and_after(tmp_path, capsys):
     """D5: collect has no per-candidate loop left to tick against (TODO #61 already
     collapsed it to one `fs.glob`), so it prints before/after in the same shape rather
     than inventing a per-item loop that no longer exists."""
-    from fsd.api import _existing_outputs
+    from rise_eo.api import _existing_outputs
 
     run = tmp_path / "cells"
     window = "20180406_20180928"
@@ -593,9 +593,9 @@ def test_run_inference_roi_forwards_options_to_tiling_runner_and_finalize(
     and `dt` reach `_finalize_outputs`."""
     import pandas as pd
 
-    import fsd.api as api
-    import fsd.grid as _grid_mod
-    from fsd.workflows import runners as _runners
+    import rise_eo.api as api
+    import rise_eo.grid as _grid_mod
+    from rise_eo.workflows import runners as _runners
 
     fresh = gpd.GeoDataFrame({"id": ["cell_a"]}, geometry=[box(0, 0, 1, 1)], crs="EPSG:4326")
     dt = datetime.datetime(2018, 6, 1, tzinfo=datetime.timezone.utc)  # run_inference makes dt UTC
@@ -623,7 +623,7 @@ def test_run_inference_roi_forwards_options_to_tiling_runner_and_finalize(
     extra = {"runner": "aml", "storage": "azure",
              "runner_kwargs": {"cluster": "c", "environment": "e:1", "root": "memory://r",
                                "identity_client_id": "id"}} if runner == "aml" else {}
-    fsd.run_inference(
+    rise_eo.run_inference(
         _Tiny(), output_folderpath=str(tmp_path), roi=ROI,
         catalog_filepath="sentinel-2-l2a/c.parquet",
         startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 7, 11),
@@ -643,8 +643,8 @@ def test_roi_preflight_alias_spelling_is_not_a_missing_band(tmp_path, required, 
     class _Alias(_Tiny):
         required_bands = required
 
-    with pytest.raises(fsd.PreflightError) as ei:
-        fsd.run_inference(
+    with pytest.raises(rise_eo.PreflightError) as ei:
+        rise_eo.run_inference(
             _Alias(), output_folderpath=str(tmp_path), roi=ROI,
             catalog_filepath="sentinel-2-l2a/c.parquet",
             startdate=datetime.datetime(2018, 6, 1), enddate=datetime.datetime(2018, 6, 11),

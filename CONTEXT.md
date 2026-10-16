@@ -105,7 +105,7 @@ _Avoid_: baseline (S2-only word), collection version, product version.
 ## Grids & work units
 
 **Grid cell** (a.k.a. S2 grid cell):
-The ~5 km ROI subdivision on the S2-geometry grid (`fsd.grid.roi_to_s2_grids`), id like `165b09c`. One
+The ~5 km ROI subdivision on the S2-geometry grid (`rise_eo.grid.roi_to_s2_grids`), id like `165b09c`. One
 grid cell = one inference datacube = one build+infer unit-of-work = one `output.tif`. Never write a bare "tile": say MGRS tile or grid cell.
 _Avoid_: bare "tile" (ambiguous with MGRS tile).
 
@@ -142,7 +142,7 @@ A script whose purpose is to **measure** the pipeline — stepwise timings, thro
 structured logging. `demos/e2e_austria.py` and `demos/e2e_austria_aml.py` are these (531 and 1056 lines,
 of which 12 and comparably few touch `fsd`), as is everything under `benchmarks/`. A harness may
 deliberately **bypass the public API** to reach a measurement — `e2e_austria.py` calls
-`cdse.download_resume` directly rather than `fsd.download` — which is exactly why it cannot double as
+`cdse.download_resume` directly rather than `rise_eo.download` — which is exactly why it cannot double as
 an example. Its write-up is a **benchmark report**: point-in-time, statused, keeping results and
 appendices.
 _Avoid_: demo (the directory is misnamed and stays so, ADR 0026), example, guide.
@@ -242,4 +242,4 @@ Bringing a run's compact output home to the operator's laptop after a cloud disp
 `storage.transfer` (single-object, atomic) — never the raw inputs, only the small result (spec 39 D4:
 the flatten reduce's `data.npy`/`coords.npy`/`ids.npy`/`metadata.pickle.npy`/`labels.npy?`). Keeps the
 driver control-plane-only: it orchestrates and receives results, it does not pull bulk data over the WAN.
-_Avoid_: download (ambiguous with `fsd.download`, the imagery-fetch verb).
+_Avoid_: download (ambiguous with `rise_eo.download`, the imagery-fetch verb).

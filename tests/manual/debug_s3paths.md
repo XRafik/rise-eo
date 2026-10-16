@@ -24,8 +24,8 @@ Never print secret values.
 ## 0. Setup
 
 ```python
-from fsd.sources.cdse import CdseCredentials
-from fsd.storage import fs
+from rise_eo.sources.cdse import CdseCredentials
+from rise_eo.storage import fs
 import os
 
 ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))  # workspace root

@@ -33,9 +33,9 @@ import sys
 
 import pytest
 
-from fsd.catalog import declaration
-from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-from fsd.model import bundle
+from rise_eo.catalog import declaration
+from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
+from rise_eo.model import bundle
 
 GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "data", "formats")
 
@@ -112,7 +112,7 @@ def test_declaration_golden_files_still_load(version):
 # --- bundle ----------------------------------------------------------------------------------
 
 _ADAPTER_SRC = '''
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 class GoldenAdapter(BaseModelAdapter):
@@ -156,7 +156,7 @@ def test_bundle_format_matches_golden(tmp_path, golden_adapter):
 
 
 _MINIMAL_ADAPTER_SRC = '''
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 def ndvi(data, profile):

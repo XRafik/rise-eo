@@ -1,7 +1,7 @@
 """Load fsd's static STAC catalog into the mini-MPC's pgSTAC (spec 30 A2).
 
 Reads the existing JSON STAC catalog `run_inference`/`regen_output_stac` write
-(`catalog.json` -> collection -> item JSONs) through the **`fsd.storage`** seam, rewrites each
+(`catalog.json` -> collection -> item JSONs) through the **`rise_eo.storage`** seam, rewrites each
 output COG's asset `href` from its host absolute path to the **container-visible**
 `/data/<path-under-outputs-dir>` (the compose `raster` service bind-mounts `--outputs-dir` ->
 `/data` — this is the one non-obvious wiring step; tiles 500 without it, spec 30 A2), emits
@@ -71,7 +71,7 @@ def main(argv=None) -> int:
     from pypgstac.db import PgstacDB
     from pypgstac.load import Loader, Methods
 
-    from fsd.catalog import stac as _stac
+    from rise_eo.catalog import stac as _stac
 
     args = _parse_args(argv)
     result_json = args.result_json

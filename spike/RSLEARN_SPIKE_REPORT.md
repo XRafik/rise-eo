@@ -18,7 +18,7 @@ summary: Build-vs-borrow report -- rslearn v0.1.13 vs fsd. DECIDED 2026-07-31: f
 >
 > **Pinned version.** Every `file:line` citation below is against **rslearn v0.1.13 @ `a5c50c63`**
 > (2026-07-28) as vendored read-only at the workspace root, and against **fsd `main` @ `9e7c5f2`**.
-> Paths written `rslearn/...` are relative to the rslearn repo root; paths written `src/fsd/...`
+> Paths written `rslearn/...` are relative to the rslearn repo root; paths written `src/rise_eo/...`
 > or `docs/...` are relative to this repo.
 
 ## 0. What this document is, and what it is not
@@ -67,7 +67,7 @@ Azure the way fsd now can.**
 fsd is a **Google Earth Engine alternative for running simpler models at scale**. rslearn is a
 foundation-model library that happens to ship an acquisition layer. Those are two tools for two
 jobs, and the measurements below say the acquisition layers should not be merged: rslearn's
-timestep contract provably differs from fsd's (9 vs 10, and 7 vs 9 once a period has no scene),
+timestep contract provably differs from rise_eo's (9 vs 10, and 7 vs 9 once a period has no scene),
 its periods return one first-coverage scene where fsd takes a per-pixel median, its install is
 5.3 GB with no lite path and does not import out of the box, and its blob reader is ~4.8× slower
 than fsd's on the hot path. None of that impugns rslearn — it is a different tool doing a
@@ -114,7 +114,7 @@ words and most of the library reads straightforwardly (`docs/CoreConcepts.md:1-3
 | noun | what it is | fsd's nearest thing |
 |---|---|---|
 | **dataset** | a directory (local or any `UPath`) holding a `config.json` plus windows | *no analogue* — fsd has a **catalog** (GeoParquet) plus loose artifacts, not a dataset object |
-| **window** | one geographic area + one time range. "Roughly corresponds to a training or test example" (`docs/CoreConcepts.md:6-10`) | a **grid cell** (`fsd.grid.roi_to_s2_grids`) — one cell = one datacube = one task |
+| **window** | one geographic area + one time range. "Roughly corresponds to a training or test example" (`docs/CoreConcepts.md:6-10`) | a **grid cell** (`rise_eo.grid.roi_to_s2_grids`) — one cell = one datacube = one task |
 | **layer** | one kind of data within a window: a raster layer of Sentinel-2, a vector layer of field polygons | fsd has no layers; bands are an axis of one array, labels are a separate GeoDataFrame |
 | **item** | one downloadable unit from a source — e.g. one Sentinel-2 scene | a **granule** row in `catalog.parquet` |
 | **item group** | the set of items composited together into *one* output raster for a window | one **timestamp slice** of fsd's datacube (one mosaic) |
@@ -242,7 +242,7 @@ Read the config carefully — it is where rslearn's design shows:
 fsd's tutorial (`docs/tutorial.md`, reviewed 2026-07-31) over the committed fixture:
 
 ```python
-training = fsd.create_training_data(
+training = rise_eo.create_training_data(
     label_polygons="tests/data/tutorial/fields.geojson",
     catalog_filepath="tests/data/tutorial/catalog.parquet",
     startdate=startdate, enddate=enddate, mosaic_days=20,
@@ -276,7 +276,7 @@ to sklearn*. That difference tracks the two projects' actual purposes.
 | item group | timestamp slice of the cube | the `T` question lives here |
 | tile store | — | fsd writes COGs directly to the storage seam |
 | `prepare` | catalog query | fsd's catalog is built once, queried per cell |
-| `ingest` | `fsd.download` | fsd has no separate materialize stage |
+| `ingest` | `rise_eo.download` | fsd has no separate materialize stage |
 | `materialize` | `run_create_datacube` | |
 | `QueryConfig.period_duration` | `mosaic_days` | **the analogue the 2026-07-06 doc missed** |
 | `max_matches` | `T` | rslearn's is a cap, fsd's is an identity |
@@ -351,7 +351,7 @@ regression, embedding, multi-task.
 
 fsd's model story is a **contract** (`BaseModelAdapter`, `docs/tutorial.md`) that you implement
 against your own sklearn/torch model. That is the right scope for fsd — but it means a user who
-wants "fine-tune a geospatial foundation model on my labels" gets nothing from fsd and a great
+wants "fine-tune a geospatial foundation model on my labels" gets nothing from rise_eo and a great
 deal from rslearn. If that is where NASA Harvest work is heading, this is the single strongest
 argument in the whole document for Plan C, and it should not be discounted because fsd's roadmap
 currently says training is out of scope.
@@ -425,7 +425,7 @@ rslearn is built on UPath + fsspec (`rslearn/utils/fsspec.py`), so `abfss://` *s
 argued that because rslearn reads pixels through rasterio, it "inherits exactly that problem" —
 GDAL/VSI auth under managed identity, the thing fsd had to solve separately in spec 31 with an
 `abfss://` → `/vsiadls/` translation plus a refreshed `AZURE_STORAGE_ACCESS_TOKEN`
-(`src/fsd/storage/azure.py:62-80`, `src/fsd/raster/__init__.py:50,80`).
+(`src/rise_eo/storage/azure.py:62-80`, `src/rise_eo/raster/__init__.py:50,80`).
 
 Reading `rslearn/utils/fsspec.py:157-214` shows it does not:
 
@@ -498,7 +498,7 @@ file object moves ~22.
 
 **The cold figure is a separate, one-time cost — and it is small in context.** fsd's first
 `rio_open` in a process pays an AAD token round-trip inside the timed section (`storage_token()`,
-`src/fsd/storage/azure.py:48-56`). Deriving it from the two measurements — 6.3 MB / 3.7 MB/s =
+`src/rise_eo/storage/azure.py:48-56`). Deriving it from the two measurements — 6.3 MB / 3.7 MB/s =
 1.70 s cold against 6.3 / 105.7 = 0.06 s warm — puts that one-time overhead at **≈1.64 s**
 (a derivation, not a measurement; probe 03b now times it directly via `aad_token_seconds`).
 The credential is module-cached, so a task pays it **once per process**, not per granule.
@@ -617,7 +617,7 @@ lean-install property is spent unless rslearn sits behind fsd's own extra.
 
 ### 4.3 The calendar-`T` contract — 🚩 the gate
 
-fsd's `T = ceil((enddate - startdate) / mosaic_days)` (`src/fsd/api.py:69-80`) is a **pure
+fsd's `T = ceil((enddate - startdate) / mosaic_days)` (`src/rise_eo/api.py:69-80`) is a **pure
 function of the caller's window**, computable with zero downloads. Two fsd properties depend on
 that:
 
@@ -985,7 +985,7 @@ Stated plainly so nothing here is over-read:
 | rslearn git history (`a5c50c63`) | 3,060 commits, 1,290 since 2026-01-01, 255 in 90 days, 52 authors |
 | AST census of `rslearn/data_sources/*.py` | 36 modules, 47 `DataSource` subclasses, 40 concrete public classes / 50 (module, class) pairs |
 | `spike/RSLEARN_READ_2026-07-31.md` | the prior source read this report builds on and, in §3.1, corrects on the issue ledger |
-| `fsd` `pyproject.toml`, `src/fsd/api.py:69-80`, `docs/tutorial.md` | fsd's core deps and extras; the `T` identity; the worked example in §2.5 |
+| `fsd` `pyproject.toml`, `src/rise_eo/api.py:69-80`, `docs/tutorial.md` | fsd's core deps and extras; the `T` identity; the worked example in §2.5 |
 | `gh issue view 11,12,21,31,32,33,36` | which open issues rslearn would and would not close |
 
 ---

@@ -15,10 +15,10 @@ import geopandas as gpd
 import numpy as np
 import psutil
 
-from fsd import config
-from fsd.bands import modify
-from fsd.catalog.catalog import TileCatalog
-from fsd.datacube import builder, ops
+from rise_eo import config
+from rise_eo.bands import modify
+from rise_eo.catalog.catalog import TileCatalog
+from rise_eo.datacube import builder, ops
 
 ROOT = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 CATALOG = f"{ROOT}/satellite_benchmark/sentinel-2-l2a/catalog.parquet"

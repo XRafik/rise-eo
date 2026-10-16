@@ -10,7 +10,7 @@ import geopandas as gpd
 import pytest
 import shapely.geometry
 
-from fsd import grid
+from rise_eo import grid
 
 pytest.importorskip("s2", reason="needs the [grid] extra (s2 + s2cell)")
 

@@ -1,12 +1,12 @@
-"""Tests for fsd.datacube.flatten (spec 05). Synthetic datacubes on disk."""
+"""Tests for rise_eo.datacube.flatten (spec 05). Synthetic datacubes on disk."""
 
 import numpy as np
 import pandas as pd
 import pytest
 from rasterio.transform import from_origin
 
-from fsd.datacube import flatten
-from fsd.storage import fs
+from rise_eo.datacube import flatten
+from rise_eo.storage import fs
 
 TS = [pd.Timestamp("2018-06-01", tz="UTC"), pd.Timestamp("2018-07-01", tz="UTC")]
 TRANSFORM = from_origin(500000, 5000000, 10, 10)

@@ -3,9 +3,9 @@
 Implemented here:
   * assertion 4 (P1) - every point-in-time doc parses as a valid D4 status
     header, and every `superseded_by` names a file that exists.
-  * assertion 1 (P4) - every `fsd.config` key is documented in
+  * assertion 1 (P4) - every `rise_eo.config` key is documented in
     `docs/reference/environment.md`. Re-scoped 2026-08-26 (spec 54 D6): the left-hand side
-    of the parity contract moved from `env.example.sh` (retired) to `fsd.config.KEYS`, the
+    of the parity contract moved from `env.example.sh` (retired) to `rise_eo.config.KEYS`, the
     schema `fsd init` now writes.
 
 Assertions 2 and 3 (link resolution, README verb existence) belong to P5.
@@ -117,20 +117,20 @@ def test_d4_superseded_by_target_exists(path: Path):
 
 
 # --------------------------------------------------------------------------
-# Assertion 1 (spec 41 D6/D7, re-scoped spec 54 D6): `fsd.config` key parity.
+# Assertion 1 (spec 41 D6/D7, re-scoped spec 54 D6): `rise_eo.config` key parity.
 #
 # The drift this kills is measured: ~50 variables accreted across the run-books
 # with no canonical list, including four spellings of one idea (AZ_ARCHIVE /
 # _ROOT / _PATH / _CATALOG). Every documentation defect that cost a real run was
 # of this class. The parity contract survives spec 54; only its left-hand side
-# changed, from a shell template to `fsd.config`'s schema.
+# changed, from a shell template to `rise_eo.config`'s schema.
 # --------------------------------------------------------------------------
 
 _ENV_REFERENCE = REPO_ROOT / "docs" / "reference" / "environment.md"
 
 def test_az_vars_are_documented():
-    """Every `fsd.config` key's `AZ_*` env name appears in the environment reference table."""
-    import fsd.config as config
+    """Every `rise_eo.config` key's `AZ_*` env name appears in the environment reference table."""
+    import rise_eo.config as config
 
     reference = _ENV_REFERENCE.read_text()
     missing = sorted(v for v in config._KEY_TO_ENV.values() if v not in reference)
@@ -179,13 +179,13 @@ def test_relative_links_resolve(path: Path):
 
 
 def test_readme_verbs_exist():
-    """Every `fsd.<verb>(` the README calls is really in `fsd.__all__`."""
-    import fsd
+    """Every `fsd.<verb>(` the README calls is really in `rise_eo.__all__`."""
+    import rise_eo
 
-    called = set(re.findall(r"\bfsd\.([a-z_][a-z0-9_]*)\s*\(", (REPO_ROOT / "README.md").read_text()))
+    called = set(re.findall(r"\brise_eo\.([a-z_][a-z0-9_]*)\s*\(", (REPO_ROOT / "README.md").read_text()))
     assert called, "README quickstart calls no fsd verbs — did the example disappear?"
-    missing = sorted(v for v in called if v not in fsd.__all__)
-    assert not missing, f"README calls fsd.<verb> that is not in fsd.__all__: {missing}"
+    missing = sorted(v for v in called if v not in rise_eo.__all__)
+    assert not missing, f"README calls fsd.<verb> that is not in rise_eo.__all__: {missing}"
 
 
 def _readme_fsd_calls():
@@ -200,7 +200,7 @@ def _readme_fsd_calls():
                 continue
             fn = node.func
             if not (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
-                    and fn.value.id == "fsd"):
+                    and fn.value.id == "rise_eo"):
                 continue
             if any(isinstance(a, ast.Starred) for a in node.args) or \
                     any(k.arg is None for k in node.keywords):
@@ -212,19 +212,19 @@ def test_readme_calls_bind_to_real_signatures():
     """The README's example calls must actually bind — assertion 3 with teeth.
 
     Verb *existence* (above) does not prove the call is callable: the P5 review found
-    `fsd.download(...)` missing its required `max_tiles` and `fsd.run_inference(...)`
+    `rise_eo.download(...)` missing its required `max_tiles` and `rise_eo.run_inference(...)`
     passing a `model_bundle=` keyword that does not exist. Both raise TypeError on the
     first line a newcomer copies. This binds each call's real arity and keyword names
     against the live signature, without executing anything.
     """
-    import fsd
+    import rise_eo
 
     calls = list(_readme_fsd_calls())
     assert calls, "README's python blocks contain no fsd.<verb>(...) calls to check."
     sentinel = object()
     failures = []
     for verb, npos, kwnames in calls:
-        fn = getattr(fsd, verb, None)
+        fn = getattr(rise_eo, verb, None)
         if fn is None:
             failures.append(f"fsd.{verb} does not exist")
             continue
@@ -239,8 +239,8 @@ def test_readme_calls_bind_to_real_signatures():
 #
 # Run-book snippets are copy-pasted verbatim onto a remote VM, where a typo costs a
 # round-trip through VPN + `az login` + a clone. Three have bitten already:
-# `git check-ignore -v` inverting its own PASS verdict; `from fsd import storage as fs`
-# (fsd.storage is a PACKAGE -- the functions live in fsd.storage.fs), which raised
+# `git check-ignore -v` inverting its own PASS verdict; `from rise_eo import storage as fs`
+# (rise_eo.storage is a PACKAGE -- the functions live in rise_eo.storage.fs), which raised
 # AttributeError at run-book 43 Step 1f; and `fs.put(<dir>, ..., recursive=True)`, where
 # put/get are file-only and take no `recursive`.
 #
@@ -273,7 +273,7 @@ def _docs_with_python_snippets() -> list[Path]:
 
 def _fsd_attr_uses(text: str):
     """`(module, attr)` for every `alias.attr` where `alias` came from an
-    `import fsd...`/`from fsd... import ...` in the SAME snippet.
+    `import fsd...`/`from rise_eo... import ...` in the SAME snippet.
 
     Both `python -c "..."` bodies inside bash blocks and plain ```python blocks are
     covered: the former are extracted first, so a snippet's imports and its uses are
@@ -288,12 +288,12 @@ def _fsd_attr_uses(text: str):
             continue  # a prose-y or templated snippet; not this test's business
         alias_to_module: dict[str, str] = {}
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("fsd"):
+            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("rise_eo"):
                 for a in node.names:
                     alias_to_module[a.asname or a.name] = f"{node.module}.{a.name}"
             elif isinstance(node, ast.Import):
                 for a in node.names:
-                    if a.name.startswith("fsd"):
+                    if a.name.startswith("rise_eo"):
                         alias_to_module[a.asname or a.name] = a.name
         if not alias_to_module:
             continue
@@ -329,8 +329,8 @@ def test_doc_snippets_use_real_fsd_attributes(path: Path):
             obj = getattr(obj, leaf)
         if not hasattr(obj, attr):
             # A SUBMODULE is only an attribute of its package once something has imported it,
-            # so `import fsd` alone leaves `fsd.aml` unset and this check would depend on
-            # whichever test ran first (Opus review, 2026-08-27 -- `fsd.aml` in
+            # so `import rise_eo` alone leaves `rise_eo.aml` unset and this check would depend on
+            # whichever test ran first (Opus review, 2026-08-27 -- `rise_eo.aml` in
             # docs/howto/build-the-images.md was passing only because tests/test_aml_*.py
             # happened to import it earlier in the session). Ask the import system directly.
             try:
@@ -358,21 +358,21 @@ def test_snippet_selector_is_not_tied_to_the_literal_word_python():
     text = (
         '```bash\n'
         '"$PY" -c "\n'
-        'from fsd import api\n'
+        'from rise_eo import api\n'
         'api.download(roi=None)\n'
         '"\n'
         '```\n'
         '```bash\n'
         '.venv/bin/python -c "\n'
-        'from fsd.catalog import catalog\n'
+        'from rise_eo.catalog import catalog\n'
         'catalog.TileCatalog(\'x\')\n'
         '"\n'
         '```\n'
     )
     assert _SNIPPET_RE.search(text), "a `\"$PY\" -c` snippet must make the file selectable"
     uses = set(_fsd_attr_uses(text))
-    assert ("fsd.api", "download") in uses, uses
-    assert ("fsd.catalog.catalog", "TileCatalog") in uses, uses
+    assert ("rise_eo.api", "download") in uses, uses
+    assert ("rise_eo.catalog.catalog", "TileCatalog") in uses, uses
 
 
 # --- run-book `<py> -c "..."` snippets must survive the shell wrapper ----------------
@@ -636,4 +636,4 @@ def test_setup_installs_the_extras_ci_installs():
 
 def test_install_extras_red_cases():
     assert _install_extras('pip install -e ".[dev,local]"') == [{"dev", "local"}]
-    assert _install_extras("pip install fsd") == []
+    assert _install_extras("pip install rise-eo") == []

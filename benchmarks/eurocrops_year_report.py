@@ -33,8 +33,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 warnings.simplefilter("ignore")
 
-from fsd.datacube import flatten  # noqa: E402
-from fsd.storage import fs  # noqa: E402
+from rise_eo.datacube import flatten  # noqa: E402
+from rise_eo.storage import fs  # noqa: E402
 
 RUN = "fsd/tests/outputs/datacube_year/run"
 CSV = os.path.join(RUN, "input.csv")

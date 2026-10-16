@@ -12,9 +12,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fsd import api
-from fsd.storage import fs
-from fsd.workflows import stamp as stamp_mod
+from rise_eo import api
+from rise_eo.storage import fs
+from rise_eo.workflows import stamp as stamp_mod
 
 T = 2
 BANDS = ["B04", "B08"]
@@ -293,7 +293,7 @@ def test_create_training_data_refuses_run_folder_with_old_input_csv(tmp_path, mo
     import geopandas as gpd
     from shapely.geometry import box
 
-    from fsd import config
+    from rise_eo import config
 
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     export = tmp_path / "export"

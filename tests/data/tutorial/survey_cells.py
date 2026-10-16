@@ -31,7 +31,6 @@ import argparse
 
 import geopandas as gpd
 import pandas as pd
-
 from fsd.grid import roi_to_s2_grids
 
 __all__ = ["survey", "main"]

@@ -17,12 +17,12 @@ import types
 
 import pandas as pd
 
-from fsd.model import BaseModelAdapter, bundle
-from fsd.sources import cdse, mpc
-from fsd.storage import fs
-from fsd.workflows import download as download_cli
-from fsd.workflows import flatten as flatten_cli
-from fsd.workflows import infer_shard, runners, shard
+from rise_eo.model import BaseModelAdapter, bundle
+from rise_eo.sources import cdse, mpc
+from rise_eo.storage import fs
+from rise_eo.workflows import download as download_cli
+from rise_eo.workflows import flatten as flatten_cli
+from rise_eo.workflows import infer_shard, runners, shard
 
 _STAMP_KEYS = ("process_start_at", "work_start_at", "work_end_at", "ended_at")
 

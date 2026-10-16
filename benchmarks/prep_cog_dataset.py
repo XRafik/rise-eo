@@ -3,7 +3,7 @@
 Converts the native CDSE JP2 tiles into base COGs (DEFLATE + PREDICTOR=2, tiled 512,
 NO overviews — the build reads full-res and never uses them) and writes a parallel
 `catalog.parquet` pointing at them, so the throughput harness can A/B JP2 vs COG by
-just `--catalog`-switching (no `src/fsd/` change). Also emits the space-vs-time
+just `--catalog`-switching (no `src/rise_eo/` change). Also emits the space-vs-time
 *storage* side of the experiment: JP2 -> base COG -> COG+overviews (overview row
 estimated from a sample, since we don't materialise overviews for the dataset).
 
@@ -28,8 +28,8 @@ import numpy as np
 import pandas as pd
 import rasterio
 
-from fsd.raster.cog import to_cog
-from fsd.storage import fs
+from rise_eo.raster.cog import to_cog
+from rise_eo.storage import fs
 
 ROOT = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 JP2_ROOT_NAME = "satellite_benchmark"
@@ -97,7 +97,7 @@ def summarize_storage(by_band: dict) -> dict:
 
 
 # --- conversion (raster I/O — the documented rasterio exception) --------------
-# The COG creation profile lives in fsd.raster.cog.to_cog (spec 14); this benchmark
+# The COG creation profile lives in rise_eo.raster.cog.to_cog (spec 14); this benchmark
 # just pins OVERVIEWS="NONE" (base COG — the build never reads overviews).
 
 def _convert_file(src: str, dst: str, overviews: str = "NONE") -> int:

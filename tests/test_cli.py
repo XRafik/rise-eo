@@ -1,4 +1,4 @@
-"""Tests for `fsd.cli` (spec 54 D5). `main()` is called with an argv list, never shelled
+"""Tests for `rise_eo.cli` (spec 54 D5). `main()` is called with an argv list, never shelled
 out to -- the `fsd` console script itself is exercised manually (AC 1/2), not here.
 """
 
@@ -8,8 +8,8 @@ import os
 
 import pytest
 
-import fsd.config as config
-from fsd.cli import main
+import rise_eo.config as config
+from rise_eo.cli import main
 
 
 @pytest.fixture

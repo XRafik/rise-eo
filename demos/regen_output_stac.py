@@ -16,7 +16,7 @@ import argparse
 import json
 import os
 
-from fsd.catalog import stac as _stac
+from rise_eo.catalog import stac as _stac
 
 
 def _parse_args(argv=None) -> argparse.Namespace:

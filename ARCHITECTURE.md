@@ -104,7 +104,7 @@ economics; see [`docs/findings/workload-regimes.md`](docs/findings/workload-regi
 
 Important invariants are **an absence of something** — that is what makes them checkable:
 
-1. **No module reaches a *remote* path outside `fsd.storage`.** This is what makes local ≡
+1. **No module reaches a *remote* path outside `rise_eo.storage`.** This is what makes local ≡
    `abfss://` a config change. Two documented exceptions, both narrow:
    - **raster pixel reads**, which go through rasterio/GDAL VSI (`raster/`, plus the mosaic path in
      `api.py`);
@@ -113,7 +113,7 @@ Important invariants are **an absence of something** — that is what makes them
      `api.py`'s scratch opens carry an inline comment saying so.
 
    The line to hold is therefore: **a bare open is only ever legal on a path that cannot be
-   remote.** Anything that could be a URL goes through `fsd.storage`.
+   remote.** Anything that could be a URL goes through `rise_eo.storage`.
 2. **No direct `boto3`.** S3 transport is `s3fs` with any `endpoint_url`; a tile download is
    `storage.transfer(src, dst)`.
 3. **The unit-of-work never knows how it was scheduled.** `workflows/task.py` reads its inputs and
@@ -179,8 +179,8 @@ dict; nodata is 0; cubes over one start/end/`mosaic_days` share an identical `ti
   `~/.config/fsd/config.toml` + `fsd init`.
 - **A checked-in image build folder** (`notebooks/images/` + `.last_registered.json`, retired by
   spec 56, #79). Same shape: only a checkout could build the image, and nobody else could answer
-  "what was this image built from?". Replaced by `fsd.image.ImageDefinition`, a digest of the
-  resolved fsd reference, and `fsd.image.registry`.
+  "what was this image built from?". Replaced by `rise_eo.image.ImageDefinition`, a digest of the
+  resolved fsd reference, and `rise_eo.image.registry`.
 
 ## 5. The three modes
 

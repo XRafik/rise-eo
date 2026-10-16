@@ -17,13 +17,13 @@ import sys
 
 sys.path.insert(0, "src")
 
-import fsd  # noqa: E402
-from fsd.workflows import create_datacube  # noqa: E402
+import rise_eo  # noqa: E402
+from rise_eo.workflows import create_datacube  # noqa: E402
 
 TARGETS: dict[str, inspect.Signature] = {}
 for _name in ("download", "create_training_data", "run_inference", "verify_adapter",
               "build_datacube", "compute_n_timestamps", "deploy"):
-    _f = getattr(fsd, _name, None)
+    _f = getattr(rise_eo, _name, None)
     if _f is not None:
         TARGETS[_name] = inspect.signature(_f)
 for _name in ("run_create_datacube", "setup", "params_key", "build_shortfall_only"):

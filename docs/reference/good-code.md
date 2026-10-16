@@ -1,6 +1,6 @@
 # Reference — what good code is, and how to audit for it
 
-**Status:** reference note for the 2026-10 refactor audit of `src/fsd/`, written 2026-10-09. It adds no rules.
+**Status:** reference note for the 2026-10 refactor audit of `src/rise_eo/`, written 2026-10-09. It adds no rules.
 The rules are in [`AGENTS.md`](../../AGENTS.md) ("Code conventions") and [`code-comments.md`](code-comments.md).
 This note explains where they come from and turns them into questions an auditor can ask. If this note and a
 rule disagree, the rule wins; report the disagreement. Words in quotation marks were read on the cited page
@@ -40,7 +40,7 @@ the network or reads a clock. You test it by its effects, and the order of calls
   (`AGENTS.md`). They are close to pure mappings. A small one is fine if it hides a real decision, such as
   how to resample to a reference grid. Judge it by Frege and SICP: does it map one well-defined input to
   one output, and can it be used without reading the body?
-- The verbs (`fsd.download`, `fsd.create_training_data`, `fsd.run_inference`, `fsd.deploy`) are
+- The verbs (`rise_eo.download`, `rise_eo.create_training_data`, `rise_eo.run_inference`, `rise_eo.deploy`) are
   commands. Their real result is files on disk; they return a path or a handle to what they wrote. That
   is Fowler's "pop" case, and it is acceptable. Judge a verb by Parnas: which decision does it hide from the
   user (runners, storage backends, grid cells), and does a change to that decision stay inside it?
@@ -116,15 +116,15 @@ next programmer is most likely to lack.
 ## 4. What is objective and what is judgement
 
 **Objective:** two careful auditors would reach the same answer, often with a tool.
-- Unused imports, variables, arguments, functions and options. `ruff check --select F401,F841,ARG src/fsd`
+- Unused imports, variables, arguments, functions and options. `ruff check --select F401,F841,ARG src/rise_eo`
   finds the first three; the rest need `grep` for callers.
 - Near-copies of code (read and compare; a diff of the two blocks settles it).
 - A rule in `AGENTS.md` or `code-comments.md` that the code breaks (a bare "tile", I/O outside
-  `fsd.storage`, a date-stamped comment, a changelog comment).
+  `rise_eo.storage`, a date-stamped comment, a changelog comment).
 - Cyclomatic complexity, McCabe (1976): the number of independent paths through a function. McCabe shows
   that "complexity is independent of physical size" and used "10 which seems like a reasonable, but not
   magical, upper limit". He allowed a large case statement as an exception. `ruff check --select C901
-  src/fsd` uses 10; on 2026-10-09 it reports 24 functions. A high number is a fact. Whether to split the
+  src/rise_eo` uses 10; on 2026-10-09 it reports 24 functions. A high number is a fact. Whether to split the
   function is judgement.
 
 **Judgement:** a reasonable reader could disagree.
@@ -171,10 +171,10 @@ guards user input or prevents silent data loss (`AGENTS.md`, "Keep the safety ch
 1. **[objective]** Is any function, parameter, option, branch or import unused? Check callers with `grep`,
    including tests, notebooks, Snakefiles and `docs/`. (Fowler "Remove Dead Code"; Beck rule 4; `AGENTS.md`
    "no speculative options")
-2. **[objective]** Is there a near-copy of this block elsewhere in `src/fsd`? If yes, record both places.
+2. **[objective]** Is there a near-copy of this block elsewhere in `src/rise_eo`? If yes, record both places.
    Then, as **[judgement]**, say whether they change for the same reason, before you propose a merge.
    (Fowler "Duplicated Code"; Metz)
-3. **[objective]** Does the code break a written rule: a bare "tile", file I/O outside `fsd.storage`, a
+3. **[objective]** Does the code break a written rule: a bare "tile", file I/O outside `rise_eo.storage`, a
    changelog or date-stamped comment, more than one spec reference per function, a docstring past
    `code-comments.md`'s ~15 lines? (`AGENTS.md` "Code conventions"; `code-comments.md`)
 4. **[objective]** What is the function's cyclomatic complexity (`ruff check --select C901`)? Above 10,

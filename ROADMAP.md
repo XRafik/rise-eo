@@ -182,24 +182,24 @@ import-path/entry-point in config; no no-code path early.]
 
 Sketch (signatures to be firmed in specs):
 ```python
-fsd.create_training_data(
+rise_eo.create_training_data(
     label_polygons, dates, mosaic_days, bands,
     feature_sequence, aggregate=None,       # "median_per_id" | None | callable  [F4]
     runner="local", storage=...,            # runner + storage are seams (local|batch, local|blob)
 ) -> TrainingArrays                         # data/ids/labels/metadata  (hides flatten)
 
-fsd.run_inference(
+rise_eo.run_inference(
     roi, dates, mosaic_days, model_bundle,
     runner="local", storage=...,
 ) -> COGs + STAC catalog                    # hides ROI→S2 tiling, datacube build, COG/STAC
 
-fsd.deploy(model_bundle, ...)               # register a bundle for scaled inference
+rise_eo.deploy(model_bundle, ...)               # register a bundle for scaled inference
 ```
 `runner=` and `storage=` are the seams: the **same call** runs Mode A (local, local disk) or
 Mode B/C (Batch, blob) by config alone — no code change.
 
 **ROI → S2-grid tiling** (inside `run_inference(roi=…)`, **P0.75** — the tiling itself landed as
-`fsd.grid`, spec 19) is a **port, not an invention** — the
+`rise_eo.grid`, spec 19) is a **port, not an invention** — the
 legacy `rsutils.s2_grid_utils.get_s2_grids_gdf` already does it, and
 `fetch_satdata/notebooks/demo_preparation.ipynb` pins the intended recipe:
 1. `get_s2_grids_gdf(roi_geojson_4326, grid_size_km=5, scale_fact=1.1, res=None)` — map
@@ -279,7 +279,7 @@ not a rewrite." Retry/resume is per-shard, made safe by per-cube skip-if-exists 
 
 ✅ **No spike is needed first.** GDAL/VSI auth under MSI — long carried as *the* technical
 unknown (`docs/reference/AZURE_INFRA.md` §7.3) — was **solved and proven on real Azure by spec 31**
-(`fsd.raster.rio_open` → `/vsiadls/` + fresh token; runbook `31-p1-datacube-on-blob.md` green
+(`rise_eo.raster.rio_open` → `/vsiadls/` + fresh token; runbook `31-p1-datacube-on-blob.md` green
 2026-07-18). §7.3/§8 are now marked resolved. The residual is narrower and lands in **P4**, not
 here: GDAL *writes* to blob for inference-output COGs are still unproven (`rio_open` raises on a
 remote `mode="w"` by design), i.e. TODO #39. **P2 is design + build, not discovery.**
@@ -291,9 +291,9 @@ after this one, not part of it.
 | Phase | Ships | Demo | Infra-ask |
 |---|---|---|---|
 | **P0** | fsd pip-installable (GitHub); high-level verb *skeletons*; STAC-aligned catalog (§6) | `pip install fsd`, local download→datacube→flatten via `create_training_data` | none |
-| **P0.5** | ✅ **DONE (spec 18, 2026-07-06)** — **ModelAdapter contract** + legacy train/deploy reimplemented on it, **fully local**. `src/fsd/model/` (adapter/features/engine/bundle), `run_inference` real, `create_training_data(adapter=…)`, self-describing bundle. | Mode A end-to-end: EuroCrops RF train → inference → COG + STAC, one plug-in adapter (`tests/manual/deploy.md`) | none |
-| **P0.75** | ✅ **DONE (spec 21, 2026-07-07)** — **Local ROI inference verb (completes Mode A).** `run_inference(roi=…)` chains **tile the ROI (`fsd.grid.roi_to_s2_grids`) → build one datacube per grid cell → infer → COG + STAC (+ optional display merge)** in a single call, all local. The per-cell **build+infer** is one runner-dispatched unit-of-work (`workflows/infer_task.py` + Snakefile → **Batch swaps in at P4 unchanged**, not a second pool). `merge=True\|"reproject"` (strict vs lossy display merge). Imagery assumed present in the catalog — **inference never calls CDSE** (conserve quota, SO-6). *(`create_training_data(roi=…)` deferred — labelled field shapes need no ROI→cell tiling.)* | Mode A: one call turns an ROI GeoJSON into per-cell crop-class COGs (`tests/manual/roi_inference.md`) | none |
-| **P0.9** | ✅ **DONE (spec 23, 2026-07-10)** — **Local-completeness gate + team run-book.** `demos/e2e_austria.py` runs the *whole* local pipeline on **fresh real CDSE data** (download → jp2→COG → datacube → flatten → train → bundle → ROI build+infer → COG/STAC/merged), a **reusable template** (swap `--roi/--train`), **cross-UTM-zone-safe** (`merge="reproject"` area-dominant/`merge_crs`). Adds **decomposed download timing** (transfer vs COG-convert) + a **throughput probe** (factor out link/VPN), the **`plan_download` guardrail** (missing imagery → actionable `fsd.download` plan; verbs never auto-fetch), and a **no-download `estimate_run`** (ETA for any region/window/bands). Doc: `demos/E2E_AUSTRIA.md`. | the go-to "how fsd runs locally" doc + trustworthy timings | none | 
+| **P0.5** | ✅ **DONE (spec 18, 2026-07-06)** — **ModelAdapter contract** + legacy train/deploy reimplemented on it, **fully local**. `src/rise_eo/model/` (adapter/features/engine/bundle), `run_inference` real, `create_training_data(adapter=…)`, self-describing bundle. | Mode A end-to-end: EuroCrops RF train → inference → COG + STAC, one plug-in adapter (`tests/manual/deploy.md`) | none |
+| **P0.75** | ✅ **DONE (spec 21, 2026-07-07)** — **Local ROI inference verb (completes Mode A).** `run_inference(roi=…)` chains **tile the ROI (`rise_eo.grid.roi_to_s2_grids`) → build one datacube per grid cell → infer → COG + STAC (+ optional display merge)** in a single call, all local. The per-cell **build+infer** is one runner-dispatched unit-of-work (`workflows/infer_task.py` + Snakefile → **Batch swaps in at P4 unchanged**, not a second pool). `merge=True\|"reproject"` (strict vs lossy display merge). Imagery assumed present in the catalog — **inference never calls CDSE** (conserve quota, SO-6). *(`create_training_data(roi=…)` deferred — labelled field shapes need no ROI→cell tiling.)* | Mode A: one call turns an ROI GeoJSON into per-cell crop-class COGs (`tests/manual/roi_inference.md`) | none |
+| **P0.9** | ✅ **DONE (spec 23, 2026-07-10)** — **Local-completeness gate + team run-book.** `demos/e2e_austria.py` runs the *whole* local pipeline on **fresh real CDSE data** (download → jp2→COG → datacube → flatten → train → bundle → ROI build+infer → COG/STAC/merged), a **reusable template** (swap `--roi/--train`), **cross-UTM-zone-safe** (`merge="reproject"` area-dominant/`merge_crs`). Adds **decomposed download timing** (transfer vs COG-convert) + a **throughput probe** (factor out link/VPN), the **`plan_download` guardrail** (missing imagery → actionable `rise_eo.download` plan; verbs never auto-fetch), and a **no-download `estimate_run`** (ETA for any region/window/bands). Doc: `demos/E2E_AUSTRIA.md`. | the go-to "how fsd runs locally" doc + trustworthy timings | none | 
 | **P1** | Storage seam on Azure: adlfs/MSI read+write to the `rise` project storage; GDAL-VSI auth proven | build a datacube locally but I/O against `rise` blob (over VPN) | none (uses existing) |
 | **P2** | Azure **AML** runner for datacube fan-out (the runner seam; spec 36) | N datacubes built across the autoscaled `rise` AML `d16` cluster | **none** (was: Batch quota bump + `max_tasks_per_node` — moot since the fork went to AML) |
 | **P3** | 🟡 **PARTIALLY DONE (spec 39, 2026-07-24, pending cluster validation)** — **create-training-data-at-scale.** `create_training_data`/`flatten_training_data` gain `runner="aml"`: an optional download phase (`api.download`, reused), the spec-36 build fan-out (reused), and a new **single-node flatten reduce** (`workflows.runners.run_aml_flatten`, D3 — flatten is a reduce over ALL cubes, not a per-cell fan-out) whose compact output lands back on the laptop (`api._land_local`, D4, `storage.transfer`). The driver stays control-plane-only (ADR-0004) — only the flattened array (+ optional `features.npy`, computed on the driver, ADR-0020) comes home, never the raw cubes. All unit tests mocked at the AML-client boundary — run-book `39-training-data-on-aml` (tag `docs-archive-2026`) Phases 0-2 are the pending real-cluster validation. Docs: `docs/adr/0020`, `CONTEXT.md`. | Mode B: laptop triggers cloud download→build→flatten, pulls the flattened arrays | none new |

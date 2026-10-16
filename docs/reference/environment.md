@@ -4,8 +4,8 @@ Every `AZ_*` variable the run-books use: what it means, **where the value comes 
 command that tells you whether the one you set is right.
 
 > **Continuously-true document** (spec 41 D3) — maintained, and mechanically checked:
-> `tests/test_docs.py::test_az_vars_are_documented` fails the suite if `fsd.config`'s keys and
-> this table drift apart. **Adding or renaming one requires editing `src/fsd/config.py` and this
+> `tests/test_docs.py::test_az_vars_are_documented` fails the suite if `rise_eo.config`'s keys and
+> this table drift apart. **Adding or renaming one requires editing `src/rise_eo/config.py` and this
 > file in the same change** (spec 54 D6).
 
 ## How to use it
@@ -24,8 +24,8 @@ fsd init --blank                 # or: write it empty and fill it in yourself (s
 | `model_registry`, `image_registry` | **optional** — where the registries live. Named rather than chosen per run, and models and images both outlive the runs that made them (spec 55 D2) |
 
 ```python
-import fsd
-cfg = fsd.config.load()          # explicit -- fsd's own code never reads this on its own
+import rise_eo
+cfg = rise_eo.config.load()          # explicit -- fsd's own code never reads this on its own
 ```
 
 **`root` is deliberately NOT in the file** (spec 55 D1). It names a *per-run destination* (cubes, outputs) chosen
@@ -54,7 +54,7 @@ Concrete values for the `rise` platform are in **`AZURE_INFRA_PRIVATE.md` at the
 (uncommitted, never pushed). This repo is public MIT: **no real name, id, URL or CIDR ever lands in
 it.**
 
-**None of these are read by `src/fsd/`.** Every one is operator-facing — consumed by `fsd.config`,
+**None of these are read by `src/rise_eo/`.** Every one is operator-facing — consumed by `rise_eo.config`,
 the run-book shell, the `az` CLI, or `demos/e2e_austria_aml.py`. fsd's library code takes storage
 locations as *arguments*; it never reads the environment or `config.toml` on its own (spec 54 D3).
 (The one near-match you may find in `src/` is `_AZ_RE`, a compiled regex in `storage/azure.py:29`
@@ -97,9 +97,9 @@ garbage. Every `$(az …)` row below is worth echoing once before you rely on it
 | `AZ_FS` | filesystem / container in that account | decode ring | `az storage fs show -n "$AZ_FS" --account-name "$AZ_ACCOUNT" --auth-mode login --query name` |
 | `AZ_PREFIX` | your path prefix inside the container | your choice (a username works) | — |
 | `AZ_SCRATCH_PREFIX` | scratch prefix, no leading/trailing slash | your choice | — |
-| `AZ_ROOT` | **derived** root URL for a run's artifacts. **Not config** (spec 55 D1) — fsd never reads it; a notebook or a shell does | `abfss://$AZ_FS@$AZ_ACCOUNT.dfs.core.windows.net/…` | `python -c "import fsd.storage as s; print(s.fs.exists('$AZ_ROOT'))"` |
-| `AZ_MODEL_REGISTRY` | where `fsd.model.registry` publishes. **Config** (optional), overrides `[azure].model_registry` | a durable path, NOT under a run root | `python -c "import fsd.storage as s; print(s.fs.exists('$AZ_MODEL_REGISTRY'))"` |
-| `AZ_IMAGE_REGISTRY` | where `fsd.image.registry` publishes image definitions (spec 56). **Config** (optional) | a durable path, NOT under a run root | `python -c "import fsd.storage as s; print(s.fs.exists('$AZ_IMAGE_REGISTRY'))"` |
+| `AZ_ROOT` | **derived** root URL for a run's artifacts. **Not config** (spec 55 D1) — fsd never reads it; a notebook or a shell does | `abfss://$AZ_FS@$AZ_ACCOUNT.dfs.core.windows.net/…` | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_ROOT'))"` |
+| `AZ_MODEL_REGISTRY` | where `rise_eo.model.registry` publishes. **Config** (optional), overrides `[azure].model_registry` | a durable path, NOT under a run root | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_MODEL_REGISTRY'))"` |
+| `AZ_IMAGE_REGISTRY` | where `rise_eo.image.registry` publishes image definitions (spec 56). **Config** (optional) | a durable path, NOT under a run root | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_IMAGE_REGISTRY'))"` |
 
 ## 3. The archive and its catalog — ⚠️ four spellings of one idea
 
@@ -125,7 +125,7 @@ this table to see they are the same thing.
 
 ```bash
 python -c "
-import fsd.storage as s, geopandas as gpd
+import rise_eo.storage as s, geopandas as gpd
 print('exists:', s.fs.exists('$AZ_ARCHIVE_CATALOG'))
 print('rows  :', len(gpd.read_parquet('$AZ_ARCHIVE_CATALOG')))"
 ```
@@ -144,10 +144,10 @@ prefix from run-book 34.
 | `AZ_INFER_ENV_NAME` | inference environment — fsd + the adapter's **deps** only (since spec 44 it carries no adapter source; bundles do) | fixed: `fsd-infer-env` | — |
 | `AZ_ENV_VERSION` | **query, never guess** | `az ml environment list … --query '[0].version'` | `echo "$AZ_ENV_VERSION"` — a number, not an error string |
 | `AZ_INFER_ENV_VERSION` | same, for the inference env | same | `echo "$AZ_INFER_ENV_VERSION"` |
-| `AZ_INFER_BUILD_CONTEXT` | folder holding the fsd wheel the inference image is built from; pass it as `fsd.model.verify_image(build_context=...)` to refuse an image built from a pre-spec-44 wheel | e.g. `notebooks/demo_model` | `ls "$AZ_INFER_BUILD_CONTEXT"/fsd-*.whl` |
+| `AZ_INFER_BUILD_CONTEXT` | folder holding the fsd wheel the inference image is built from; pass it as `rise_eo.model.verify_image(build_context=...)` to refuse an image built from a pre-spec-44 wheel | e.g. `notebooks/demo_model` | `ls "$AZ_INFER_BUILD_CONTEXT"/fsd-*.whl` |
 | `AZ_ENV_NAME_VERSION` | `name:version`, read by `demos/e2e_austria_aml.py` | derived | `echo "$AZ_ENV_NAME_VERSION"` |
 
-⚠️ **Rebuild the environment after any `src/fsd/` change**, then re-query the version. A stale
+⚠️ **Rebuild the environment after any `src/rise_eo/` change**, then re-query the version. A stale
 version silently runs old code on the nodes — the failure looks like a logic bug, not a config one.
 
 ## 5. Identity & secrets
@@ -158,7 +158,7 @@ version silently runs old code on the nodes — the failure looks like a logic b
 | `AZ_UAMI_CLIENT_ID` | its client id | `az identity show … --query clientId -o tsv` | must be a GUID |
 | `AZ_VAULT_URL` | Key Vault URL, if you have write access | decode ring | `az keyvault show --id "$AZ_VAULT_URL" --query name -o tsv` |
 | `AZ_CDSE_SECRET_NAME` | CDSE credentials secret in that vault | decode ring | `az keyvault secret show --vault-name … -n "$AZ_CDSE_SECRET_NAME" --query name` |
-| `AZ_CREDS_URL` | blob copy of the CDSE credentials the nodes read | derived from `AZ_ROOT` | `python -c "import fsd.storage as s; print(s.fs.exists('$AZ_CREDS_URL'))"` |
+| `AZ_CREDS_URL` | blob copy of the CDSE credentials the nodes read | derived from `AZ_ROOT` | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_CREDS_URL'))"` |
 | `AZ_LOCAL_CREDS_JSON` | your local `cdse_credentials.json` | your machine | `test -f "$AZ_LOCAL_CREDS_JSON" && echo ok` |
 
 **Nothing here is a secret value** — these are *names and locations* of secrets. Never put a
@@ -190,7 +190,7 @@ before you spend.**
 
 ## Related
 
-- `fsd.config` (`src/fsd/config.py`) — the schema and loader for the seven keys `fsd init` writes
+- `rise_eo.config` (`src/rise_eo/config.py`) — the schema and loader for the seven keys `fsd init` writes
   (five required + two optional registries; `root` is not one of them — spec 55 D1)
 - `AZURE_INFRA_PRIVATE.md` (workspace root, uncommitted) — the concrete values
 - [`AZURE_INFRA.md`](AZURE_INFRA.md) — the scrubbed public description of the platform

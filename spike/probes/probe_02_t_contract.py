@@ -6,7 +6,7 @@ synthetic. It can veto the expensive half of the spike.
 
 ## What is under test
 
-fsd's contract (`src/fsd/api.py:69-80`) is that
+fsd's contract (`src/rise_eo/api.py:69-80`) is that
 
     T = ceil((enddate - startdate) / mosaic_days)
 
@@ -22,7 +22,7 @@ divergences, and this probe tests each in isolation:
   B. **floor, not ceil** -- the guard `period_end - period_duration >= time_range[0]`
      (`utils.py:447`) drops a trailing partial period
   C. **end-anchored, not start-anchored** -- periods walk backwards from `time_range[1]`
-     (`utils.py:446,455`), so window boundaries differ in phase from fsd's
+     (`utils.py:446,455`), so window boundaries differ in phase from rise_eo's
 
 The headline case mirrors the committed tutorial fixture (`tests/data/tutorial/`):
 2018-04-01 -> 2018-09-29, `mosaic_days=20`. fsd gives `T = ceil(181/20) = 10`. If rslearn
@@ -69,7 +69,7 @@ BOX = shapely.box(0, 0, 1000, 1000)
 def fsd_n_timestamps(start: datetime, end: datetime, mosaic_days: int) -> int:
     """fsd's `T`, reimplemented so the probe needs no fsd import.
 
-    Mirrors `src/fsd/api.py:69-80` exactly: ceil of the span in days over mosaic_days.
+    Mirrors `src/rise_eo/api.py:69-80` exactly: ceil of the span in days over mosaic_days.
     The spike venv (`.venv-rslearn`) deliberately does not have fsd installed -- the
     charter keeps the two environments apart -- so this is duplicated on purpose.
     """

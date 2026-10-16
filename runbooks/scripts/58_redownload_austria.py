@@ -240,8 +240,8 @@ def step_discover(bands: list[str], max_cloudcover: float) -> int:
         "free_gb_after_delete_exceeds_estimate": True,
     })
     try:
-        from fsd import collections as _collections
-        from fsd.sources import mpc
+        from rise_eo import collections as _collections
+        from rise_eo.sources import mpc
 
         declaration = _collections.get("sentinel-2-l2a")
         print("[58] querying MPC STAC (no bytes) ...", flush=True)
@@ -397,7 +397,7 @@ def step_download(bands: list[str], max_cloudcover: float, max_concurrent: int) 
     try:
         import time
 
-        from fsd import api
+        from rise_eo import api
 
         t0 = time.time()
         print(f"[58] downloading {bands} -> {DATA_DIR} "
@@ -418,7 +418,7 @@ def step_download(bands: list[str], max_cloudcover: float, max_concurrent: int) 
         )
         elapsed = time.time() - t0
 
-        from fsd.storage import fs
+        from rise_eo.storage import fs
         gdf = fs.read_parquet(catalog_filepath)
         archive_bands, uneven = _bands_in_catalog(gdf)
         # A partial run is the normal outcome of a throttled or interrupted download, and
@@ -479,9 +479,9 @@ def step_verify() -> int:
         "every_granule_has_the_same_bands": True,
     })
     try:
-        from fsd.catalog import declaration as dm
-        from fsd.catalog.catalog import COLUMNS
-        from fsd.storage import fs
+        from rise_eo.catalog import declaration as dm
+        from rise_eo.catalog.catalog import COLUMNS
+        from rise_eo.storage import fs
 
         catalog_filepath = str(DATA_DIR / "catalog.parquet")
         # Via the storage seam, not gpd.read_parquet: `fs.read_parquet` is what restores the
@@ -563,7 +563,7 @@ def _offset_matches_baseline(gdf) -> tuple[list[dict], list[str]]:
     """Per row: does the catalog's `offset` match what the item's OWN declared processing
     baseline implies? Returns `(mismatches, baselines_seen)`.
 
-    ESA's rule (`fsd.sources._s2_radiometry`): offset is −1000 for baseline ≥ 04.00, else 0.
+    ESA's rule (`rise_eo.sources._s2_radiometry`): offset is −1000 for baseline ≥ 04.00, else 0.
     Reading the baseline out of the `properties` column (spec 58 D12's addition) and
     re-deriving the offset checks the ingest end to end without assuming which provider or
     which reprocessing this archive came from — MPC's original-2018 items declare a pre-04.00
@@ -574,7 +574,7 @@ def _offset_matches_baseline(gdf) -> tuple[list[dict], list[str]]:
     A row whose `properties` names no baseline is a mismatch, not a pass: `offset_for_item`
     raises rather than defaulting for exactly that reason (spec 34 §3a A1).
     """
-    from fsd.sources._s2_radiometry import _BASELINE_PROPS, baseline_tuple
+    from rise_eo.sources._s2_radiometry import _BASELINE_PROPS, baseline_tuple
 
     mismatches: list[dict] = []
     baselines: set[str] = set()
@@ -634,7 +634,7 @@ def step_build_cube() -> int:
     try:
         import geopandas as gpd
 
-        from fsd.storage import fs
+        from rise_eo.storage import fs
 
         cube_dir = OUT / "cubes"
         cube_dir.mkdir(parents=True, exist_ok=True)
@@ -677,9 +677,9 @@ def _most_multi_tile_cell(catalog_filepath: str):
     cover for that seam (`CLAUDE.md`); the Ethiopia ROI has no imagery behind it any more."""
     import geopandas as gpd
 
-    from fsd import grid as _grid
-    from fsd.catalog.catalog import filter_gdf
-    from fsd.storage import fs
+    from rise_eo import grid as _grid
+    from rise_eo.catalog.catalog import filter_gdf
+    from rise_eo.storage import fs
 
     catalog_gdf = fs.read_parquet(catalog_filepath)
     grids = _grid.roi_to_s2_grids(str(ROI_PATH))
@@ -707,7 +707,7 @@ def _build_one(cell_filepath: str, catalog_filepath: str, out_dir: pathlib.Path,
     import numpy as np
     import pandas as pd
 
-    from fsd.workflows import create_datacube
+    from rise_eo.workflows import create_datacube
 
     out_dir.mkdir(parents=True, exist_ok=True)
     create_datacube.run_create_datacube(

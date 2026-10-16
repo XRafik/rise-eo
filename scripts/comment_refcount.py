@@ -1,6 +1,6 @@
-"""Count prose lines and backward references per file under src/fsd.
+"""Count prose lines and backward references per file under src/rise_eo.
 
-Usage: .venv/bin/python scripts/comment_refcount.py src/fsd   (or any subpackage)
+Usage: .venv/bin/python scripts/comment_refcount.py src/rise_eo   (or any subpackage)
 Prints refs / prose lines / code lines / prose-per-code per file, densest first, then a TOTAL.
 Needs Python >= 3.8 (`ast.Constant`); an older interpreter silently reports zero docstrings.
 The convention it audits: docs/reference/code-comments.md.
@@ -42,7 +42,7 @@ def stats(p: Path):
     return total, code, len(prose), refs
 
 
-root = Path(sys.argv[1] if len(sys.argv) > 1 else "src/fsd")
+root = Path(sys.argv[1] if len(sys.argv) > 1 else "src/rise_eo")
 rows = []
 for p in sorted(root.rglob("*.py")):
     try:

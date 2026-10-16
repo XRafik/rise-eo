@@ -18,13 +18,13 @@ import types
 
 import pytest
 
-from fsd.model import bundle, registry
-from fsd.model.verify_image import verify_image
-from fsd.storage import fs
-from fsd.workflows import runners
+from rise_eo.model import bundle, registry
+from rise_eo.model.verify_image import verify_image
+from rise_eo.storage import fs
+from rise_eo.workflows import runners
 
 ADAPTER_SRC = '''
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 class TinyAdapter(BaseModelAdapter):
@@ -132,7 +132,7 @@ def test_package_adapter_at_top_of_code_is_accepted(tmp_path, importable):
     importable(
         "d2pkg/adapters.py",
         src='''
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
 
 
         class D2PkgAdapter(BaseModelAdapter):
@@ -162,7 +162,7 @@ def test_package_adapter_at_top_of_code_is_accepted(tmp_path, importable):
 def test_unembedded_sibling_import_raises_naming_it_and_the_fix(tmp_path, importable):
     importable("d3_mod.py", src='''
         from helper import V
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
 
 
         class D3Adapter(BaseModelAdapter):
@@ -191,7 +191,7 @@ def test_dependency_import_does_not_raise(tmp_path, importable):
     alone -- it's declared via `requirements=`, never embedded."""
     importable("d3dep_mod.py", src='''
         from packaging.requirements import Requirement
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
 
 
         class D3DepAdapter(BaseModelAdapter):
@@ -220,7 +220,7 @@ def test_transitive_sibling_chain_is_detected(tmp_path, importable):
     the adapter file itself (a) never imports c directly."""
     root = importable("d3chain_mod.py", src='''
         from b_sibling import BVAL
-        from fsd.model.adapter import BaseModelAdapter
+        from rise_eo.model.adapter import BaseModelAdapter
 
 
         class ChainAdapter(BaseModelAdapter):

@@ -14,14 +14,14 @@ import types
 
 import pytest
 
-from fsd.image import registry as image_registry
-from fsd.model import bundle
-from fsd.model.verify_image import verify_image
-from fsd.storage import fs
-from fsd.workflows import runners
+from rise_eo.image import registry as image_registry
+from rise_eo.model import bundle
+from rise_eo.model.verify_image import verify_image
+from rise_eo.storage import fs
+from rise_eo.workflows import runners
 
 ADAPTER_SRC = '''
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 class TinyAdapter(BaseModelAdapter):
@@ -101,7 +101,7 @@ def _publish_definition(tmp_path, name, fsd_ref):
         "base": "mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04@sha256:" + "a" * 64,
         "fsd": fsd_ref, "extras": ["azure"], "extra_pip": [], "base_resolved": True,
     }
-    from fsd.image import digest as digest_mod
+    from rise_eo.image import digest as digest_mod
     d = digest_mod.digest(resolved)
     image_registry.publish(name, registry_root, resolved, d)
     return registry_root

@@ -16,9 +16,9 @@ import shapely.geometry
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 
-from fsd import config
-from fsd.catalog import stac
-from fsd.catalog.catalog import TileCatalog
+from rise_eo import config
+from rise_eo.catalog import stac
+from rise_eo.catalog.catalog import TileCatalog
 
 
 def _catalog_gdf():
@@ -155,7 +155,7 @@ def test_write_stac_catalog_empty_raises():
 # --- TileCatalog.to_stac end to end ------------------------------------------
 
 def test_tilecatalog_to_stac(tmp_path):
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     cat_path = str(tmp_path / "catalog.parquet")
     fs.write_parquet(cat_path, _catalog_gdf())
@@ -168,7 +168,7 @@ def test_tilecatalog_to_stac(tmp_path):
 
 
 def test_write_stac_catalog_mirrors_declaration_on_collection(tmp_path):
-    from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
+    from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
 
     decl = CollectionDeclaration(
         reference_band="B08", mask_spec=MaskSpec(band="SCL", classes=(3, 8, 9)),
@@ -181,7 +181,7 @@ def test_write_stac_catalog_mirrors_declaration_on_collection(tmp_path):
     collection = next(cat.get_children())
     assert isinstance(collection, pystac.Collection)
 
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     assert collection.extra_fields[declaration_module.ATTRS_KEY] == declaration_module.to_json(decl)
 
@@ -193,8 +193,8 @@ def test_write_stac_catalog_mirrors_declaration_on_collection(tmp_path):
 
 
 def test_collection_to_declaration_round_trips():
-    from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-    from fsd.catalog.stac import collection_to_declaration
+    from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
+    from rise_eo.catalog.stac import collection_to_declaration
 
     decl = CollectionDeclaration(
         reference_band="B04", mask_spec=MaskSpec(band="QA", classes=(1, 2)),
@@ -212,7 +212,7 @@ def test_collection_to_declaration_round_trips():
 
 
 def test_collection_to_declaration_no_stamp_returns_none():
-    from fsd.catalog.stac import collection_to_declaration
+    from rise_eo.catalog.stac import collection_to_declaration
 
     collection = pystac.Collection(
         id="x", description="x",
@@ -225,15 +225,15 @@ def test_collection_to_declaration_no_stamp_returns_none():
 
 
 def test_tilecatalog_to_stac_mirrors_the_catalogs_stamp(tmp_path):
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import CollectionDeclaration
-    from fsd.catalog.stac import collection_to_declaration
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import CollectionDeclaration
+    from rise_eo.catalog.stac import collection_to_declaration
 
     decl = CollectionDeclaration(reference_band="B04")
     cat_path = str(tmp_path / "catalog.parquet")
     gdf = _catalog_gdf()
     declaration_module.to_attrs(gdf, decl)
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     fs.write_parquet(cat_path, gdf)
 

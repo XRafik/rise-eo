@@ -1,4 +1,4 @@
-"""Tests for fsd.datacube.ops (spec 04). Synthetic, deterministic."""
+"""Tests for rise_eo.datacube.ops (spec 04). Synthetic, deterministic."""
 
 import datetime
 
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fsd.datacube import ops
+from rise_eo.datacube import ops
 
 
 def _ts(day):

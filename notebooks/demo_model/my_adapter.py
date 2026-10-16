@@ -1,5 +1,5 @@
-from fsd.bands import modify
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.bands import modify
+from rise_eo.model.adapter import BaseModelAdapter
 
 class CropRF(BaseModelAdapter):
     required_bands = ["B04", "B08"]        # raw bands SEQ consumes

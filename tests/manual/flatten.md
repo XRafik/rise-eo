@@ -1,6 +1,6 @@
 # Manual test — real satellite data (flatten → training arrays)
 
-Validates `fsd.datacube.flatten.flatten` against a **real, multi-tile / multi-CRS**
+Validates `rise_eo.datacube.flatten.flatten` against a **real, multi-tile / multi-CRS**
 labelled field set: it builds one datacube per field via the workflow, then folds the
 cubes into per-pixel training arrays. This is the last v1-pipeline stage to get a
 real-data run (download → catalog → datacube → **flatten** → workflows). Unit tests
@@ -35,9 +35,9 @@ to the workspace root (parent of `fsd/`):
 ```python
 import os, datetime, warnings
 import numpy as np, pandas as pd, geopandas as gpd
-from fsd.workflows import create_datacube
-from fsd.datacube import flatten
-from fsd.storage import fs
+from rise_eo.workflows import create_datacube
+from rise_eo.datacube import flatten
+from rise_eo.storage import fs
 warnings.simplefilter("ignore")
 
 ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))

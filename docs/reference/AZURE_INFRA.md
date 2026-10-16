@@ -176,13 +176,13 @@ driver host; per §3.1 it is now also the scale backend.
   tasks onto nodes as they scale up.
 
 This is exactly the fsd **runner seam**: today the "build one datacube" unit-of-work is a
-CLI (`fsd.workflows.task`) dispatched locally by **Snakemake**; on Azure the **same CLI**
+CLI (`rise_eo.workflows.task`) dispatched locally by **Snakemake**; on Azure the **same CLI**
 becomes a **Batch task**, and a Batch runner replaces Snakemake as the dispatcher. Snakemake
 = the *local* runner; Azure Batch = the *scale* runner. The unit-of-work doesn't change.
 
 ```
                  fsd today (local)                    fsd on rise (Azure Batch)
-  unit of work   fsd.workflows.task CLI               SAME CLI, inside a container
+  unit of work   rise_eo.workflows.task CLI               SAME CLI, inside a container
   dispatcher     Snakemake (local cores)              Azure Batch job/tasks → project pool
   parallelism    N processes on 1 machine             N tasks across autoscaled nodes
   file I/O       fsspec → local disk                  fsspec → adlfs (project storage)
@@ -193,14 +193,14 @@ becomes a **Batch task**, and a Batch runner replaces Snakemake as the dispatche
 
 ## 4. How fsd's seams land on `rise`
 
-### 4.1 Storage seam (`fsd.storage`, fsspec) → ADLS Gen2 via MSI
+### 4.1 Storage seam (`rise_eo.storage`, fsspec) → ADLS Gen2 via MSI
 
 - Project storage `st<proj>` is **ADLS Gen2**. fsspec talks to it through **`adlfs`**
   (`AzureBlobFileSystem` / `abfs[s]://`). URIs look like
   `abfss://data@<storage-account>.dfs.core.windows.net/<path>` (container `data`).
 - **Auth = `DefaultAzureCredential`**, *not* account keys (keys are disabled). On a pool
   node this resolves to the compute identity's MSI automatically; on a laptop it's `az
-  login` + VPN. This is a config change to `fsd.storage`, **not** new code paths — exactly
+  login` + VPN. This is a config change to `rise_eo.storage`, **not** new code paths — exactly
   the "storage becomes config, not code" goal. We'll need to confirm `adlfs` +
   `DefaultAzureCredential` works with our `storage.transfer` / `size` / `load_npy` calls.
 - The **generic S3 transport** in fsd (CDSE download via `s3fs`, any `endpoint_url`) is
@@ -215,9 +215,9 @@ is a real design point for the spec.
 
 ### 4.2 Runner seam → Azure Batch runner
 
-- Add an **Azure Batch runner** alongside the Snakemake runner in `fsd.workflows`. It
+- Add an **Azure Batch runner** alongside the Snakemake runner in `rise_eo.workflows`. It
   builds the same `input.csv` of units, then for each unit creates a Batch **task** whose
-  command line is the `fsd.workflows.task` CLI (same args we pass today).
+  command line is the `rise_eo.workflows.task` CLI (same args we pass today).
 - Submission uses the **`azure-batch` SDK** authenticated via `DefaultAzureCredential`
   against the Batch account URL (a TF output). The compute identity has Contributor on the
   account.
@@ -248,7 +248,7 @@ is a real design point for the spec.
      |  2. az/MSI: submit Batch job to the project Batch account, one task per unit
      v
   [Batch pool]  autoscales 0 -> up to 2 x D64ds_v6, pulls fsd image from the project ACR
-     |  each task = `python -m fsd.workflows.task ...` in the fsd container, running as the compute identity
+     |  each task = `python -m rise_eo.workflows.task ...` in the fsd container, running as the compute identity
      |    - reads CDSE creds from Key Vault (MSI)
      |    - downloads S2 tiles from CDSE S3 -> writes to abfss://data@<storage-account>... (fsspec/adlfs)
      |    - builds datacube (rasterio reads blobs via GDAL VSI), writes datacube.npy + metadata to blob
@@ -307,7 +307,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
    example pairs `vms` + `azure-batch` for exactly this.
 3. ~~**GDAL/VSI auth under MSI** for the raster-read exception — needs a spike.~~
    **✅ RESOLVED by spec 31 (proven on real Azure 2026-07-18, run-book `31-p1-datacube-on-blob` (tag `docs-archive-2026`)
-   green).** `fsd.raster.rio_open` translates `abfss://`/`az://` → `/vsiadls/` (`storage/azure.py`)
+   green).** `rise_eo.raster.rio_open` translates `abfss://`/`az://` → `/vsiadls/` (`storage/azure.py`)
    and opens inside a `rasterio.Env` carrying a **fresh `AZURE_STORAGE_ACCESS_TOKEN`** +
    `AZURE_STORAGE_ACCOUNT`; local paths stay a straight passthrough. The build streamed blob COGs
    this way end to end. **Residual GDAL-*writes* question RESOLVED by spec 38 D5 (2026-07-23),
@@ -324,7 +324,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
 5. **Container image** — moot for a Batch task (dropped, `AZURE_INFRA.md` §3.1); **spec 36 D5**
    answers the equivalent AML question — an AML **Environment** (conda/pip spec + fsd wheel),
    built and versioned by AML itself, no ACR push required.
-6. ~~**Runner abstraction in `fsd.workflows`** — the seam so `--runner=snakemake|batch` selects
+6. ~~**Runner abstraction in `rise_eo.workflows`** — the seam so `--runner=snakemake|batch` selects
    dispatcher without touching the task CLI.~~ **✅ RESOLVED by spec 36 D3**: `runner="local"|"aml"`,
    `workflows.runners.run_aml` the only new dispatcher, `workflows/task.py` (the unit of work)
    provably unchanged (D3 invariant 1).
@@ -337,7 +337,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
    past Batch.
 8. **Cost/observability** — **partly addressed by spec 36 D9**: each AML shard writes
    `_status/<k>.json` shaped like a spec-24 `_result.json`; the existing spec-11 `timings.json`
-   sidecar already lands next to each cube via `fsd.storage` and needed no change. Budget-alert
+   sidecar already lands next to each cube via `rise_eo.storage` and needed no change. Budget-alert
    wiring itself is still open.
 9. **Download, not just build, on AML — ✅ RESOLVED by spec 37** (implemented, pending review):
    the same `run_aml`/`shard_units`/D5-Environment/D4-identity/D9-telemetry machinery dispatches
@@ -345,7 +345,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
    is **per-source**, not uniform fan-out (D1): CDSE's S3 concurrency cap is per-credential, so it
    runs as **one** job at its existing 4-wide concurrency; MPC reads straight from Azure Blob (no
    per-credential cap), so it **fans out** across N nodes near-linearly. §4.4's Key Vault plan is
-   now concrete: `fsd.secrets.get_secret(vault_url, name)` reads the CDSE creds secret under the
+   now concrete: `rise_eo.secrets.get_secret(vault_url, name)` reads the CDSE creds secret under the
    same `AZURE_CLIENT_ID` identity spec 36 D4 already sets — one identity covers blob and Key Vault,
    so this needed **no new infra grant** (the compute identity already holds `Key Vault Secrets
    User`). See `specs/37-download-on-aml.md`.
@@ -368,7 +368,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
   2026-07-21** (fork probe): `accountEndpoint` follows the documented
   `<batch-account>.<region>.batch.azure.com` shape, and `poolAllocationMode` is `BatchService` as
   assumed. Concrete value in the private doc.
-- ~~Whether `adlfs` + `DefaultAzureCredential` covers all `fsd.storage` operations we use.~~
+- ~~Whether `adlfs` + `DefaultAzureCredential` covers all `rise_eo.storage` operations we use.~~
   **✅ Largely answered by spec 31 + runbooks 31/34** (green 2026-07-18/07-20): `read/write_parquet`,
   `save/load_npy`, `transfer` (`.part` + `mv`), `put`, `exists`, `makedirs` all ran against `rise`
   blob, and `FSSPEC_ABFSS_ANON` was proven to cross a subprocess boundary. ~~**Still unconfirmed:

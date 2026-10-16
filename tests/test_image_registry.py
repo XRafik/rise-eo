@@ -1,4 +1,4 @@
-"""Spec 56 §9 step 3 -- `fsd.image.registry`: AC5 (parity with model registry) and AC6
+"""Spec 56 §9 step 3 -- `rise_eo.image.registry`: AC5 (parity with model registry) and AC6
 (round-trip), against `tmp_path`."""
 
 from __future__ import annotations
@@ -8,10 +8,10 @@ import os
 
 import pytest
 
-from fsd.image import digest as digest_mod
-from fsd.image import registry
-from fsd.registry import _core as core
-from fsd.storage import fs
+from rise_eo.image import digest as digest_mod
+from rise_eo.image import registry
+from rise_eo.registry import _core as core
+from rise_eo.storage import fs
 
 RESOLVED = {
     "base": "mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04@sha256:" + "a" * 64,

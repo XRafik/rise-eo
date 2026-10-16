@@ -5,7 +5,7 @@ summary: First real batch-download benchmark against the satellite_benchmark/-er
 
 # Download benchmark #1 — 1 year, Ethiopia multi-CRS ROI
 
-First real batch-download run of `fsd.sources.cdse.download` (TODO #9). Purpose: see
+First real batch-download run of `rise_eo.sources.cdse.download` (TODO #9). Purpose: see
 how the STAC-discovery + S3-transfer pipeline behaves at scale and **measure the
 fast-fail rate** against CDSE's flaky S3 endpoint (BUG-001).
 

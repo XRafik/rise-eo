@@ -12,10 +12,10 @@ import geopandas as gpd
 import pytest
 import shapely.geometry as sg
 
-from fsd import config
-from fsd.catalog.catalog import TileCatalog
-from fsd.catalog.declaration import S2_L2A_DECLARATION
-from fsd.datacube import builder
+from rise_eo import config
+from rise_eo.catalog.catalog import TileCatalog
+from rise_eo.catalog.declaration import S2_L2A_DECLARATION
+from rise_eo.datacube import builder
 
 
 # Copied from tests/test_p12b_characterisation.py: CI runs bare `pytest`, which cannot import `tests.*`.

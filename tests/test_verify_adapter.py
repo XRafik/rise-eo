@@ -1,4 +1,4 @@
-"""Fast + synthetic tests for `fsd.verify_adapter` (spec 48) — preflight, cell selection,
+"""Fast + synthetic tests for `rise_eo.verify_adapter` (spec 48) — preflight, cell selection,
 resume-identity, and the returned verdict shape, with the build/land/infer legs
 monkeypatched. The real end-to-end (`runner="local"` against the tutorial fixture, AC10)
 lives in `test_tutorial_fixture.py::test_verify_adapter_real_fixture_local_runner`.
@@ -17,12 +17,12 @@ import pandas as pd
 import pytest
 import shapely.geometry
 
-import fsd
-from fsd import api
-from fsd.model.adapter import BaseModelAdapter
-from fsd.storage import fs
-from fsd.workflows import create_datacube as _create_datacube
-from fsd.workflows import infer_only_task as _infer_only_task
+import rise_eo
+from rise_eo import api
+from rise_eo.model.adapter import BaseModelAdapter
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube as _create_datacube
+from rise_eo.workflows import infer_only_task as _infer_only_task
 
 JAN1 = datetime.datetime(2018, 1, 1)
 JAN60 = datetime.datetime(2018, 3, 2)  # 60 days later
@@ -82,7 +82,7 @@ def _catalog(tmp_path, n_cell_a=3, n_cell_b=1):
 
 
 def _patch_grid(monkeypatch):
-    import fsd.grid as grid_mod
+    import rise_eo.grid as grid_mod
 
     monkeypatch.setattr(grid_mod, "roi_to_s2_grids", lambda *a, **kw: _GRIDS.copy())
 
@@ -135,7 +135,7 @@ def test_verify_adapter_happy_path_report_shape(tmp_path, monkeypatch):
     cat = _catalog(tmp_path)
     export = str(tmp_path / "export")
 
-    result = fsd.verify_adapter(
+    result = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export, cell="cell_a",
@@ -182,7 +182,7 @@ def test_verify_adapter_deterministic_cell_and_resume_submits_no_job(tmp_path, m
     cat = _catalog(tmp_path, n_cell_a=3, n_cell_b=1)
     export = str(tmp_path / "export")
 
-    result1 = fsd.verify_adapter(
+    result1 = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS, export_folderpath=export,
     )
@@ -193,7 +193,7 @@ def test_verify_adapter_deterministic_cell_and_resume_submits_no_job(tmp_path, m
 
     # AC5: a second call, same roi/window/bands/mosaic_days -> no rebuild, straight to
     # inference (though inference itself always reruns, D-not-in-scope).
-    result2 = fsd.verify_adapter(
+    result2 = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS, export_folderpath=export,
     )
@@ -208,13 +208,13 @@ def test_verify_adapter_changed_window_refuses_resume(tmp_path, monkeypatch):
     cat = _catalog(tmp_path)
     export = str(tmp_path / "export")
 
-    fsd.verify_adapter(
+    rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export, cell="cell_a",
     )
     with pytest.raises(api.PreflightError, match="DIFFERENT request"):
-        fsd.verify_adapter(
+        rise_eo.verify_adapter(
             _FakeAdapter(), roi=ROI, catalog_filepath=cat,
             startdate=JAN1, enddate=datetime.datetime(2018, 4, 1), mosaic_days=20,
             bands=BANDS, export_folderpath=export, cell="cell_a",
@@ -230,7 +230,7 @@ def test_verify_adapter_unknown_cell_raises_with_available_ids(tmp_path, monkeyp
     export = str(tmp_path / "export")
 
     with pytest.raises(api.PreflightError, match="cell_a"):
-        fsd.verify_adapter(
+        rise_eo.verify_adapter(
             _FakeAdapter(), roi=ROI, catalog_filepath=cat,
             startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
             export_folderpath=export, cell="not-a-real-cell",
@@ -245,7 +245,7 @@ def test_verify_adapter_random_cell_prints_and_pins(tmp_path, monkeypatch, capsy
     cat = _catalog(tmp_path)
     export = str(tmp_path / "export")
 
-    result = fsd.verify_adapter(
+    result = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export, cell="random",
@@ -256,7 +256,7 @@ def test_verify_adapter_random_cell_prints_and_pins(tmp_path, monkeypatch, capsy
     assert "random" in out and chosen in out
 
     # pinned: passing the printed id back as cell= reproduces the same cell.
-    result2 = fsd.verify_adapter(
+    result2 = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=str(tmp_path / "export2"), cell=chosen,
@@ -272,7 +272,7 @@ def test_verify_adapter_t_mismatch_is_pass_false_not_raised(tmp_path, monkeypatc
     cat = _catalog(tmp_path)
     export = str(tmp_path / "export")
 
-    result = fsd.verify_adapter(
+    result = rise_eo.verify_adapter(
         _WrongTAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export, cell="cell_a",
@@ -290,12 +290,12 @@ def test_verify_adapter_bundle_matches_ensure_bundle(tmp_path, monkeypatch):
     cat = _catalog(tmp_path)
     export = str(tmp_path / "export")
 
-    fsd.verify_adapter(
+    rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export, cell="cell_a",
     )
-    from fsd.model import bundle as _bundle
+    from rise_eo.model import bundle as _bundle
 
     got = _bundle.read_spec(os.path.join(export, "_bundle"))
     want = _bundle.read_spec(
@@ -308,8 +308,8 @@ def test_verify_adapter_bundle_matches_ensure_bundle(tmp_path, monkeypatch):
 # --- AC6: no branch anywhere says "if verify_adapter" -------------------------
 
 def test_no_verify_adapter_branch_in_shared_inference_code():
-    from fsd.model import bundle as bundle_mod
-    from fsd.model import engine as engine_mod
+    from rise_eo.model import bundle as bundle_mod
+    from rise_eo.model import engine as engine_mod
 
     for mod in (engine_mod, _infer_only_task, bundle_mod):
         src = inspect.getsource(mod)
@@ -321,7 +321,7 @@ def test_export_folderpath_required(tmp_path, monkeypatch):
     _patch_build_and_infer(monkeypatch)
     cat = _catalog(tmp_path)
     with pytest.raises(api.PreflightError, match="export_folderpath"):
-        fsd.verify_adapter(
+        rise_eo.verify_adapter(
             _FakeAdapter(), roi=ROI, catalog_filepath=cat,
             startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
             export_folderpath="",
@@ -339,7 +339,7 @@ def test_result_json_is_written_on_pass_and_on_fail(tmp_path, monkeypatch):
     cat = _catalog(tmp_path)
 
     export_ok = str(tmp_path / "export_ok")
-    result = fsd.verify_adapter(
+    result = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export_ok, cell="cell_a",
@@ -353,7 +353,7 @@ def test_result_json_is_written_on_pass_and_on_fail(tmp_path, monkeypatch):
     assert on_disk["metrics"]["cell"] == result["metrics"]["cell"]
 
     export_fail = str(tmp_path / "export_fail")
-    fsd.verify_adapter(
+    rise_eo.verify_adapter(
         _WrongTAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export_fail, cell="cell_a",
@@ -382,7 +382,7 @@ def test_cube_without_a_matching_stamp_is_relanded_not_reused(tmp_path, monkeypa
         roi=ROI, catalog_filepath=cat, startdate=JAN1, enddate=JAN60,
         mosaic_days=20, bands=BANDS, export_folderpath=export, cell="cell_a",
     )
-    fsd.verify_adapter(_FakeAdapter(), **kwargs)
+    rise_eo.verify_adapter(_FakeAdapter(), **kwargs)
     assert calls["build"] == 1
 
     # Stand in for "a cube from some other request is sitting here, unstamped".
@@ -390,7 +390,7 @@ def test_cube_without_a_matching_stamp_is_relanded_not_reused(tmp_path, monkeypa
     fs.save_npy(landed, np.full((T, 2, 2, len(BANDS)), 7.0, dtype="float32"))
     os.remove(os.path.join(export, "_cube_stamp.json"))
 
-    fsd.verify_adapter(_FakeAdapter(), **kwargs)
+    rise_eo.verify_adapter(_FakeAdapter(), **kwargs)
     assert calls["build"] == 2                       # no stamp -> rebuild
     assert float(fs.load_npy(landed).max()) == 0.0   # and the sentinel was overwritten
 
@@ -433,7 +433,7 @@ def test_aml_builds_under_the_blob_root_not_the_local_export(tmp_path, monkeypat
     export = str(tmp_path / "export")
     root = str(tmp_path / "blobroot")
 
-    result = fsd.verify_adapter(
+    result = rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=cat,
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=export, cell="cell_a",
@@ -454,7 +454,7 @@ def test_aml_without_root_raises_naming_it(tmp_path, monkeypatch):
     _patch_build_and_infer(monkeypatch)
     cat = _catalog(tmp_path)
     with pytest.raises(api.PreflightError, match=r"root"):
-        fsd.verify_adapter(
+        rise_eo.verify_adapter(
             _FakeAdapter(), roi=ROI, catalog_filepath=cat,
             startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
             export_folderpath=str(tmp_path / "export"), cell="cell_a",
@@ -474,7 +474,7 @@ def test_verify_adapter_forwards_skip_nan_and_batch_size_to_run_infer_only(tmp_p
         return fake_infer(*a, **kw)
 
     monkeypatch.setattr(_infer_only_task, "run_infer_only", spy)
-    fsd.verify_adapter(
+    rise_eo.verify_adapter(
         _FakeAdapter(), roi=ROI, catalog_filepath=_catalog(tmp_path),
         startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=BANDS,
         export_folderpath=str(tmp_path / "export"), cell="cell_a",
@@ -495,7 +495,7 @@ def test_alias_spelling_is_not_a_missing_band(tmp_path, monkeypatch, required, b
         required_bands = required
 
     with pytest.raises(api.PreflightError) as ei:
-        fsd.verify_adapter(
+        rise_eo.verify_adapter(
             _Alias(), roi=ROI, catalog_filepath=cat,
             startdate=JAN1, enddate=JAN60, mosaic_days=20, bands=bands,
             export_folderpath="",

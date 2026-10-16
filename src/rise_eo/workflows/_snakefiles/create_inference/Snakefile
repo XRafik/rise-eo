@@ -1,0 +1,97 @@
+# Local-runner Snakefile for per-cell ROI inference.
+# Spec: specs/21-roi-inference-verb.md, specs/38-inference-on-aml.md (D6/D7).
+#
+# Groups `cubes_per_task` rows of input.csv per job, each shelling ONE process that loops its
+# group:
+#     python -m rise_eo.workflows.infer_task --input-csv <csv> --rows i:j --bundle ...
+# This is the SAME build+infer unit an Azure Batch node dispatches (the runner seam).
+# `infer_task.run_infer_group` loads the bundle ONCE per group via the per-process cache
+# (`engine._adapter_from_bundle_cached`) instead of once per cell (TODO #25).
+# A group's sentinel lives on node-local scratch (this invocation's own
+# bookkeeping, keyed by the group's own row range -- never touches export_folderpath, so a
+# remote/abfss export_folderpath needs no is_local guard here). The durable "already inferred"
+# signal is each cell's OWN output.tif existence, checked by `infer_task.run_infer_task`'s
+# first-line skip -- so a group retried on a fresh node (no scratch history) redoes only its
+# unfinished cells, not the whole group (resume is per-cell, decoupled from group size).
+# A small deterministic jitter staggers parallel job starts. Located at runtime via
+# importlib.resources (see runners._snakefile_path).
+
+import hashlib
+import os
+import sys
+import tempfile
+import time
+from zlib import adler32
+
+import pandas as pd
+
+
+def jitter(key, span=10):   # deterministic 0..(span-1)s delay
+    return adler32(str(key).encode()) % max(int(span), 1)
+
+
+def touch(filepath):
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w") as h:
+        h.write(pd.Timestamp.now(tz="UTC").isoformat())
+
+
+input_csv = config["input_csv"]
+bundle_path = config["bundle_path"]
+cubes_per_task = max(int(config.get("cubes_per_task", 1)), 1)
+predict_batch_size = config.get("predict_batch_size", "")
+skip_nan = int(config.get("skip_nan", 1))
+overwrite = int(config.get("overwrite", 0))
+njobs = int(config.get("njobs", 1))
+njobs_load_images = int(config.get("njobs_load_images", 1))
+jitter_span = int(config.get("jitter_span", 1))
+# Node-local scratch root for sentinels only -- never the artifact destination.
+scratch_dir = config.get("scratch_dir") or os.path.join(tempfile.gettempdir(), "fsd-snakemake-scratch")
+
+n = len(pd.read_csv(input_csv))
+
+group_by_sentinel = {}
+sentinels = []
+for lo in range(0, n, cubes_per_task):
+    hi = min(lo + cubes_per_task, n)
+    key = hashlib.sha1(f"{input_csv}:{lo}:{hi}".encode()).hexdigest()
+    group_dir = os.path.join(scratch_dir, key)
+    sentinel = os.path.join(group_dir, "done_infer.txt")
+    group_by_sentinel[sentinel] = (lo, hi, os.path.join(group_dir, "start.txt"))
+    sentinels.append(sentinel)
+
+
+rule all:
+    input:
+        sentinels
+
+
+rule run:
+    output:
+        _done = "{sentinel}"
+    params:
+        _g = lambda wc: group_by_sentinel[wc.sentinel],
+        _python = sys.executable,
+        _csv = input_csv,
+        _bundle = bundle_path,
+        _pbs = predict_batch_size,
+        _skip = skip_nan,
+        _ow = overwrite,
+        _njobs = njobs,
+        _njobs_load_images = njobs_load_images,
+    threads: 1
+    run:
+        lo, hi, start_output = params._g
+        time.sleep(jitter(key=output._done, span=jitter_span))
+        touch(start_output)
+        pbs = f'--predict-batch-size {params._pbs} ' if str(params._pbs) not in ("", "None") else ""
+        skip = "" if int(params._skip) else "--no-skip-nan "
+        ow = "--overwrite " if int(params._ow) else ""
+        cmd = (
+            f'{params._python} -m rise_eo.workflows.infer_task '
+            f'--input-csv {params._csv} --rows {lo}:{hi} --bundle {params._bundle} '
+            f'--njobs {params._njobs} --njobs-load-images {params._njobs_load_images} '
+            f'{pbs}{skip}{ow}'
+        )
+        shell(cmd)
+        touch(output._done)

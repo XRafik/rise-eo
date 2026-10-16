@@ -21,10 +21,10 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from fsd import api
-from fsd.datacube import builder
-from fsd.storage import fs
-from fsd.workflows import create_datacube, runners, shard, task
+from rise_eo import api
+from rise_eo.datacube import builder
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube, runners, shard, task
 
 CRS = "EPSG:32633"
 TRANSFORM = from_origin(500000, 5000000, 10, 10)
@@ -40,8 +40,8 @@ def _write_tile(path, value):
 
 
 def _make_catalog(path, tmp, files="B04.tif,B08.tif,SCL.tif", with_ac=True):
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     rows = []
     for i, ts in enumerate(TS):
@@ -285,10 +285,10 @@ def test_atomic_publish_leaves_no_final_path_on_interrupted_write(tmp_path, monk
     assert not fs.exists(path)
 
 
-# --- test 9: D6a -- geometry I/O round-trips through fsd.storage (memory://) ------
+# --- test 9: D6a -- geometry I/O round-trips through rise_eo.storage (memory://) ------
 
 def test_geometry_io_round_trips_through_remote_storage(tmp_path):
-    """setup() + run_task() read/write geometry through fsd.storage, not a raw path --
+    """setup() + run_task() read/write geometry through rise_eo.storage, not a raw path --
     proven here by putting every geometry file on `memory://` (no local checkout at
     all). The tile band files stay real local files (rasterio pixel reads are the
     documented direct-I/O exception, untouched by D6a)."""
@@ -306,7 +306,7 @@ def test_geometry_io_round_trips_through_remote_storage(tmp_path):
     with fs.open(shape_url, "w") as f:
         f.write(shape_gdf.to_json())
 
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     declaration_url = "memory://d6a/declaration.json"
     with fs.open(declaration_url, "w") as f:

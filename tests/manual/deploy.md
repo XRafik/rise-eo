@@ -30,11 +30,11 @@ import numpy as np, pandas as pd, geopandas as gpd
 from shapely.geometry import box
 warnings.simplefilter("ignore")
 
-import fsd
-from fsd.bands import modify
-from fsd.model import BaseModelAdapter
-from fsd.workflows import create_datacube
-from fsd.storage import fs
+import rise_eo
+from rise_eo.bands import modify
+from rise_eo.model import BaseModelAdapter
+from rise_eo.workflows import create_datacube
+from rise_eo.storage import fs
 
 ROOT    = os.path.abspath(os.path.join(os.getcwd(), ".."))
 CATALOG = os.path.join(ROOT, "satellite_benchmark/sentinel-2-l2a/catalog.parquet")
@@ -44,7 +44,7 @@ os.makedirs(OUTDIR, exist_ok=True)
 
 START, END, MOSAIC = datetime.datetime(2018, 6, 1), datetime.datetime(2018, 7, 10), 20
 BANDS = ["B04", "B08", "B8A", "SCL"]              # SCL for cloud masking, dropped in the cube
-T = fsd.compute_n_timestamps(START, END, MOSAIC)  # -> 2
+T = rise_eo.compute_n_timestamps(START, END, MOSAIC)  # -> 2
 
 class NDVIRandomForest(BaseModelAdapter):
     required_bands   = ["B04", "B08"]
@@ -81,7 +81,7 @@ g = gpd.read_file(SHAPES)
 sub = g.groupby("EC_hcat_n", group_keys=False).sample(n=3, random_state=7)
 SHAPES_SUB = os.path.join(OUTDIR, "train_fields.geojson"); sub.to_file(SHAPES_SUB, driver="GeoJSON")
 
-td = fsd.create_training_data(
+td = rise_eo.create_training_data(
     label_polygons=SHAPES_SUB, catalog_filepath=CATALOG,
     startdate=START, enddate=END, mosaic_days=MOSAIC, bands=BANDS,
     id_col="fid", label_col="EC_hcat_n",
@@ -155,7 +155,7 @@ print("inference cubes:", len(pd.read_csv(INFER_CSV)))
 adapter = NDVIRandomForest()
 adapter.artifacts = {"model": MODEL}          # a live adapter reads its artifact from here
                                               # (bundle.load injects this for you — see below)
-result = fsd.run_inference(
+result = rise_eo.run_inference(
     model=adapter,
     inference_datacubes=INFER_CSV,
     output_folderpath=os.path.join(OUTDIR, "model_outputs"),
@@ -166,7 +166,7 @@ print("stac:", result.stac_catalog_filepath)
 print("merged:", result.merged_filepath)
 ```
 
-> Simpler: just `model=NDVIRandomForest()`. (You can also `fsd.model.bundle.save(NDVIRandomForest(),
+> Simpler: just `model=NDVIRandomForest()`. (You can also `rise_eo.model.bundle.save(NDVIRandomForest(),
 > {"model": MODEL}, ".../bundle")` and pass the **bundle path** — that's how the model travels to
 > another machine or the cloud; see `specs/18-model-bundle-explainer.md`. A bundle needs the
 > adapter class to be *importable* by `module:attr`, so put it in a `pip install`ed module, e.g.

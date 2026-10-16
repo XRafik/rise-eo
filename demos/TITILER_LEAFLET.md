@@ -140,7 +140,7 @@ by walking our STAC catalog once. That's the design we build.
 
 **STAC (SpatioTemporal Asset Catalog)** is a JSON convention for describing geospatial datasets. fsd
 already *queries* CDSE's STAC to discover imagery; here we *produce* one describing our inference
-outputs (`src/fsd/catalog/stac.py`). The three levels we wrote:
+outputs (`src/rise_eo/catalog/stac.py`). The three levels we wrote:
 
 - **Catalog** (`stac/catalog.json`) — the root; links to the collection.
 - **Collection** (`stac/fsd-inference/collection.json`) — one dataset ("fsd inference outputs"), with a

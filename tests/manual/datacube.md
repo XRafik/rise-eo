@@ -1,6 +1,6 @@
 # Manual tests — real satellite data (datacube builder)
 
-Validates `fsd.datacube.builder.build_datacube` against the **real, multi-CRS**
+Validates `rise_eo.datacube.builder.build_datacube` against the **real, multi-CRS**
 `satellite_benchmark/` tiles, with the output inspected **visually in QGIS** (LLMs
 are unreliable on GeoTIFFs, so green unit tests are not enough — see issue
 #8). Unit tests (`tests/test_datacube_*.py`) cover the logic on synthetic tiles; this
@@ -35,11 +35,11 @@ import os, datetime
 import numpy as np
 import geopandas as gpd
 
-from fsd.catalog.catalog import TileCatalog
-from fsd.datacube import builder
-from fsd.raster import images
-from fsd.bands import modify
-from fsd.storage import fs
+from rise_eo.catalog.catalog import TileCatalog
+from rise_eo.datacube import builder
+from rise_eo.raster import images
+from rise_eo.bands import modify
+from rise_eo.storage import fs
 
 ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))   # holds satellite_benchmark/
 CATALOG = os.path.join(ROOT, "satellite_benchmark/sentinel-2-l2a/catalog.parquet")

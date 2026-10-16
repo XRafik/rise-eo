@@ -1,9 +1,9 @@
-"""Spec 56 §9 step 2 -- `fsd.image.digest`: AC2 (digest stability) and AC3 (real resolution)."""
+"""Spec 56 §9 step 2 -- `rise_eo.image.digest`: AC2 (digest stability) and AC3 (real resolution)."""
 
 from __future__ import annotations
 
-from fsd.image import ImageDefinition
-from fsd.image import digest as digest_mod
+from rise_eo.image import ImageDefinition
+from rise_eo.image import digest as digest_mod
 
 
 def _fake_git_ref(repo_url: str, ref: str) -> str:
@@ -98,7 +98,7 @@ def test_resolve_path_fsd_equals_wheel_digest_of_the_built_wheel(tmp_path):
 
     import tempfile
     with tempfile.TemporaryDirectory() as dest:
-        from fsd.image.definition import _build_wheel
+        from rise_eo.image.definition import _build_wheel
         wheel = _build_wheel(src, dest)
         want = digest_mod.wheel_digest(wheel)
     assert resolved["fsd"] == f"wheel:{want}"

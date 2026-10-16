@@ -37,7 +37,7 @@ without them thinking about nodes.
 
 Two commitments were made at the start and never broken, and both are stated as *absences* — the
 form [ARCHITECTURE.md](../ARCHITECTURE.md)'s invariants section takes throughout. **No module
-opens a remote path outside `fsd.storage`**, so that "where the bytes live" is configuration
+opens a remote path outside `rise_eo.storage`**, so that "where the bytes live" is configuration
 rather than code. And **the unit of work never knows what dispatched it**, so that the thing that
 runs on a laptop and the thing that runs on 32 cluster nodes are the same code. Nearly every good
 outcome below is downstream of those two absences; several of the bad ones came from a place where
@@ -283,7 +283,7 @@ rewritten `README.md` had been calling `run_inference` a **stub** long after it 
 run on a cluster. Worse, the review of the fixed README found that **two of the three calls in its
 60-second example raised `TypeError` before doing any work** — the first code any newcomer copies.
 And the test that was supposed to prevent exactly this had passed, because it checked that each
-verb existed in `fsd.__all__`: **existence, not callability.** The fix was a test that
+verb existed in `rise_eo.__all__`: **existence, not callability.** The fix was a test that
 `inspect.signature().bind()`s every README call against the live function, executing nothing.
 
 The same theme, for the fifth time in five eras. A name in a namespace is not a working call, the
@@ -391,7 +391,7 @@ record of itself untrue.
 ## Era 8 — Is it pleasant to use from outside its own checkout?
 **2026-08-21 → 09-02**
 
-Everything so far had been driven from fsd's own checkout, by its author. The era's question came
+Everything so far had been driven from rise_eo's own checkout, by its author. The era's question came
 from noticing that this proves nothing about the thing fsd claims to be — an installable package.
 
 **The fork dropped first, and it retired a gate that had already been signed off.** The plan had

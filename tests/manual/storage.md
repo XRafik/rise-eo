@@ -1,4 +1,4 @@
-# Manual tests — `fsd.storage.fs`
+# Manual tests — `rise_eo.storage.fs`
 
 Verifies the storage seam (spec `10-storage-and-scale.md`): generic fsspec I/O on
 the **local** backend (Section A) and the S3-compatible **transport** (Section B,
@@ -22,7 +22,7 @@ pip install -e ".[dev]"
 Confirm the package and storage module import:
 
 ```bash
-python -c "import fsd; from fsd.storage import fs; print('fsd', fsd.__version__, '| storage import OK')"
+python -c "import rise_eo; from rise_eo.storage import fs; print('fsd', rise_eo.__version__, '| storage import OK')"
 ```
 
 - [x] Prints `fsd 0.0.1 | storage import OK`
@@ -38,7 +38,7 @@ import os, shutil, tempfile
 import numpy as np
 import geopandas as gpd
 import shapely.geometry as sg
-from fsd.storage import fs
+from rise_eo.storage import fs
 
 WORK = tempfile.mkdtemp(prefix="fsd_storage_")
 print("WORK =", WORK)
@@ -177,7 +177,7 @@ with any small public object you know; AWS Open Data buckets work with `anon`.)
 
 ```python
 import os, tempfile
-from fsd.storage import fs
+from rise_eo.storage import fs
 
 WORK = tempfile.mkdtemp(prefix="fsd_s3_")
 opts = {"anon": True}
@@ -202,8 +202,8 @@ code.)
 
 ```python
 import os, tempfile
-from fsd import config
-from fsd.storage import fs
+from rise_eo import config
+from rise_eo.storage import fs
 
 WORK = tempfile.mkdtemp(prefix="fsd_cdse_")
 src_opts = {

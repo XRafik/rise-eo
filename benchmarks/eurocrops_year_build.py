@@ -25,7 +25,7 @@ import pandas as pd
 # per-cube timings.json (propagates to the task subprocesses the workflow spawns)
 os.environ.setdefault("FSD_WRITE_TIMINGS", "1")
 
-from fsd.workflows import create_datacube  # noqa: E402  (after env set)
+from rise_eo.workflows import create_datacube  # noqa: E402  (after env set)
 
 SHAPES = "shapefiles/austria_eurocrops_sampled_ethiopia_translated.geojson"
 CATALOG = "satellite_benchmark/sentinel-2-l2a/catalog.parquet"

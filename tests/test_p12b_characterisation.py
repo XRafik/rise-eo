@@ -19,12 +19,12 @@ import rasterio.shutil
 import rasterio.transform
 import shapely.geometry as sg
 
-from fsd import config
-from fsd.catalog import declaration as declaration_module
-from fsd.catalog.catalog import COLUMNS, TileCatalog
-from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-from fsd.datacube import ops
-from fsd.raster import cog, images, rio_env, rio_open
+from rise_eo import config
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.catalog.catalog import COLUMNS, TileCatalog
+from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
+from rise_eo.datacube import ops
+from rise_eo.raster import cog, images, rio_env, rio_open
 
 FORMATS = pathlib.Path(__file__).parent / "data" / "formats"
 UTM = rasterio.crs.CRS.from_epsg(32643)
@@ -334,7 +334,7 @@ class _FakeSrc:
 def fake_rasterio(monkeypatch):
     _FakeEnv.created = []
     opened = []
-    monkeypatch.setattr("fsd.raster.storage_token", lambda: "TOKEN")
+    monkeypatch.setattr("rise_eo.raster.storage_token", lambda: "TOKEN")
     monkeypatch.setattr(rasterio, "Env", _FakeEnv)
     monkeypatch.setattr(rasterio, "open", lambda *a, **k: opened.append((a, k)) or _FakeSrc())
     return opened
