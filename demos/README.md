@@ -1,8 +1,8 @@
-# fsd demos — *benchmark harnesses*, not examples
+# rise-eo demos — *benchmark harnesses*, not examples
 
 > ⚠️ **Read this first (spec 41 D10 / ADR 0026).** Despite the folder name, **these are timing
 > harnesses and their `.md` files are benchmark reports.** `e2e_austria.py` is 531 lines of which
-> **12 touch `fsd`** (2.3 %), and `step_download` deliberately calls `cdse.probe_throughput` and
+> **12 touch `rise-eo`** (2.3 %), and `step_download` deliberately calls `cdse.probe_throughput` and
 > `cdse.download_resume` **directly, bypassing `rise_eo.download`**, because it wants the single-stream
 > baseline probe and the transfer-vs-convert split. Those are measurement concerns. **A newcomer
 > reading this as a reference implementation learns the wrong API.**
@@ -17,7 +17,7 @@
 > | "now point it at my own region" | `docs/howto/` *(being built)* |
 > | **measured timings for a real run** | **you are in the right place** |
 
-The fullest end-to-end write-up is **[`E2E_AUSTRIA.md`](E2E_AUSTRIA.md)** — running the full fsd pipeline
+The fullest end-to-end write-up is **[`E2E_AUSTRIA.md`](E2E_AUSTRIA.md)** — running the full rise-eo pipeline
 locally (**download → datacube → train → inference → COG/STAC/merged crop map**) on fresh real
 Sentinel-2 data for an Austria ROI, with real timings, the download runner, and the "bring your own
 model" bundling guide.

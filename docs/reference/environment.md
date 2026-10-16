@@ -14,8 +14,8 @@ A user-level file holds what is **durable** — stable for you across runs and m
 projects — outside every project tree, so it can never be committed by accident (spec 54):
 
 ```bash
-fsd init                         # interactive; writes ~/.config/rise-eo/config.toml
-fsd init --blank                 # or: write it empty and fill it in yourself (spec 55 D4)
+rise-eo init                         # interactive; writes ~/.config/rise-eo/config.toml
+rise-eo init --blank                 # or: write it empty and fill it in yourself (spec 55 D4)
 ```
 
 | in the file | why |
@@ -25,19 +25,19 @@ fsd init --blank                 # or: write it empty and fill it in yourself (s
 
 ```python
 import rise_eo
-cfg = rise_eo.config.load()          # explicit -- fsd's own code never reads this on its own
+cfg = rise_eo.config.load()          # explicit -- rise-eo's own code never reads this on its own
 ```
 
 **`root` is deliberately NOT in the file** (spec 55 D1). It names a *per-run destination* (cubes, outputs) chosen
-by whoever runs the job, not a durable address — the imagery archive is the one shared exception (spec 59 D12), a single root every run reuses — so every fsd verb takes it as an argument
+by whoever runs the job, not a durable address — the imagery archive is the one shared exception (spec 59 D12), a single root every run reuses — so every rise-eo verb takes it as an argument
 (`dst_folderpath=`, `output_folderpath=`, `runner_kwargs["root"]`). Nothing writes `AZ_ROOT` —
-`fsd init` does not prompt for it, `fsd config` does not print it, and `--from-env-file` parses
+`rise-eo init` does not prompt for it, `rise-eo config` does not print it, and `--from-env-file` parses
 and drops it. **It is not config.** The callers that need a root — the two tracked notebooks and
 `demos/e2e_austria_aml.py` — read it from the environment themselves, because a public repo may
 not hold a literal storage URL (spec 55 D3):
 
 ```bash
-export AZ_ROOT=abfss://…         # read by the NOTEBOOK/demo script, never by fsd
+export AZ_ROOT=abfss://…         # read by the NOTEBOOK/demo script, never by rise-eo
 ```
 
 **The bare `AZ_*` names override the file** for everything that *is* config (spec 54 D4) — they
@@ -47,7 +47,7 @@ sit *above* it in precedence:
 export AZ_RG=my-resource-group   # overrides config.toml's [azure].resource_group for this shell
 ```
 
-`fsd config` prints the resolved value of each key and which of the three sources it came from --
+`rise-eo config` prints the resolved value of each key and which of the three sources it came from --
 useful the moment a stale shell export silently outranks the file.
 
 Concrete values for the `rise` platform are in **`AZURE_INFRA_PRIVATE.md` at the workspace root**
@@ -55,7 +55,7 @@ Concrete values for the `rise` platform are in **`AZURE_INFRA_PRIVATE.md` at the
 it.**
 
 **None of these are read by `src/rise_eo/`.** Every one is operator-facing — consumed by `rise_eo.config`,
-the run-book shell, the `az` CLI, or `demos/e2e_austria_aml.py`. fsd's library code takes storage
+the run-book shell, the `az` CLI, or `demos/e2e_austria_aml.py`. rise-eo's library code takes storage
 locations as *arguments*; it never reads the environment or `config.toml` on its own (spec 54 D3).
 (The one near-match you may find in `src/` is `_AZ_RE`, a compiled regex in `storage/azure.py:29`
 — not a variable.)
@@ -97,7 +97,7 @@ garbage. Every `$(az …)` row below is worth echoing once before you rely on it
 | `AZ_FS` | filesystem / container in that account | decode ring | `az storage fs show -n "$AZ_FS" --account-name "$AZ_ACCOUNT" --auth-mode login --query name` |
 | `AZ_PREFIX` | your path prefix inside the container | your choice (a username works) | — |
 | `AZ_SCRATCH_PREFIX` | scratch prefix, no leading/trailing slash | your choice | — |
-| `AZ_ROOT` | **derived** root URL for a run's artifacts. **Not config** (spec 55 D1) — fsd never reads it; a notebook or a shell does | `abfss://$AZ_FS@$AZ_ACCOUNT.dfs.core.windows.net/…` | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_ROOT'))"` |
+| `AZ_ROOT` | **derived** root URL for a run's artifacts. **Not config** (spec 55 D1) — rise-eo never reads it; a notebook or a shell does | `abfss://$AZ_FS@$AZ_ACCOUNT.dfs.core.windows.net/…` | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_ROOT'))"` |
 | `AZ_MODEL_REGISTRY` | where `rise_eo.model.registry` publishes. **Config** (optional), overrides `[azure].model_registry` | a durable path, NOT under a run root | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_MODEL_REGISTRY'))"` |
 | `AZ_IMAGE_REGISTRY` | where `rise_eo.image.registry` publishes image definitions (spec 56). **Config** (optional) | a durable path, NOT under a run root | `python -c "import rise_eo.storage as s; print(s.fs.exists('$AZ_IMAGE_REGISTRY'))"` |
 
@@ -141,10 +141,10 @@ prefix from run-book 34.
 | `AZ_CLUSTER` | the d16 compute cluster | decode ring | `az ml compute show -n "$AZ_CLUSTER" -g "$AZ_RG" -w "$AZ_ML_WORKSPACE" --query '{state:provisioningState,max:scaleSettings.maxNodeCount}'` |
 | `AZ_ACR` | container registry backing the environments | decode ring | `az acr show -n "$AZ_ACR" --query loginServer -o tsv` |
 | `AZ_ENV_NAME` | general-purpose environment (download/build/flatten) | fixed: `rise-eo-aml-env` | — |
-| `AZ_INFER_ENV_NAME` | inference environment — fsd + the adapter's **deps** only (since spec 44 it carries no adapter source; bundles do) | fixed: `rise-eo-infer-env` | — |
+| `AZ_INFER_ENV_NAME` | inference environment — rise-eo + the adapter's **deps** only (since spec 44 it carries no adapter source; bundles do) | fixed: `rise-eo-infer-env` | — |
 | `AZ_ENV_VERSION` | **query, never guess** | `az ml environment list … --query '[0].version'` | `echo "$AZ_ENV_VERSION"` — a number, not an error string |
 | `AZ_INFER_ENV_VERSION` | same, for the inference env | same | `echo "$AZ_INFER_ENV_VERSION"` |
-| `AZ_INFER_BUILD_CONTEXT` | folder holding the fsd wheel the inference image is built from; pass it as `rise_eo.model.verify_image(build_context=...)` to refuse an image built from a pre-spec-44 wheel | e.g. `notebooks/demo_model` | `ls "$AZ_INFER_BUILD_CONTEXT"/rise_eo-*.whl` |
+| `AZ_INFER_BUILD_CONTEXT` | folder holding the rise-eo wheel the inference image is built from; pass it as `rise_eo.model.verify_image(build_context=...)` to refuse an image built from a pre-spec-44 wheel | e.g. `notebooks/demo_model` | `ls "$AZ_INFER_BUILD_CONTEXT"/rise_eo-*.whl` |
 | `AZ_ENV_NAME_VERSION` | `name:version`, read by `demos/e2e_austria_aml.py` | derived | `echo "$AZ_ENV_NAME_VERSION"` |
 
 ⚠️ **Rebuild the environment after any `src/rise_eo/` change**, then re-query the version. A stale
@@ -190,7 +190,7 @@ before you spend.**
 
 ## Related
 
-- `rise_eo.config` (`src/rise_eo/config.py`) — the schema and loader for the seven keys `fsd init` writes
+- `rise_eo.config` (`src/rise_eo/config.py`) — the schema and loader for the seven keys `rise-eo init` writes
   (five required + two optional registries; `root` is not one of them — spec 55 D1)
 - `AZURE_INFRA_PRIVATE.md` (workspace root, uncommitted) — the concrete values
 - [`AZURE_INFRA.md`](AZURE_INFRA.md) — the scrubbed public description of the platform

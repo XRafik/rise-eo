@@ -1,4 +1,4 @@
-# How to: serve fsd output on an XYZ map viewer
+# How to: serve rise-eo output on an XYZ map viewer
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify after any
 > change to `rise_eo.run_inference`'s STAC export (`rise_eo.catalog.stac`) or the mini-MPC serving stack in
@@ -6,7 +6,7 @@
 
 `rise_eo.run_inference` (see [`docs/tutorial.md`](../tutorial.md) §6 and
 [`bundle-your-model.md`](bundle-your-model.md)) already produces standard artifacts — COGs +
-a STAC catalog. **fsd builds no dashboard and no server of its own.** Serving is stock software
+a STAC catalog. **rise-eo builds no dashboard and no server of its own.** Serving is stock software
 pointed at those artifacts; this page names two proven ways to do it and where the worked examples
 live.
 
@@ -36,7 +36,7 @@ continuous ramp smears class boundaries), and resampling must be **nearest**, ne
 For serving a whole inference run (many cells, true per-cell geometry, register→searchId→XYZ like
 MPC) rather than one flattened mosaic, load the STAC catalog into a **stock** pgSTAC +
 stac-fastapi-pgstac + titiler-pgstac stack — the same shape MPC itself uses, so a tool built against
-MPC's API (like STACNotator) treats fsd's output as "just another MPC".
+MPC's API (like STACNotator) treats rise-eo's output as "just another MPC".
 
 The stack lives in `demos/mini_mpc/` (its `README.md` says what is borrowed and what is built
 locally, and why):
@@ -68,7 +68,7 @@ To export the STAC catalog as stac-geoparquet instead:
 |---|---|---|
 | What it needs | one COG, a Python process | Docker, a Postgres+pgSTAC stack |
 | What it serves | one pre-styled mosaic | a real STAC API over N items, per-item geometry |
-| Good for | a first look, a BYO-XYZ viewer slice | production-shaped serving, "fsd looks like MPC" |
+| Good for | a first look, a BYO-XYZ viewer slice | production-shaped serving, "rise-eo looks like MPC" |
 
 ## Where to go next
 

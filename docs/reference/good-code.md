@@ -35,7 +35,7 @@ query that modifies state."
 else. You can test it with a value, cache it, and reorder it. An effectful function writes files, calls
 the network or reads a clock. You test it by its effects, and the order of calls matters.
 
-**What this means in fsd.**
+**What this means in rise-eo.**
 - Raster ops take and return `(data, profile)`, so they chain as `sequence=[(func, kwargs), ...]`
   (`AGENTS.md`). They are close to pure mappings. A small one is fine if it hides a real decision, such as
   how to resample to a reference grid. Judge it by Frege and SICP: does it map one well-defined input to
@@ -61,7 +61,7 @@ the network or reads a clock. You test it by its effects, and the order of calls
 | Complexity is "anything related to the structure of a system that makes it hard to work on the development of that system". Its causes are dependencies and obscurity. | Ousterhout, *A Philosophy of Software Design* ch. 2; CS190 notes | Ask two questions: what else must change when this changes (dependencies)? What must a reader already know (obscurity)? |
 | Deep modules: "The best methods are those that provide a lot of functionality but have a very simple interface". Shallow ones hide little. | Ousterhout, ch. 4; aposd-vs-clean-code | A wrapper that adds a name but hides no decision is a cost. |
 | Information leakage and pass-through variables. | Ousterhout, ch. 5 and §7.5 (titles from the TOC) | The same knowledge spread over several modules, or a value handed down through layers that do not use it. |
-| "Whenever possible, define errors out of existence"; "reduce the number of places where exceptions must be handled". | Ousterhout, ch. 10; CS190 notes | Change the semantics so the error cannot happen. Do not catch and hide it. See §5 for the limit in fsd. |
+| "Whenever possible, define errors out of existence"; "reduce the number of places where exceptions must be handled". | Ousterhout, ch. 10; CS190 notes | Change the semantics so the error cannot happen. Do not catch and hide it. See §5 for the limit in rise-eo. |
 | Simple means "one fold": not interleaved. "simple is actually an objective notion", while "easy is relative". | Hickey, "Simple Made Easy" (2011) | "I find this hard to read" is about *easy*. "These two concerns are braided together" is about *simple*, and you can check it. |
 | Simplicity "keeps programs short and manageable"; clarity "makes sure they are easy to understand, for people as well as machines"; generality means programs "work well in a broad range of situations". | Kernighan & Pike, *The Practice of Programming*, preface | Generality is earned by real cases, not guessed. |
 | Debugging is twice as hard as writing, so code written as cleverly as you can manage is code you cannot debug (paraphrased). | Kernighan & Plauger, *The Elements of Programming Style*, 2nd ed., ch. 2 (via Wikiquote) | Prefer the plain version. A clever one-liner in a data path is a finding. |
@@ -106,7 +106,7 @@ comments that restate the code.
 internal code). Whether a long name beats a short name plus a comment. Whether a missing comment costs more
 than a wrong one. These are judgement calls, and the sources do not settle them.
 
-**fsd's position.** Code carries the *what* and the *how*, through names, signatures and structure. A
+**rise-eo's position.** Code carries the *what* and the *how*, through names, signatures and structure. A
 comment carries only what code cannot: the hazard, the invariant, the reason a tempting change is wrong.
 That is `code-comments.md`'s rule, "Cut the changelog. Keep the hazard." It sits between Martin and
 Ousterhout: Martin's suspicion of narrating comments, plus Ousterhout's view that some knowledge exists only
@@ -135,29 +135,29 @@ next programmer is most likely to lack.
 sentences and names the source or rule it leans on, so the maintainer can disagree with the reasoning
 rather than with a feeling.
 
-## 5. Tensions with fsd's rules
+## 5. Tensions with rise-eo's rules
 
 - **Ousterhout's "define errors out of existence" vs `AGENTS.md` "Keep the safety checks".** They agree when
   an error can be removed by changing semantics without losing information. Example: deleting a file that is
   already gone can succeed. They conflict when "defining it away" would let a bad ROI, date or path through,
-  or let a failed download leave a gap. Nodata is 0, so a gap can pass for real values. fsd leans hard toward
+  or let a failed download leave a gap. Nodata is 0, so a gap can pass for real values. rise-eo leans hard toward
   the safety check. Ousterhout's own book has a section called "Taking it too far" (§10.10).
 - **Clean Code's tiny functions vs Ousterhout's deep modules vs `AGENTS.md` "smallest code".** "Smallest
   code" means the least code overall, not the most functions. Splitting into many small functions often adds
   code and interfaces. Ousterhout's warning about entangled methods applies: if you must read both to
-  understand one, they should be one. fsd leans toward Ousterhout: no speculative abstractions, and few
+  understand one, they should be one. rise-eo leans toward Ousterhout: no speculative abstractions, and few
   layers.
 - **DRY vs Metz.** Spec 102 A7 cites DRY for "reuse a rise-eo helper before you write". Metz warns that merging
-  look-alike code into the wrong abstraction costs more than the copies. fsd's rules lean DRY for new code
+  look-alike code into the wrong abstraction costs more than the copies. rise-eo's rules lean DRY for new code
   and say nothing about merging old code. In the audit, merge only when the copies change for the same reason.
 - **"Few comments" vs Ousterhout's pro-comment stance.** `code-comments.md` sets a default of none, but keeps
   invariants, failure modes, deliberate choices, dependency traps and prohibitions. That is close to
-  Ousterhout's list of what code cannot say, minus interface prose. fsd leans to fewer comments, with a firm
+  Ousterhout's list of what code cannot say, minus interface prose. rise-eo leans to fewer comments, with a firm
   exception for hazards.
-- **Ousterhout's pass-through variables vs fsd's per-hop kwarg forwarding.** Ousterhout calls a value
-  handed through layers that do not use it a red flag (§7.5). fsd forwards each verb kwarg explicitly on
+- **Ousterhout's pass-through variables vs rise-eo's per-hop kwarg forwarding.** Ousterhout calls a value
+  handed through layers that do not use it a red flag (§7.5). rise-eo forwards each verb kwarg explicitly on
   every runner on purpose. A default once hid a dropped `collection=` (CONTRIBUTING's review checklist), and
-  each hop has a forwarding test. fsd's rule wins. Flag a pass-through only if it has no test.
+  each hop has a forwarding test. rise-eo's rule wins. Flag a pass-through only if it has no test.
 - **Ousterhout's "shallow wrapper" vs Parnas's "hide a decision".** `storage/fs.py` looks shallow: thin
   functions over fsspec. But it hides the backend choice (local, Blob, S3), which is the decision most likely
   to change, and its traps (`code-comments.md` keeps it above the comment target for that reason). Parnas
@@ -204,7 +204,7 @@ guards user input or prevents silent data loss (`AGENTS.md`, "Keep the safety ch
     silent data loss. Note whether the silencing is explicit and opt-in (like `raise_error=False`). (PEP 20;
     Shore "Fail Fast" via spec 102 A7; `AGENTS.md` "Keep the safety checks")
 12. **[objective]** Is there a leftover legacy workaround: a compatibility shim for an old archive layout, a
-    branch for a case the code no longer produces, or code copied from `fetch_satdata/` that fsd's own
+    branch for a case the code no longer produces, or code copied from `fetch_satdata/` that rise-eo's own
     structure makes unnecessary? (`AGENTS.md` "No compatibility shims"; Fowler "Remove Dead Code")
 13. **[judgement]** Does one change in behaviour need edits in many files (shotgun surgery), or does one
     file change for many unrelated reasons? (Fowler "Shotgun Surgery", "Divergent Change"; Ousterhout,

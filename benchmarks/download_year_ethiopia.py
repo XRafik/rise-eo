@@ -17,7 +17,7 @@ WS = str(Path(__file__).resolve().parents[2])  # workspace root: the folder hold
 ROI = f"{WS}/shapefiles/s2grid=165bca4.geojson"
 # Dedicated benchmark tree so the real `satellite/` data stays unpolluted.
 ROOT = f"{WS}/satellite_benchmark/sentinel-2-l2a"
-CATALOG = f"{ROOT}/catalog.parquet"            # fresh fsd GeoParquet catalog
+CATALOG = f"{ROOT}/catalog.parquet"            # fresh rise-eo GeoParquet catalog
 BANDS = ["B04", "B08", "B8A", "SCL"]
 START = datetime.datetime(2018, 1, 1)
 END = datetime.datetime(2019, 1, 1)

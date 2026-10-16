@@ -1,6 +1,6 @@
 # Code comments — what earns a line in `src/`
 
-fsd is spec-first, and that produced a habit: every decision got narrated where it landed. The
+rise-eo is spec-first, and that produced a habit: every decision got narrated where it landed. The
 result is 28% prose in `src/rise_eo` (0.49 prose lines per code line) and 986 backward references
 across 422 functions — about 2.3 `spec NN` / `Dn` tags each. Most of it reads as a changelog.
 

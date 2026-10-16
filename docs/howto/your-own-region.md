@@ -1,4 +1,4 @@
-# How to: point fsd at your own region
+# How to: point rise-eo at your own region
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify after any
 > change to `rise_eo.download`, `rise_eo.create_training_data`, `rise_eo.grid`, or the merge logic in
@@ -14,7 +14,7 @@ below before running.
 - An ROI (`your_roi.geojson`) and, if you're training a model, a labelled-fields file
   (`your_fields.geojson`) with an id column and a label column.
 - If you actually want to download imagery for the ROI (the tutorial didn't — it used a committed
-  fixture), read [`download-real-imagery.md`](download-real-imagery.md) **first**: fsd reads whole
+  fixture), read [`download-real-imagery.md`](download-real-imagery.md) **first**: rise-eo reads whole
   ~110 km MGRS granules, so the byte budget does not shrink with a small ROI, and that page states
   the budget up front.
 

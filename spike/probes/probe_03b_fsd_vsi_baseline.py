@@ -6,13 +6,13 @@ its own -- it needs fsd's own route over the same object, on the same VM, in the
 to be a comparison rather than a datum.
 
 **This runs in fsd's venv (`.venv`), not the spike venv.** The charter keeps `.venv-rslearn`
-free of fsd, which is exactly why probe 03's `q4_vs_rise_eo` skips: no single interpreter has both.
+free of fsd, which is exactly why probe 03's `q4_vs_fsd` skips: no single interpreter has both.
 Two probes, one object, two environments -- that is the design, not a workaround.
 
 ## Why the comparison is the whole point
 
 `fsd` routes remote rasters through GDAL's `/vsiadls/` handler with a refreshed
-`AZURE_STORAGE_ACCESS_TOKEN` (`src/rise_eo/raster/__init__.py:56-92`, spec 31). rslearn hands
+`AZURE_STORAGE_ACCESS_TOKEN` (`src/fsd/raster/__init__.py:56-92`, spec 31). rslearn hands
 rasterio an fsspec file object instead (`rslearn/utils/fsspec.py:157-179`) and never gives GDAL
 a URL. Both work. fsd's route exists because GDAL's remote reader has optimizations -- range
 caching, overview handling -- that a plain Python file object does not get. **Whether that
@@ -28,7 +28,7 @@ input to the Option B price.
 
 Usage (see `../RUNBOOK-rslearn-spike.md` Step 3c):
 
-    python spike/probes/probe_03b_rise_eo_vsi_baseline.py \
+    python spike/probes/probe_03b_fsd_vsi_baseline.py \
         --out tests/outputs/rslearn_spike \
         --url "$AZ_ROOT/$AZ_SCRATCH_PREFIX/rslearn_spike/raster_format/geotiff.tif"
 
@@ -76,7 +76,7 @@ def main() -> int:
 
     def _fail(msg: str) -> int:
         result = {
-            "step": "probe_03b_rise_eo_vsi_baseline",
+            "step": "probe_03b_fsd_vsi_baseline",
             "status": "fail",
             "pass": False,
             "metrics": {"url_shape": _redact(args.url)},
@@ -88,7 +88,7 @@ def main() -> int:
         return 1
 
     try:
-        from rise_eo.raster import rio_open, to_vsi
+        from fsd.raster import rio_open, to_vsi
     except ImportError as exc:
         return _fail(
             f"fsd not importable ({exc}). This probe runs in fsd's venv (.venv), NOT "
@@ -105,13 +105,13 @@ def main() -> int:
     # Time the AAD token acquisition SEPARATELY, because the first `rio_open` pays for it and
     # that would otherwise be charged to "read throughput". `storage_token()` fetches from a
     # module-cached `DefaultAzureCredential` whose MSAL cache refreshes internally
-    # (`src/rise_eo/storage/azure.py:48-56`), so call 1 is a real network round-trip to AAD/IMDS
+    # (`src/fsd/storage/azure.py:48-56`), so call 1 is a real network round-trip to AAD/IMDS
     # and calls 2..N are ~free. Without this split, fsd's cold number conflates one-time auth
     # with transfer -- and the rslearn side of the comparison does NOT pay auth in its timed
     # read at all, because probe 03's q1 resolves the filesystem first. See run-book Step 3c.
     token_timings = []
     try:
-        from rise_eo.storage.azure import storage_token
+        from fsd.storage.azure import storage_token
 
         for _ in range(2):
             t0 = time.perf_counter()
@@ -166,7 +166,7 @@ def main() -> int:
     }
 
     result = {
-        "step": "probe_03b_rise_eo_vsi_baseline",
+        "step": "probe_03b_fsd_vsi_baseline",
         "status": "ok",
         "pass": True,
         "metrics": metrics,

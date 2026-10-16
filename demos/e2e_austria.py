@@ -12,7 +12,7 @@ Steps (each prints a ✓ check; a failed check aborts — this is a gate, not a 
   2. DOWNLOAD (probe + resume + timing)  6. plots (per-class NDVI + crop map)
   3. training data (create_training_data) 7. timing report + cost_model + ETA estimator
 
-Download is a SEPARATE step (CDSE serves quota'd .jp2 that fsd converts to COG); compute reads the
+Download is a SEPARATE step (CDSE serves quota'd .jp2 that rise-eo converts to COG); compute reads the
 catalog and never touches CDSE. Needs CDSE creds + the isolated venv:
 
     python3.11 -m venv .venv-modeldeploy
@@ -285,7 +285,7 @@ def step_training_data(fast, catalog_fp, adapter, clip_fp=None):
 # --- step 4: train + bundle --------------------------------------------------
 
 def step_train(d, adapter):
-    log("4. train RandomForest (sklearn — fsd does not train) + save model bundle")
+    log("4. train RandomForest (sklearn — rise-eo does not train) + save model bundle")
     import joblib
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.preprocessing import LabelEncoder
@@ -318,7 +318,7 @@ def step_inference(bundle_dir, catalog_fp, roi_run_fp, grids):
     log("5. run_inference(roi=…) → COG per cell + STAC + merged crop map")
     t0 = time.time()
     # merge="reproject": cross-UTM-zone-safe (lossless for single-zone Austria — no cell changes
-    # zone). fsd tiles the ROI, builds each cell's cube in its own CRS, runs the model, writes a COG
+    # zone). rise-eo tiles the ROI, builds each cell's cube in its own CRS, runs the model, writes a COG
     # (spec 21); cores=INFER_CORES fans out via the Snakemake runner; cubes_per_task amortises the RF
     # load. Idempotent: a re-run skips cells whose output.tif exists.
     result = rise_eo.run_inference(
@@ -472,7 +472,7 @@ def _single_tile_roi(out_fp, half_deg=0.03):
 
 def main():
     global ROI_FP, TRAIN_FP, ID_COL, LABEL_COL, START, END, CORES, INFER_CORES
-    ap = argparse.ArgumentParser(description="fsd end-to-end LOCAL gate (spec 23).")
+    ap = argparse.ArgumentParser(description="rise-eo end-to-end LOCAL gate (spec 23).")
     ap.add_argument("--fast", action="store_true",
                     help="quick smoke: 2-month window, 3 fields/class, small inference ROI "
                          "(still downloads the FULL ROI).")

@@ -1,11 +1,11 @@
 """Example ModelAdapter: the EuroCrops Random-Forest crop classifier (spec 18).
 
-Reproduces the legacy `demo_02_model_train` + `demo_03_model_deploy` through the fsd contract.
-This file is an **example**, not part of the fsd wheel — to use it in a bundle, make it
+Reproduces the legacy `demo_02_model_train` + `demo_03_model_deploy` through the rise-eo contract.
+This file is an **example**, not part of the rise-eo wheel — to use it in a bundle, make it
 importable (`pip install -e .` your project, or put this dir on `PYTHONPATH`) so the ref
 `eurocrops_rf:EuroCropsRF` resolves.
 
-Train side (your code, sklearn — fsd does not train):
+Train side (your code, sklearn — rise-eo does not train):
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.preprocessing import LabelEncoder
     import joblib
@@ -41,7 +41,7 @@ class EuroCropsRF(BaseModelAdapter):
     output_nodata = 255
     output_band_names = ["crop_class"]   # one band => categorical map (label-encoded ints)
 
-    # --- F1: ONE feature transform, run by fsd at BOTH train and inference ---
+    # --- F1: ONE feature transform, run by rise-eo at BOTH train and inference ---
     feature_sequence = [
         (modify.mask_invalid_and_interpolate, {}),
         (modify.compute_bands, dict(bands_to_compute=["NDVI", "NDRE", "GCVI", "SAVI"])),
@@ -54,7 +54,7 @@ class EuroCropsRF(BaseModelAdapter):
         self.clf, self.label_encoder = joblib.load(self.artifacts["model"])
 
     def predict(self, X_chunk: np.ndarray) -> np.ndarray:
-        # fsd hands us valid (non-NaN) rows; return label-encoded class ids.
+        # rise-eo hands us valid (non-NaN) rows; return label-encoded class ids.
         return self.clf.predict(X_chunk).astype("uint8")
 
     # datacube_to_X and to_output are inherited from BaseModelAdapter (the legacy reshape +

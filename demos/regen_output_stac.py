@@ -46,7 +46,7 @@ def main(argv=None) -> int:
         )
         _stac.write_stac_catalog(
             items, args.stac_dir, catalog_id=args.catalog_id, collection_id=args.collection_id,
-            description="fsd inference outputs (STAC, regenerated with true cell geometry).",
+            description="rise-eo inference outputs (STAC, regenerated with true cell geometry).",
         )
         distinct_ids = len({it.id for it in items})
         non_rectangular = sum(

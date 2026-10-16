@@ -1,8 +1,8 @@
-# AZURE_INFRA — the `rise` deployment target for fsd scale-up
+# AZURE_INFRA — the `rise` deployment target for rise-eo scale-up
 
 > **What this is.** A standing reference (not a spec) capturing how the RAAPID Azure
 > infrastructure — repo `raapid-infra/`, built by a colleague in Terraform — is set up,
-> and specifically what the **`rise`** project gives us to run `fsd` at scale on **Azure
+> and specifically what the **`rise`** project gives us to run `rise-eo` at scale on **Azure
 > Batch**. Read this before/while writing the Azure Batch spec (the future spec 10).
 > **`raapid-infra/` is READ-ONLY for us** (a hard constraint, same status as
 > `fetch_satdata/` / `rsutils/` / `cdseutils/`) — at least for now. We read it to
@@ -13,7 +13,7 @@
 > the file to re-read for the ground truth about identities, network, and gotchas.
 >
 > **Redaction note.** `raapid-infra/` is a **private** repo; this file is in the **public**
-> `fsd` repo. So concrete resource **names/endpoints**, directory/group **object IDs**, the
+> `rise-eo` repo. So concrete resource **names/endpoints**, directory/group **object IDs**, the
 > **VNet CIDR**, budget figures, and alert emails are **deliberately omitted** here — they
 > live only in `raapid-infra/main/terraform.tfvars` and the Azure Portal. This doc keeps the
 > *architecture and seam mapping* (which is the reusable value) and refers to resources by
@@ -32,7 +32,7 @@ RAAPID is a shared Azure platform managed as **Terraform IaC** (`azurerm ~> 4.17
 `raapid-infra/`. One Azure subscription, one shared VNet, many **projects**. Projects are
 *pure data*: each is an entry in the `projects` map in `main/terraform.tfvars`. Adding
 capabilities to a project = editing that map + a gated `terraform apply` (`main/deploy.sh`)
-run by a **platform admin**. We (fsd) are consumers, not admins — we don't run Terraform; we
+run by a **platform admin**. We (rise-eo) are consumers, not admins — we don't run Terraform; we
 ask for config changes and then use the resources.
 
 Each project gets, from the **`project-core`** module (always):
@@ -88,7 +88,7 @@ From `main/terraform.tfvars` (the `rise` block; identifiers/budget/group-IDs red
 |---|---|---|
 | Resource group | `rg<proj>` | `prevent_destroy` + delete-lock |
 | **Project storage** | `st<proj>` | **ADLS Gen2** (HNS on), LRS, `data` container, firewalled |
-| Key Vault | `kv<proj>` | RBAC-auth, purge-protected — **where fsd secrets go** |
+| Key Vault | `kv<proj>` | RBAC-auth, purge-protected — **where rise-eo secrets go** |
 | **Compute identity (UAMI)** | `id<proj>-compute` | the identity everything runs as |
 | Compute subnet | `snet<proj>-compute` | `/24` in the shared VNet, service endpoints |
 | NSG | `nsg<proj>` | deny-by-default inbound; Batch/AML mgmt ports open |
@@ -112,7 +112,7 @@ that uses `DefaultAzureCredential()` (Azure SDK / `azure-identity`) automaticall
 token for blob, Key Vault, and Batch **with no secrets baked into the image**. This is the
 crux of the whole auth story.
 
-### 2.3 Network & security posture (matters for fsd I/O)
+### 2.3 Network & security posture (matters for rise-eo I/O)
 
 - Project storage & Key Vault are **deny-by-default firewalled**: reachable only from the
   VPN IP ranges *and* the project's own subnets (via VNet **service endpoints**). Pool
@@ -129,7 +129,7 @@ crux of the whole auth story.
 
 ---
 
-## 3. Where fsd fits: the two compute paths
+## 3. Where rise-eo fits: the two compute paths
 
 `rise` has **both** `aml` and `azure-batch`.
 
@@ -164,10 +164,10 @@ crux of the whole auth story.
 > ready (see §8).
 
 Historically (and in the roadmap's original wording) **Azure Batch was the intended target** for the
-**download → datacube** fan-out. AML was framed as training/notebooks (out of fsd core scope) plus a
+**download → datacube** fan-out. AML was framed as training/notebooks (out of rise-eo core scope) plus a
 driver host; per §3.1 it is now also the scale backend.
 
-**Azure Batch mental model** (maps 1:1 onto fsd's existing design):
+**Azure Batch mental model** (maps 1:1 onto rise-eo's existing design):
 - A **pool** = a set of identical VM nodes (the project pool, D64ds_v6) that **autoscales
   0→N** on pending-task pressure and **back to 0 when idle** (so idle cost ≈ 0).
 - A **job** = a collection of **tasks**; each **task** = one command line run on a node
@@ -175,13 +175,13 @@ driver host; per §3.1 it is now also the scale backend.
 - A **driver** submits the job + tasks to the Batch account (via MSI), then Batch schedules
   tasks onto nodes as they scale up.
 
-This is exactly the fsd **runner seam**: today the "build one datacube" unit-of-work is a
+This is exactly the rise-eo **runner seam**: today the "build one datacube" unit-of-work is a
 CLI (`rise_eo.workflows.task`) dispatched locally by **Snakemake**; on Azure the **same CLI**
 becomes a **Batch task**, and a Batch runner replaces Snakemake as the dispatcher. Snakemake
 = the *local* runner; Azure Batch = the *scale* runner. The unit-of-work doesn't change.
 
 ```
-                 fsd today (local)                    fsd on rise (Azure Batch)
+                 rise-eo today (local)                    rise-eo on rise (Azure Batch)
   unit of work   rise_eo.workflows.task CLI               SAME CLI, inside a container
   dispatcher     Snakemake (local cores)              Azure Batch job/tasks → project pool
   parallelism    N processes on 1 machine             N tasks across autoscaled nodes
@@ -191,7 +191,7 @@ becomes a **Batch task**, and a Batch runner replaces Snakemake as the dispatche
 
 ---
 
-## 4. How fsd's seams land on `rise`
+## 4. How rise-eo's seams land on `rise`
 
 ### 4.1 Storage seam (`rise_eo.storage`, fsspec) → ADLS Gen2 via MSI
 
@@ -203,11 +203,11 @@ becomes a **Batch task**, and a Batch runner replaces Snakemake as the dispatche
   login` + VPN. This is a config change to `rise_eo.storage`, **not** new code paths — exactly
   the "storage becomes config, not code" goal. We'll need to confirm `adlfs` +
   `DefaultAzureCredential` works with our `storage.transfer` / `size` / `load_npy` calls.
-- The **generic S3 transport** in fsd (CDSE download via `s3fs`, any `endpoint_url`) is
+- The **generic S3 transport** in rise-eo (CDSE download via `s3fs`, any `endpoint_url`) is
   untouched — CDSE stays S3; only the *destination* of a tile download becomes an `abfss://`
   URL. `storage.transfer(cdse_s3_url, abfss_dst)` is the one-line tile copy.
 
-**Open item:** fsd's documented raster-read exception uses **rasterio/GDAL VSI**, not
+**Open item:** rise-eo's documented raster-read exception uses **rasterio/GDAL VSI**, not
 fsspec. On Azure that means GDAL `/vsiadls/` (or `/vsiaz/`) + env-based credentials, which
 is a *separate* auth path from adlfs. We must make GDAL read blobs under MSI too (likely
 `AZURE_STORAGE_ACCESS_TOKEN` / `AZURE_NO_SIGN_REQUEST` config, or user-delegation SAS). This
@@ -221,12 +221,12 @@ is a real design point for the spec.
 - Submission uses the **`azure-batch` SDK** authenticated via `DefaultAzureCredential`
   against the Batch account URL (a TF output). The compute identity has Contributor on the
   account.
-- Tasks are **containerized** (the pool is `DockerCompatible`): each task runs our fsd
+- Tasks are **containerized** (the pool is `DockerCompatible`): each task runs our rise-eo
   image pulled from the project ACR.
 
 ### 4.3 Container image → ACR
 
-- Build a rise-eo Docker image (the fsd package + its deps + GDAL/rasterio) and **push to the
+- Build a rise-eo Docker image (the rise-eo package + its deps + GDAL/rasterio) and **push to the
   project ACR `acr<proj>`** (compute identity has AcrPush; a human/CI does the push).
 - The pool pulls it via the compute identity (AcrPull). Optionally list it in the pool's
   `container_image_names` for a **warm cache** on scale-up (avoids first-task pull latency)
@@ -234,21 +234,21 @@ is a real design point for the spec.
 
 ### 4.4 Secrets → Key Vault
 
-- CDSE S3 credentials (today in `secrets/`) move to **`kv<proj>`**; fsd reads them at
+- CDSE S3 credentials (today in `secrets/`) move to **`kv<proj>`**; rise-eo reads them at
   runtime via MSI (`azure-keyvault-secrets` + `DefaultAzureCredential`). No secrets in the
   image or in blob.
 
 ---
 
-## 5. End-to-end: fsd on `rise` (the target flow)
+## 5. End-to-end: rise-eo on `rise` (the target flow)
 
 ```
   [driver]  (laptop on VPN, or AML compute, or a small VM)
      |  1. reads geometries + builds the unit list (input.csv) — as today
      |  2. az/MSI: submit Batch job to the project Batch account, one task per unit
      v
-  [Batch pool]  autoscales 0 -> up to 2 x D64ds_v6, pulls fsd image from the project ACR
-     |  each task = `python -m rise_eo.workflows.task ...` in the fsd container, running as the compute identity
+  [Batch pool]  autoscales 0 -> up to 2 x D64ds_v6, pulls rise-eo image from the project ACR
+     |  each task = `python -m rise_eo.workflows.task ...` in the rise-eo container, running as the compute identity
      |    - reads CDSE creds from Key Vault (MSI)
      |    - downloads S2 tiles from CDSE S3 -> writes to abfss://data@<storage-account>... (fsspec/adlfs)
      |    - builds datacube (rasterio reads blobs via GDAL VSI), writes datacube.npy + metadata to blob
@@ -278,10 +278,10 @@ is a real design point for the spec.
    GDAL VSI must authenticate via Entra ID. Test both read paths early.
 5. **Firewalled storage.** From a laptop you need VPN + `az login`; pool nodes are fine
    (they're in the subnet). Don't assume public blob access.
-6. **D64ds_v6 has a local NVMe temp disk** (the `d`/`ds`). fsd's build is **I/O-bound**
+6. **D64ds_v6 has a local NVMe temp disk** (the `d`/`ds`). rise-eo's build is **I/O-bound**
    (load_images ≈73% of CPU); staging COG reads/writes on the node's local SSD (Batch task
    working dir) rather than round-tripping blob for scratch is likely a big lever.
-7. **COG-on-download is local-dst only in fsd v1** (TODO #15: remote-dst COG =
+7. **COG-on-download is local-dst only in rise-eo v1** (TODO #15: remote-dst COG =
    stage→convert→upload). Azure wants remote-dst; this parked TODO becomes in-scope for the
    Batch spec.
 8. **No shared-dataset access** (`allowed_datasets = []`). rise brings its own S2 archive
@@ -322,7 +322,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
    {input.csv, shards/<k>.csv, cubes/<cell_id>/, _status/<k>.json}` — spec 35's self-describing
    catalog is what made "how does a task learn its collection" not need answering separately.
 5. **Container image** — moot for a Batch task (dropped, `AZURE_INFRA.md` §3.1); **spec 36 D5**
-   answers the equivalent AML question — an AML **Environment** (conda/pip spec + fsd wheel),
+   answers the equivalent AML question — an AML **Environment** (conda/pip spec + rise-eo wheel),
    built and versioned by AML itself, no ACR push required.
 6. ~~**Runner abstraction in `rise_eo.workflows`** — the seam so `--runner=snakemake|batch` selects
    dispatcher without touching the task CLI.~~ **✅ RESOLVED by spec 36 D3**: `runner="local"|"aml"`,
@@ -354,7 +354,7 @@ These are the decisions the future spec 10 must settle. Flagged here so we don't
     `_aml_submit_and_wait`/D4-identity verbatim (same machinery as #9), fanning out over **cells**
     (not per-source, since inference reads only the blob catalog — no CDSE, no per-credential cap,
     SO-6). **New infra unit: a *second*, model-specific AML Environment** (D4) — item 5's generic
-    build Environment (`fsd[azure,mpc]`, no model) extended with the user's adapter package + its
+    build Environment (`rise-eo[azure,mpc]`, no model) extended with the user's adapter package + its
     runtime deps (e.g. `scikit-learn`/`joblib`), built the same way (an `az ml environment create`
     Docker-build-context step) but as a distinct image referenced by name
     (`run_aml_inference(environment=…)`) — no per-run image build, one image serves many

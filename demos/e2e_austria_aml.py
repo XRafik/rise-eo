@@ -485,8 +485,8 @@ def _list_run_ids(root: str) -> set:
 
 
 def _assert_dispatch_telemetry_complete(dispatch_timings: list, *, step: str) -> None:
-    """The four in-job stamps (D2) are written by `fsd` **on the node**, i.e. by whatever
-    `fsd` is baked into the AML Environment image -- NOT by the driver's checkout. An
+    """The four in-job stamps (D2) are written by `rise-eo` **on the node**, i.e. by whatever
+    `rise-eo` is baked into the AML Environment image -- NOT by the driver's checkout. An
     Environment built before spec 40 therefore produces a `_status/<k>.json` with the old
     shape: `seconds` present, `process_start_at`/`work_start_at`/`work_end_at`/`ended_at`
     absent. Everything still runs and every science output is correct, so nothing fails --
@@ -511,9 +511,9 @@ def _assert_dispatch_telemetry_complete(dispatch_timings: list, *, step: str) ->
         f"{step}: none of the {len(jobs)} dispatched job(s) reported the D2 in-job stamps "
         "(process_start_at/work_start_at/work_end_at/ended_at), so job_admission_seconds "
         "-- D11's headline metric -- would be null for this entire demo run.\n"
-        "      The stamps are written by the `fsd` INSIDE the AML Environment image, not "
+        "      The stamps are written by the `rise-eo` INSIDE the AML Environment image, not "
         "by this checkout, so the image predates spec 40.\n"
-        "      Fix: rebuild both Environments from current fsd (see "
+        "      Fix: rebuild both Environments from current rise-eo (see "
         "docs/howto/build-the-images.md), bump AZ_ENV_VERSION / AZ_INFER_ENV_VERSION, then "
         "resume with --run-id <the id printed at the start of this run> -- the download "
         "is already on disk and skips."
@@ -954,11 +954,11 @@ def _print_delete_command(prev_run_id: str, az_root: str):
         _, _, filesystem, path = to_vsi(prev_root).split("/", 3)
     except Exception:  # noqa: BLE001 - a non-blob root has no `az storage` command at all
         print(f"  ! previous run {prev_run_id!r} left data at {prev_root} -- delete it by hand "
-              f"(fsd's own recursive delete is broken, TODO #50).")
+              f"(rise-eo's own recursive delete is broken, TODO #50).")
         return
     account = account_from_url(prev_root)
     account_arg = f'--account-name "{account}"' if account else "--account-name <account>"
-    print(f"  ! previous run {prev_run_id!r} left data on blob. To reclaim it (fsd's own "
+    print(f"  ! previous run {prev_run_id!r} left data on blob. To reclaim it (rise-eo's own "
           f"recursive delete is broken, TODO #50 -- the OPERATOR runs this, never this "
           f"script):\n"
           f"      az storage fs directory delete -f \"{filesystem}\" {account_arg} "
@@ -968,7 +968,7 @@ def _print_delete_command(prev_run_id: str, az_root: str):
 def _last_run_marker_fp() -> str:
     """Which run last *spent* anything -- written when the download step starts, not
     when a run id is allocated. A run that dies in preflight has an empty prefix and
-    must not overwrite the id of the run that actually holds the data; with fsd's
+    must not overwrite the id of the run that actually holds the data; with rise-eo's
     recursive delete broken (TODO #50), a forgotten id is orphaned storage nobody can
     name."""
     return os.path.join(_LOCAL_OUTDIR_BASE, ".last_run_id")

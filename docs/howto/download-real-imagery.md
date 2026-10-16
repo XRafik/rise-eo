@@ -9,7 +9,7 @@ you read before you run `rise_eo.download` for real, so the byte budget doesn't 
 
 ## The one fact that makes this page necessary
 
-**fsd reads whole ~110 km MGRS-tile granules — there is no windowed/partial-tile read** (see
+**rise-eo reads whole ~110 km MGRS-tile granules — there is no windowed/partial-tile read** (see
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md)'s invariants and `LIMITATIONS.md`). A granule averages
 **~426 MB** across four bands (B04 184 MB + B08 187 MB + B8A 51 MB + SCL 4.6 MB, measured). Your ROI
 picks *which* granules intersect it — a 5 km ROI and a 100 km ROI inside the same MGRS tile pull the
@@ -63,11 +63,11 @@ run cleanly from another terminal; re-running the same command resumes it.
   --bands B04 B08 SCL --dst data/imagery --catalog data/imagery/sentinel-2-l2a/catalog.parquet \
   --max-tiles 600 --dry-run
 
-# real run; `touch /tmp/fsd.stop` from another terminal stops it cleanly
+# real run; `touch /tmp/rise-eo.stop` from another terminal stops it cleanly
 .venv/bin/python -m rise_eo.sources.download_cli \
   --roi my_roi.geojson --start 2018-01-01 --end 2019-01-01 \
   --bands B04 B08 SCL --dst data/imagery --catalog data/imagery/sentinel-2-l2a/catalog.parquet \
-  --max-tiles 600 --stop-file /tmp/fsd.stop --creds cdse_credentials.json
+  --max-tiles 600 --stop-file /tmp/rise-eo.stop --creds cdse_credentials.json
 ```
 
 It writes `<dst>/_result.json`. The exit code is the verdict: 0 on a clean finish or a user stop,

@@ -1,6 +1,6 @@
-# LIMITATIONS — what fsd cannot do today
+# LIMITATIONS — what rise-eo cannot do today
 
-**The one-page honest answer to "can fsd do X?"** — written for a *user* of the system
+**The one-page honest answer to "can rise-eo do X?"** — written for a *user* of the system
 (and for anyone sizing a demo), not for an implementer.
 
 **This is an index, not a register.** One line per limitation, no detail. The detail
@@ -58,9 +58,9 @@ column is what "hitting it" means for each row.
 
 | Limitation | Trigger to fix | Detail |
 |---|---|---|
-| **fsd serves nothing.** It emits COGs + STAC; a stock server turns them into XYZ tiles (`docs/howto/serve-xyz.md`), and none is hosted. | someone needs a hosted map | #26; #63; `ROADMAP.md` P5 |
+| **rise-eo serves nothing.** It emits COGs + STAC; a stock server turns them into XYZ tiles (`docs/howto/serve-xyz.md`), and none is hosted. | someone needs a hosted map | #26; #63; `ROADMAP.md` P5 |
 | **No render config on outputs** — nothing tells a viewer how to colour a class raster. | first output shown to a non-author | TODO #28 |
-| **The STAC Collection's `classification:classes` lists only the *masked* SCL values, with placeholder names.** Misleading to an external STAC consumer; fsd itself is unaffected. | an external tool actually reads our STAC | TODO #45 |
+| **The STAC Collection's `classification:classes` lists only the *masked* SCL values, with placeholder names.** Misleading to an external STAC consumer; rise-eo itself is unaffected. | an external tool actually reads our STAC | TODO #45 |
 
 ## Models
 
@@ -75,7 +75,7 @@ column is what "hitting it" means for each row.
 
 | Limitation | Trigger to fix | Detail |
 |---|---|---|
-| **The local Austria archive predates spec 59, and current fsd refuses to read it.** Every catalog written before spec 59 lacks its four columns and raises on read; there is no migration. | any real-data run | #119; `docs/reference/test-data.md` |
+| **The local Austria archive predates spec 59, and current rise-eo refuses to read it.** Every catalog written before spec 59 lacks its four columns and raises on read; there is no migration. | any real-data run | #119; `docs/reference/test-data.md` |
 | **The `rise` blob COGs carry the pre-fix (wrong) GDAL offset tag** — a titiler `unscale=true` render of them would be all black. | before ever serving those blob COGs | TODO #44 |
 
 ## Legacy capabilities not carried over
@@ -84,11 +84,11 @@ From the pre-fsd repos (`fetch_satdata`, `rsutils`, `cdseutils`), left out on pu
 
 | Capability | Why it was left out | Reconsider when |
 |---|---|---|
-| Sentinel-2 **L1C**, and **s2cloudless** cloud masking (L1C-only, heavy dependency) | fsd is L2A-first | an L1C use case returns |
+| Sentinel-2 **L1C**, and **s2cloudless** cloud masking (L1C-only, heavy dependency) | rise-eo is L2A-first | an L1C use case returns |
 | **Planet** datacube path | a same-CRS special case, not a download source | a uniform-grid source is needed |
 | **SSH / cluster fetch** (`fetch_from_cluster`) | infrastructure-specific | a multi-machine workflow without blob storage |
 | **ESA WorldCover / WorldCereal** TIF generators | reference-data tooling, not core | reference layers are needed in-repo |
-| Sentinel-Hub **Process API** download (evalscripts) | fsd downloads whole granules | small on-the-fly composites are needed |
+| Sentinel-Hub **Process API** download (evalscripts) | rise-eo downloads whole granules | small on-the-fly composites are needed |
 | `rsutils` plotting, `rich_data_filter`, `esa_download`, `utils_preprocess` (SAR scaling, patch-finding) | not on the data-prep path; plotting belongs in notebooks | per need |
 | Band ops: rolling `median_mosaic` (window/step), `sav_gol` smoothing, `trim_bands`, `modify_bands_chunkwise` | not used by any band sequence | a training-time rolling mosaic, temporal smoothing, timestamp trimming, or out-of-memory band math |
 | Preprocess-log save and replay | not on the band path | a preprocessing recipe must be persisted and replayed |

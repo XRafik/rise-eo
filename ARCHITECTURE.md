@@ -4,19 +4,19 @@ The code map. **Where things live, what must stay true, and what runs where.**
 
 Read this before changing code. For *why* a decision was made, see [`docs/adr/`](docs/adr/); for
 how the code got this shape — the forks taken and dropped — [`docs/history.md`](docs/history.md);
-for where fsd is going, [`ROADMAP.md`](ROADMAP.md); for what a term means,
+for where rise-eo is going, [`ROADMAP.md`](ROADMAP.md); for what a term means,
 [`CONTEXT.md`](CONTEXT.md).
 
 Modules and types are **named, not deep-linked** — symbol-search beats a line number that rots.
 
 ---
 
-## 1. Context — what fsd is, and what it is not
+## 1. Context — what rise-eo is, and what it is not
 
 ```mermaid
 graph LR
   U["Researcher<br/>(writes a ModelAdapter,<br/>trains their own model)"]
-  F["<b>fsd</b><br/>download · datacube · flatten<br/>· inference · STAC"]
+  F["<b>rise-eo</b><br/>download · datacube · flatten<br/>· inference · STAC"]
   C["CDSE<br/>Sentinel-2 L2A"]
   M["Microsoft<br/>Planetary Computer"]
   A["Azure ML + Blob<br/>(the <i>rise</i> platform)"]
@@ -28,14 +28,14 @@ graph LR
   F -->|"COGs + STAC + render config"| S
 ```
 
-**fsd never trains a model.** Training is permanently the user's side of the line — fsd produces
+**rise-eo never trains a model.** Training is permanently the user's side of the line — rise-eo produces
 training arrays and consumes a bundled adapter. It also builds **no dashboard**: it emits standard
 STAC + COGs, and stock infrastructure serves them.
 
 ## 2. Containers — the four runtime pieces
 
 C4's "container" means *a separately runnable thing* — [its own docs say **"Not
-Docker!"**](https://c4model.com/diagrams/container). fsd's containers are therefore these, and
+Docker!"**](https://c4model.com/diagrams/container). rise-eo's containers are therefore these, and
 emphatically **not** the AML Docker environments (those are packaging for the node).
 
 ```mermaid
@@ -67,29 +67,29 @@ Removing those round-trips took that window from **777 s to 36 s** on a 299-cell
 **Two registries live on blob**, addressed through the same storage seam as everything else: the
 **model registry** (a name and a version for a bundle) and the **image registry** (a name and a
 version for a resolved image definition). Both are stores, not services — a directory layout plus
-an all-or-nothing completion marker, readable by anything that can read a blob. fsd never hard-codes
+an all-or-nothing completion marker, readable by anything that can read a blob. rise-eo never hard-codes
 where they are; the location is an argument, optionally defaulted from user config.
 
 ## 3. Code map
 
 | module | responsibility |
 |---|---|
-| `fsd/api.py` | **the public verbs** — `download`, `create_training_data`, `flatten_training_data`, `run_inference`, `verify_adapter`, `deploy`. Preflight lives here: fail cheap, before any spend. |
-| `fsd/sources/` | `cdse.py`, `mpc.py` — discover + fetch granules. `_s2_radiometry.py` derives offset/scale from the processing baseline. `download_cli.py` is the safe shell runner. |
-| `fsd/catalog/` | `catalog.py` = `TileCatalog`, the GeoParquet query format. `stac.py` = an **additive export view**; `stac_geoparquet.py` exports it in the form pgSTAC loads. `declaration.py` carries radiometry through. `inspect_cli.py` / `restamp_cli.py` are operator tools. |
-| `fsd/datacube/` | `builder.py` merges granules into one cube per geometry; `_instrument.py` the opt-in timing sidecars; `ops.py` array transforms; `flatten.py` the reduce into training arrays. |
-| `fsd/bands/` | band math on the 5-D contract. |
-| `fsd/raster/` | rasterio primitives: `cog.py` (COG conversion, remote-dst branch), `images.py`. **The home of the GDAL/VSI exception to invariant 1** — the mosaic path in `api.py` and the COG writer in `model/engine.py` also open rasters directly, and are the only other places that may. |
-| `fsd/grid.py` | `roi_to_s2_grids` — an ROI becomes S2 grid cells, one cell = one work unit. |
-| `fsd/model/` | `adapter.py` the `ModelAdapter` contract, `bundle.py` packaging (carries the adapter's own source since spec 44), `engine.py` inference, `features.py`. `registry.py` = **a name for a bundle**, on the storage seam. `verify_image.py` answers "does this image actually run this bundle?". |
-| `fsd/workflows/` | `task.py` / `infer_task.py` / `infer_only_task.py` / `shard.py` / `infer_shard.py` / `create_datacube.py` / `download.py` / `flatten.py` = the CLI units-of-work. `runners.py` = the runner seam (local Snakemake, AML). `stamp.py` = **the one identity-stamp helper** — "were these artifacts derived from exactly *this* request?", never a modification time. `adapter_smoke.py` is the import-level gate. |
-| `fsd/image/` | an AML node image **declared as data**: `definition.py` (a frozen `ImageDefinition` that renders a Dockerfile but never builds one), `digest.py` (resolve every moving reference to a fixed one, then hash), `registry.py` (the versioned store of resolved definitions). |
-| `fsd/aml/` | `environment.py` — **the only module in fsd that shells out to `az`**. `ensure_environment` builds a declared image if that digest is not already registered, and reuses it otherwise. Azure coordinates are always arguments; fsd hard-codes none. |
-| `fsd/registry/` | `_core.py` — generic version allocation, aliases, and the all-or-nothing completion marker shared by the model and image registries (the model registry keeps its own ref parsing and name checks; the image registry uses `_core`'s). |
-| `fsd/config.py` · `fsd/cli.py` | the user-level config (`~/.config/rise-eo/config.toml`) and the **`fsd` console script** that writes it — `fsd init`, `fsd config`. Operator-facing: **the library itself never reads the config file**, it takes locations as arguments. |
-| `fsd/progress.py` | one shared throttled ticker (rate + elapsed + ETA). Every driver-side loop that can run for minutes prints through it rather than growing a second copy. |
-| `fsd/secrets.py` | a thin Key Vault read, authenticated by the same managed identity as blob. |
-| `fsd/storage/` | `fs.py` the fsspec seam every module uses; `azure.py` the `az://` URL form. |
+| `rise_eo/api.py` | **the public verbs** — `download`, `create_training_data`, `flatten_training_data`, `run_inference`, `verify_adapter`, `deploy`. Preflight lives here: fail cheap, before any spend. |
+| `rise_eo/sources/` | `cdse.py`, `mpc.py` — discover + fetch granules. `_s2_radiometry.py` derives offset/scale from the processing baseline. `download_cli.py` is the safe shell runner. |
+| `rise_eo/catalog/` | `catalog.py` = `TileCatalog`, the GeoParquet query format. `stac.py` = an **additive export view**; `stac_geoparquet.py` exports it in the form pgSTAC loads. `declaration.py` carries radiometry through. `inspect_cli.py` / `restamp_cli.py` are operator tools. |
+| `rise_eo/datacube/` | `builder.py` merges granules into one cube per geometry; `_instrument.py` the opt-in timing sidecars; `ops.py` array transforms; `flatten.py` the reduce into training arrays. |
+| `rise_eo/bands/` | band math on the 5-D contract. |
+| `rise_eo/raster/` | rasterio primitives: `cog.py` (COG conversion, remote-dst branch), `images.py`. **The home of the GDAL/VSI exception to invariant 1** — the mosaic path in `api.py` and the COG writer in `model/engine.py` also open rasters directly, and are the only other places that may. |
+| `rise_eo/grid.py` | `roi_to_s2_grids` — an ROI becomes S2 grid cells, one cell = one work unit. |
+| `rise_eo/model/` | `adapter.py` the `ModelAdapter` contract, `bundle.py` packaging (carries the adapter's own source since spec 44), `engine.py` inference, `features.py`. `registry.py` = **a name for a bundle**, on the storage seam. `verify_image.py` answers "does this image actually run this bundle?". |
+| `rise_eo/workflows/` | `task.py` / `infer_task.py` / `infer_only_task.py` / `shard.py` / `infer_shard.py` / `create_datacube.py` / `download.py` / `flatten.py` = the CLI units-of-work. `runners.py` = the runner seam (local Snakemake, AML). `stamp.py` = **the one identity-stamp helper** — "were these artifacts derived from exactly *this* request?", never a modification time. `adapter_smoke.py` is the import-level gate. |
+| `rise_eo/image/` | an AML node image **declared as data**: `definition.py` (a frozen `ImageDefinition` that renders a Dockerfile but never builds one), `digest.py` (resolve every moving reference to a fixed one, then hash), `registry.py` (the versioned store of resolved definitions). |
+| `rise_eo/aml/` | `environment.py` — **the only module in rise-eo that shells out to `az`**. `ensure_environment` builds a declared image if that digest is not already registered, and reuses it otherwise. Azure coordinates are always arguments; rise-eo hard-codes none. |
+| `rise_eo/registry/` | `_core.py` — generic version allocation, aliases, and the all-or-nothing completion marker shared by the model and image registries (the model registry keeps its own ref parsing and name checks; the image registry uses `_core`'s). |
+| `rise_eo/config.py` · `rise_eo/cli.py` | the user-level config (`~/.config/rise-eo/config.toml`) and the **`rise-eo` console script** that writes it — `rise-eo init`, `rise-eo config`. Operator-facing: **the library itself never reads the config file**, it takes locations as arguments. |
+| `rise_eo/progress.py` | one shared throttled ticker (rate + elapsed + ETA). Every driver-side loop that can run for minutes prints through it rather than growing a second copy. |
+| `rise_eo/secrets.py` | a thin Key Vault read, authenticated by the same managed identity as blob. |
+| `rise_eo/storage/` | `fs.py` the fsspec seam every module uses; `azure.py` the `az://` URL form. |
 
 **Key types:** `TileCatalog` · `ModelAdapter` / `BaseModelAdapter` · `TrainingData` ·
 `InferenceResult` · `Output` · `PreflightError` · `ImageDefinition` · `EnsureResult` (which carries
@@ -119,8 +119,8 @@ Important invariants are **an absence of something** — that is what makes them
 3. **The unit-of-work never knows how it was scheduled.** `workflows/task.py` reads its inputs and
    writes its artifact; it cannot tell Snakemake from AML. This is what makes a new backend a
    dispatch swap, not a pipeline rewrite.
-4. **fsd never trains a model.** It produces training arrays and consumes a bundle.
-5. **fsd builds no dashboard.** It emits STAC + COGs + a render config; stock pgSTAC/titiler serves.
+4. **rise-eo never trains a model.** It produces training arrays and consumes a bundle.
+5. **rise-eo builds no dashboard.** It emits STAC + COGs + a render config; stock pgSTAC/titiler serves.
 6. **Ingest stores raw DN.** Radiometry is *declared* as metadata, never baked into pixels.
 7. **An ROI is one region, not a label set.** One cell = one row = one work unit; ids are unique.
    Violating this cost two failed cluster runs — issue #58, spec 21 D-GRID-1.
@@ -176,19 +176,19 @@ dict; nodata is 0; cubes over one start/end/`mosaic_days` share an identical `ti
 - **A config file inside the checkout** (`env.example.sh` + `notebooks/_config.py`, retired by spec
   54, #78). Only a checkout could reach it, so a `pip install` consumer could not, and a project-local
   file is where someone eventually commits a live storage URL. Replaced by
-  `~/.config/rise-eo/config.toml` + `fsd init`.
+  `~/.config/rise-eo/config.toml` + `rise-eo init`.
 - **A checked-in image build folder** (`notebooks/images/` + `.last_registered.json`, retired by
   spec 56, #79). Same shape: only a checkout could build the image, and nobody else could answer
   "what was this image built from?". Replaced by `rise_eo.image.ImageDefinition`, a digest of the
-  resolved fsd reference, and `rise_eo.image.registry`.
+  resolved rise-eo reference, and `rise_eo.image.registry`.
 
 ## 5. The three modes
 
 | mode | who does what | state |
 |---|---|---|
 | **A — fully local** | the laptop does everything: download → datacube → flatten → train → inference | works today; the escape hatch for Azure-hesitant colleagues, and it never goes away |
-| **B — cloud data + compute, local control and training** | the laptop is a thin remote control: it triggers download/build/flatten in the cloud, then pulls back only the **compact flattened arrays** | proven on the cluster 2026-07-29; re-run 2026-09-02 from a separate repo with fsd installed as a dependency |
-| **C — fully cloud inference** | register a model + adapter, trigger by ROI + dates; the cloud fans out, runs the model, writes COGs + STAC | proven on the cluster 2026-07-29; re-run 2026-09-02 from a separate repo with fsd installed as a dependency |
+| **B — cloud data + compute, local control and training** | the laptop is a thin remote control: it triggers download/build/flatten in the cloud, then pulls back only the **compact flattened arrays** | proven on the cluster 2026-07-29; re-run 2026-09-02 from a separate repo with rise-eo installed as a dependency |
+| **C — fully cloud inference** | register a model + adapter, trigger by ROI + dates; the cloud fans out, runs the model, writes COGs + STAC | proven on the cluster 2026-07-29; re-run 2026-09-02 from a separate repo with rise-eo installed as a dependency |
 
 The "downloading raw data to a laptop defeats the cloud speed-up" worry is really *Mode A data
 locality with Mode C speed*, which is incoherent. The resolution is Mode B: **you download the
@@ -200,7 +200,7 @@ flattened result, not the raw imagery.**
 - **L1 — seams.** Storage (fsspec), runner (Snakemake → AML), control/trigger.
 - **L2 — deployment backends.** Local, AML, later others.
 - **L3 — project contract.** The user-supplied `ModelAdapter`.
-- **L4 — product surfaces.** pip UX, config, hosted titiler/STAC. fsd *produces* the STAC + COG;
+- **L4 — product surfaces.** pip UX, config, hosted titiler/STAC. rise-eo *produces* the STAC + COG;
   infrastructure *hosts* the tiler.
 
 ## 7. Deployment
@@ -215,9 +215,9 @@ graph LR
 
 Every concrete name, id and URL lives in `AZURE_INFRA_PRIVATE.md` at the **workspace root**, never
 in this repo — it is public MIT. The variables are named and verifiable in
-[`docs/reference/environment.md`](docs/reference/environment.md). Bootstrap with **`fsd init`**,
+[`docs/reference/environment.md`](docs/reference/environment.md). Bootstrap with **`rise-eo init`**,
 which writes `~/.config/rise-eo/config.toml` (spec 54); `AZ_*` environment variables still override it
-per shell, and `fsd config` shows the resolved value and where each one came from.
+per shell, and `rise-eo config` shows the resolved value and where each one came from.
 
 ## 8. Contributing
 
@@ -228,9 +228,9 @@ architecture adds:
 - **Tests are synthetic and offline.** Anything needing credentials, a cluster or human eyes is a
   **run-book** (`runbooks/`, spec 24), not a test.
 - **Docs can fail the suite** — `tests/test_docs.py` checks point-in-time status headers, config-key
-  parity, that every relative link in the maintained docs resolves, and that every `fsd.<verb>(…)`
+  parity, that every relative link in the maintained docs resolves, and that every `rise-eo.<verb>(…)`
   the README calls really binds to the live signature. Adding or renaming a config key means editing
-  `fsd/config.py` and `docs/reference/environment.md` in the same change.
+  `rise_eo/config.py` and `docs/reference/environment.md` in the same change.
 - **Design lands as a spec first** (`specs/`), signed off before implementation.
 - **Point-in-time documents are never edited after the fact** — specs, run-books, findings, ADRs,
   the progress archive. Supersede them with a new document instead.

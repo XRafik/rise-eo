@@ -32,7 +32,7 @@ JP2→base COG (DEFLATE + PREDICTOR=2, tiled 512, **no overviews**; `NBITS=16` p
 declared 15-bit depth so PREDICTOR is legal — **lossless**) → **bit-identical losslessness
 assert** → write the parallel `satellite_benchmark_cog/…/catalog.parquet` → **storage report**.
 
-Outputs: `satellite_benchmark_cog/` (the COG tree + catalog, *outside* the fsd repo, like
+Outputs: `satellite_benchmark_cog/` (the COG tree + catalog, *outside* the rise-eo repo, like
 `satellite_benchmark/`), and `benchmarks/cog_vs_jp2_storage.{md,json}` (JP2 → base COG →
 COG+overviews, the overview row estimated from a sample). It prints a **suggested ~6-week timed
 window** for step 2.

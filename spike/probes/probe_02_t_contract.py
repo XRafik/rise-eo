@@ -6,7 +6,7 @@ synthetic. It can veto the expensive half of the spike.
 
 ## What is under test
 
-fsd's contract (`src/rise_eo/api.py:69-80`) is that
+fsd's contract (`src/fsd/api.py:69-80`) is that
 
     T = ceil((enddate - startdate) / mosaic_days)
 
@@ -22,7 +22,7 @@ divergences, and this probe tests each in isolation:
   B. **floor, not ceil** -- the guard `period_end - period_duration >= time_range[0]`
      (`utils.py:447`) drops a trailing partial period
   C. **end-anchored, not start-anchored** -- periods walk backwards from `time_range[1]`
-     (`utils.py:446,455`), so window boundaries differ in phase from rise_eo's
+     (`utils.py:446,455`), so window boundaries differ in phase from fsd's
 
 The headline case mirrors the committed tutorial fixture (`tests/data/tutorial/`):
 2018-04-01 -> 2018-09-29, `mosaic_days=20`. fsd gives `T = ceil(181/20) = 10`. If rslearn
@@ -66,10 +66,10 @@ PROJECTION = Projection(CRS.from_epsg(32633), 10, -10)
 BOX = shapely.box(0, 0, 1000, 1000)
 
 
-def rise_eo_n_timestamps(start: datetime, end: datetime, mosaic_days: int) -> int:
+def fsd_n_timestamps(start: datetime, end: datetime, mosaic_days: int) -> int:
     """fsd's `T`, reimplemented so the probe needs no fsd import.
 
-    Mirrors `src/rise_eo/api.py:69-80` exactly: ceil of the span in days over mosaic_days.
+    Mirrors `src/fsd/api.py:69-80` exactly: ceil of the span in days over mosaic_days.
     The spike venv (`.venv-rslearn`) deliberately does not have fsd installed -- the
     charter keeps the two environments apart -- so this is duplicated on purpose.
     """
@@ -136,7 +136,7 @@ def run_case(
     query = QueryConfig(
         space_mode=SpaceMode.MOSAIC,
         period_duration=timedelta(days=mosaic_days),
-        max_matches=rise_eo_n_timestamps(start, end, mosaic_days),
+        max_matches=fsd_n_timestamps(start, end, mosaic_days),
         per_period_mosaic_reverse_time_order=reverse_time_order,
     )
 
@@ -153,7 +153,7 @@ def run_case(
     return {
         "case": name,
         "n_items": len(items),
-        "rise_eo_T": rise_eo_n_timestamps(start, end, mosaic_days),
+        "fsd_T": fsd_n_timestamps(start, end, mosaic_days),
         "rslearn_n_groups": len(groups),
         "group_time_ranges": group_ranges,
         "group_item_counts": [len(getattr(g, "items", []) or []) for g in groups],
@@ -260,15 +260,15 @@ def main() -> int:
         # and cubes from different cells cannot be stacked.
         "A_empty_periods_dropped": cmp(n(holes), n(exact), lambda x, y: x < y),
         # B: trailing partial period dropped -> floor rather than fsd's ceil.
-        "B_partial_period_dropped": cmp(n(dense), dense.get("rise_eo_T"), lambda x, y: x < y),
+        "B_partial_period_dropped": cmp(n(dense), dense.get("fsd_T"), lambda x, y: x < y),
         # C: default ordering is reverse-chronological and warns.
         "C_reverse_order_by_default": (
             None
             if "rslearn_n_groups" not in rev
             else (not rev["chronological_order"]) or bool(rev["future_warnings"])
         ),
-        "T_matches_rise_eo_on_dense_window": cmp(
-            n(dense), dense.get("rise_eo_T"), lambda x, y: x == y
+        "T_matches_fsd_on_dense_window": cmp(
+            n(dense), dense.get("fsd_T"), lambda x, y: x == y
         ),
     }
 
@@ -282,11 +282,11 @@ def main() -> int:
         "pass": all(isinstance(c.get("rslearn_n_groups"), int) for c in cases),
         "metrics": {"cases": cases, "findings": findings},
         "expected": {
-            "dense_tutorial_window": {"rise_eo_T": 10, "rslearn_n_groups_predicted": 9},
-            "two_empty_periods": {"rise_eo_T": 9, "rslearn_n_groups_predicted": 7},
+            "dense_tutorial_window": {"fsd_T": 10, "rslearn_n_groups_predicted": 9},
+            "two_empty_periods": {"fsd_T": 9, "rslearn_n_groups_predicted": 7},
             "note": (
                 "Predictions come from reading rslearn/data_sources/utils.py:434-485 "
-                "(RSLEARN_READ_2026-07-31.md section 4.2). If T_matches_rise_eo_on_dense_window "
+                "(RSLEARN_READ_2026-07-31.md section 4.2). If T_matches_fsd_on_dense_window "
                 "is true, that read is WRONG and must be re-derived before the spike continues."
             ),
         },

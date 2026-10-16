@@ -7,10 +7,10 @@
 
 **This tutorial cannot fail.** Every byte it reads is a real Sentinel-2 pixel already committed to
 the repo — no download, no credentials, no cloud account. If a step below does not do what it
-says, that is a bug in fsd or in this page, not something to work around: please open an issue with
+says, that is a bug in rise-eo or in this page, not something to work around: please open an issue with
 the exact command and output (`gh issue create`, or however you were pointed here).
 
-If you've finished this and want to point fsd at your own region, real imagery, a cluster, your own
+If you've finished this and want to point rise-eo at your own region, real imagery, a cluster, your own
 model, or a map viewer, the next stop is [`docs/howto/`](howto/).
 
 ## What you'll build
@@ -26,14 +26,14 @@ advance so it doesn't look like a hang.
 
 ```bash
 git clone https://github.com/nikhilsrajan/fsd.git
-cd fsd
+cd rise-eo
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,local,model-example]"
 ```
 
 `local` brings in `snakemake`, which runs the default `runner="local"` pipeline — steps 3 and 6
 below both need it. `model-example` brings in `scikit-learn`/`joblib` for the classifier this
-tutorial trains — fsd
+tutorial trains — rise-eo
 itself never trains a model (permanent design choice, see [`ARCHITECTURE.md`](../ARCHITECTURE.md)).
 
 ## 1. The data you already have
@@ -63,7 +63,7 @@ reproduce it byte for byte ([#121](https://github.com/nikhilsrajan/fsd/issues/12
 **On radiometry, if you're curious:** these are 2018-era Microsoft Planetary Computer products,
 generated before Sentinel-2's processing-baseline-04.00 offset convention existed. Their radiometric
 offset is **declared by the source** as `0`, not the `-1000` you'll see on newer products — both are
-correct, they're just different product versions of the same acquisitions. fsd reads whatever the
+correct, they're just different product versions of the same acquisitions. rise-eo reads whatever the
 source declares; it never guesses.
 
 ## 2. Labels: three classes, derived from data
@@ -127,11 +127,11 @@ pixel count across all 43 labelled fields — this call returns one row **per pi
 (pass `aggregate="median_per_id"` if you want one row per field instead). `10` is `T`, the mosaic
 interval count (`ceil(181 days / 20) = 10`, from `startdate=2018-04-01` to `enddate=2018-09-29`);
 `2` is the band count — `B04`, `B08` (`SCL` was consumed as the cloud/shadow mask and dropped, per
-fsd's masking default).
+rise-eo's masking default).
 
-## 4. Train a classifier (your code, not fsd's)
+## 4. Train a classifier (your code, not rise-eo's)
 
-fsd hands you arrays; it never trains a model. Any framework works — this is deliberately the
+rise-eo hands you arrays; it never trains a model. Any framework works — this is deliberately the
 simplest possible one:
 
 ```python
@@ -175,7 +175,7 @@ This takes seconds — it's one cell, not 43 fields.
 
 ## 6. Run inference — `rise_eo.run_inference`
 
-Wrap the trained classifier as a `ModelAdapter` (the contract fsd calls at inference time — see
+Wrap the trained classifier as a `ModelAdapter` (the contract rise-eo calls at inference time — see
 [`docs/howto/bundle-your-model.md`](howto/bundle-your-model.md) for the full guide) and run it over
 the datacube you just built:
 

@@ -1,4 +1,4 @@
-# Adding a new source to fsd
+# Adding a new source to rise-eo
 
 Spec: `specs/34-ingest-normalization-contract.md`. This is the "how do I add a source"
 doc that spec 34 §2d requires — read it before implementing a new `rise_eo.sources.*`
@@ -70,7 +70,7 @@ Every source's `download(...)` appends rows shaped like `rise_eo.catalog.catalog
 | `nodata` | declared nodata value | source; **required** — `append` refuses a row without it (spec 59 A3). 0 is the S2 convention; do not assume 0 for an arbitrary new source (spec 34 §1c, ClearSKY warning; see #181) |
 | `geometry` | footprint, EPSG:4326 | source |
 
-A collection with no parser in `fsd/collections/` gets the "any other" row: its item id is
+A collection with no parser in `rise_eo/collections/` gets the "any other" row: its item id is
 the canonical name and the acquisition key, it publishes no version, and cross-processing
 detection is off for it. A catalog missing the four spec 59 columns is refused on read
 (`re-download`; no shim).
@@ -136,7 +136,7 @@ single block, rather than editing literals in place.
 ## Docstring DoD
 
 Every declaration field is documented at its definition in
-`fsd/catalog/declaration.py`; the op-assembly logic in `build_datacube`'s docstring
+`rise_eo/catalog/declaration.py`; the op-assembly logic in `build_datacube`'s docstring
 says, for each resolved value, "reads X from Y, falls back to Z." A reviewer/newcomer
 should be able to populate a new source's `CollectionDeclaration` and ingest path from
 those docstrings + this doc, without reading spec 34 itself.
@@ -149,7 +149,7 @@ the contract *for*, but does not ship code for (that's a later, real spec — se
 look like, to make the contract concrete:
 
 ```python
-# fsd/sources/chirps.py  (illustrative — not implemented)
+# rise_eo/sources/chirps.py  (illustrative — not implemented)
 
 from rise_eo.catalog.declaration import CollectionDeclaration
 

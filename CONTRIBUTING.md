@@ -1,4 +1,4 @@
-# Contributing to fsd
+# Contributing to rise-eo
 
 Code is MIT; by opening a PR you license your contribution under the repo's terms (GitHub ToS §D.6,
 inbound = outbound). No CLA, no sign-off line. Agents: also read `AGENTS.md`.
@@ -68,7 +68,7 @@ Each line points at the incident that taught it.
 - [ ] **Doc call sites rot silently.** pytest never runs a notebook cell; `scripts/docs_kwarg_sweep.py` does
   (four dead `scl_mask_classes=` call sites after spec 58 P1).
 - [ ] **Prior art.** If the mechanism is homemade, does the PR say what standard practice it replaced?
-- [ ] **Spec vs. code.** Was the spec checked against fsd's own code, not only against its sources?
+- [ ] **Spec vs. code.** Was the spec checked against rise-eo's own code, not only against its sources?
 - [ ] **A lesson becomes a check.** If review caught a class of bug, did the PR add a test or guard for the class?
 
 ## Maintainer tasks

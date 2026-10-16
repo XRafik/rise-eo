@@ -76,7 +76,7 @@ services:
       database:
         condition: service_healthy
     volumes:
-      # bind-mount fsd's inference-output COGs into the container at a fixed path so GDAL can
+      # bind-mount rise-eo's inference-output COGs into the container at a fixed path so GDAL can
       # resolve the item hrefs `load_pgstac.py` rewrites to /data/<path-under-this-dir> (spec 30
       # A2 — the one non-obvious wiring step; tiles 500 without it). This MUST be the exact same
       # path you pass to `load_pgstac.py --outputs-dir` (default matches

@@ -1,12 +1,12 @@
-# AGENTS.md — fsd
+# AGENTS.md — rise-eo
 
 Instructions for AI coding agents in this repo. People: start with `CONTRIBUTING.md`.
 
-## What fsd is
+## What rise-eo is
 
-`fsd` downloads Sentinel-2 L2A imagery, builds datacubes and flattens them into training data. Its verb
+`rise-eo` downloads Sentinel-2 L2A imagery, builds datacubes and flattens them into training data. Its verb
 API is `rise_eo.download`, `rise_eo.create_training_data`, `run_inference` and `deploy`. It runs locally or on
-Azure ML, with no cloud lock-in. Users train their own models; fsd does not. The plan is in
+Azure ML, with no cloud lock-in. Users train their own models; rise-eo does not. The plan is in
 `ROADMAP.md`, the design in `ARCHITECTURE.md`, the vocabulary in `CONTEXT.md`.
 
 ## Setup and checks

@@ -1,4 +1,4 @@
-# fsd
+# rise-eo
 
 **Fetch satellite imagery, build datacubes, and run your own model over them — on your laptop or
 across a cloud cluster, with the same code.**
@@ -8,13 +8,13 @@ flattened **training arrays** → **inference** → COGs + STAC. All I/O goes th
 so local and `abfss://` are a config change rather than a rewrite, and scaling out is a `runner=`
 argument.
 
-**fsd does not train your model.** It hands you training arrays, takes back a bundled adapter, and
+**rise-eo does not train your model.** It hands you training arrays, takes back a bundled adapter, and
 runs it at scale. That line is deliberate and permanent.
 
 ## Install
 
 ```bash
-pip install "fsd[local,mpc,grid] @ git+https://github.com/nikhilsrajan/fsd@v0.1.0"
+pip install "rise-eo[local,mpc,grid] @ git+https://github.com/nikhilsrajan/fsd@v0.3.0"
 ```
 
 That set is what the quickstart below needs: `[local]` runs the default `runner="local"` pipeline,
@@ -32,7 +32,7 @@ That set is what the quickstart below needs: `[local]` runs the default `runner=
 
 The core install carries neither `snakemake` nor `s3fs`: one is only ever a subprocess, the other
 an fsspec backend resolved by URL scheme, and together they cost 53 packages / 111 MB that an
-AML-only or MPC-only user never touches. Ask for what you use — **fsd names the missing extra
+AML-only or MPC-only user never touches. Ask for what you use — **rise-eo names the missing extra
 rather than the missing package** if you don't.
 
 Python ≥ 3.11. For development: clone, then follow [`CONTRIBUTING.md`](CONTRIBUTING.md#setup) Setup.
@@ -117,8 +117,8 @@ steps, 97 jobs, 213 MPC granules → 300 output COGs + STAC + a merged map).
 Cloud work reads its settings from a user-level config file, written once:
 
 ```bash
-fsd init      # -> ~/.config/rise-eo/config.toml
-fsd config    # print the resolved config and where each value came from
+rise-eo init     # -> ~/.config/rise-eo/config.toml
+rise-eo config   # print the resolved config and where each value came from
 ```
 
 > **Building an AML node image?** It must include the `local` extra. The in-job entrypoints run the
@@ -133,10 +133,10 @@ fsd config    # print the resolved config and where each value came from
 | your own region, real imagery, a cluster, your own model, or a map viewer | [`docs/howto/`](docs/howto/) |
 | a readable script to copy | [`examples/`](examples/) — `eurocrops_rf.py`, a complete `ModelAdapter` |
 | how the code is laid out, and what must stay true | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
-| where fsd is heading | [`ROADMAP.md`](ROADMAP.md) |
+| where rise-eo is heading | [`ROADMAP.md`](ROADMAP.md) |
 | what a term means | [`CONTEXT.md`](CONTEXT.md) |
 | why something was decided | [`docs/adr/`](docs/adr/) |
-| how fsd got this shape — the forks taken and dropped | [`docs/history.md`](docs/history.md) |
+| how rise-eo got this shape — the forks taken and dropped | [`docs/history.md`](docs/history.md) |
 | a measured result about running at scale | [`docs/findings/`](docs/findings/) |
 | the Azure environment variables | [`docs/reference/environment.md`](docs/reference/environment.md) |
 | a reusable command | [`docs/howto/`](docs/howto/), or a script in [`scripts/`](scripts/) |

@@ -4,7 +4,7 @@ Catches call sites left behind when a verb parameter is removed or renamed -- th
 pytest cannot see, because prose and notebook cells are never executed. Found four dead
 `scl_mask_classes=` call sites after spec 58 P1 removed it (3 notebook cells + docs/tutorial.md).
 
-Run from the fsd repo root: .venv/bin/python scripts/docs_kwarg_sweep.py
+Run from the rise-eo repo root: .venv/bin/python scripts/docs_kwarg_sweep.py
 Exits 1 if any call site is stale.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ bad = 0
 
 
 def check(source: str, origin: str) -> None:
-    """Report every kwarg in `source` that the called fsd verb does not accept."""
+    """Report every kwarg in `source` that the called rise-eo verb does not accept."""
     global bad
     try:
         tree = ast.parse(source)

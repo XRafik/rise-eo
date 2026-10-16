@@ -1,7 +1,7 @@
 # Manual test — Mode A end-to-end (train → adapter → inference → COG + STAC)
 
 Validates the **ModelAdapter contract + local inference engine** (spec 18) on real data,
-reproducing the legacy `demo_02_model_train` + `demo_03_model_deploy` through the fsd verbs:
+reproducing the legacy `demo_02_model_train` + `demo_03_model_deploy` through the rise-eo verbs:
 `create_training_data(adapter=…)` → train your own model → wrap it in an adapter/bundle →
 `run_inference(…)` → one **COG** per output + a **STAC** catalog (+ optional merged map). The whole
 loop runs on a laptop (Mode A) with **one** feature-transform definition shared by training and
@@ -98,7 +98,7 @@ print("features:", d["features"].shape, "| feature_bands:", td.feature_bands,
 
 ---
 
-## 2. Train your model (your code — fsd does not train)
+## 2. Train your model (your code — rise-eo does not train)
 
 ```python
 from sklearn.ensemble import RandomForestClassifier

@@ -5,8 +5,8 @@ stac-fastapi-pgstac + titiler-pgstac and serves it through the same **register �
 flow Microsoft Planetary Computer (MPC) uses — the path STACNotator treats as a first-class fast
 path (`../../STACNOTATOR_DIGEST.md §3`, workspace root, not part of this repo).
 
-**Dataset-agnostic.** It was built for spec 30 (Tier-2 serving validation of fsd's crop-map
-**inference outputs**), but nothing in the stack is specific to that dataset — any fsd static STAC
+**Dataset-agnostic.** It was built for spec 30 (Tier-2 serving validation of rise-eo's crop-map
+**inference outputs**), but nothing in the stack is specific to that dataset — any rise-eo static STAC
 catalog loads and serves the same way. Two datasets are used in the repo:
 
 | Dataset | STAC catalog | What it serves | Run-book |
@@ -74,7 +74,7 @@ docker inspect rise-eo-mini-mpc-raster --format '{{range .Mounts}}{{.Source}} ->
 
 ## Bring-up (general)
 
-`load_pgstac.py`/`register_and_url.py` import `fsd`, so run them from a venv with fsd installed
+`load_pgstac.py`/`register_and_url.py` import `rise-eo`, so run them from a venv with rise-eo installed
 (the core `.venv` is enough for `load_pgstac.py`; `register_and_url.py` also needs `requests`).
 
 ```bash

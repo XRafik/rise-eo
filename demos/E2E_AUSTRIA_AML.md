@@ -170,7 +170,7 @@ bound how hard the number should be leaned on.
 
 ---
 
-## 6. What this says about running fsd at scale
+## 6. What this says about running rise-eo at scale
 
 ### 6.1 The overhead, fully decomposed — and it is not the cluster
 
@@ -270,7 +270,7 @@ still worth knowing, but the cause is not per-node overhead. It is that the 8-sh
 one-off 203 s scale-up **and** was crippled by the band-stratified partition in §6.3 — its slowest
 shard did 113.7 s of work while two shards did 7 s.
 
-**Roadmap consequence: attack the driver, not the cluster.** The largest single line item in fsd's
+**Roadmap consequence: attack the driver, not the cluster.** The largest single line item in rise-eo's
 cloud overhead is a per-output-unit collect that runs sequentially on the operator's laptop over
 VPN: **616 s of reads and 161 s of writes for 300 cells**, none of it touched by any fan-out width,
 node SKU or `cores` setting. One listing instead of 300 existence checks, threaded metadata reads,
@@ -338,11 +338,11 @@ compounds it: a node copying MPC→blob inside West Europe moves 171.7 MB/s agai
 **compute per unit**, a single cloud vCPU is *slower* than a laptop core on the same cube, and the
 16-way fan-out is spent buying back that deficit plus the overhead of §6.1 — netting 1.30×.
 
-**So "move it to the cloud" is not one decision.** For fsd's pipeline it is unambiguously right for
+**So "move it to the cloud" is not one decision.** For rise-eo's pipeline it is unambiguously right for
 download (and for anything else that reads the archive), marginal for inference as currently
 configured, and — per §6.2 — actively wrong for the 900-unit training regime. The lever that makes
 inference worth it is not a bigger cluster: it is TODO #61's collect and the per-unit cost, both of
-which are fsd's own code.
+which are rise-eo's own code.
 
 ## 7. Where every number comes from
 
@@ -403,8 +403,8 @@ is handed to the operator.
    | `model-example` | `scikit-learn`, `joblib`, `matplotlib` | `4_train_bundle`, `6_plots` |
    | `dev` | `ruff`, `pytest` | not required to run; keep for the test suite |
 
-   fsd core stays deliberately lean, so **none of the modelling stack is a base dependency** —
-   `scikit-learn`/`joblib` live in `model-example` because fsd never trains a model (that is
+   rise-eo core stays deliberately lean, so **none of the modelling stack is a base dependency** —
+   `scikit-learn`/`joblib` live in `model-example` because rise-eo never trains a model (that is
    permanently the user's side). Miss them and the run dies at `4_train_bundle`, *after* the
    download and the training-data dispatch. `0_preflight` now checks all of these up front and
    prints the exact `pip install` line, so a short install can only cost you seconds — but only
@@ -418,7 +418,7 @@ is handed to the operator.
 
    > ⚠️ **Reusing an image from run-books 36–39 is not enough — rebuild and bump the version.**
    > The four in-job stamps `job_admission_seconds` (D11) is computed from are written by the
-   > `fsd` **inside the image**, not by your checkout. An older image runs fine and produces
+   > `rise-eo` **inside the image**, not by your checkout. An older image runs fine and produces
    > correct science; it just emits `job_admission_seconds: null` on every job, silently voiding
    > the headline measurement. That cost a complete 25-minute run on 2026-07-29 — 97 jobs, four
    > dispatches, no admission data. `2_download` now checks this on the first dispatch and stops
@@ -466,7 +466,7 @@ python demos/e2e_austria_aml.py --fresh --confirm-spend
 python demos/e2e_austria_aml.py --run-id <the id it printed> --confirm-spend
 ```
 
-`--fresh` never deletes anything (fsd's own recursive delete is broken, TODO #50): if a *previous*
+`--fresh` never deletes anything (rise-eo's own recursive delete is broken, TODO #50): if a *previous*
 `--fresh` run left data on blob, this one prints the exact `az storage fs directory delete` command
 for the operator to run by hand.
 

@@ -1,6 +1,6 @@
 # notebooks
 
-Notebooks that exercise the **installed** `fsd` package (mirroring the legacy demo
+Notebooks that exercise the **installed** `rise-eo` package (mirroring the legacy demo
 notebooks). Install dev + notebook extras first:
 
 ```bash

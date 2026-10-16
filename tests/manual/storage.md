@@ -22,10 +22,10 @@ pip install -e ".[dev]"
 Confirm the package and storage module import:
 
 ```bash
-python -c "import rise_eo; from rise_eo.storage import fs; print('fsd', rise_eo.__version__, '| storage import OK')"
+python -c "import rise_eo; from rise_eo.storage import fs; print('rise-eo', rise_eo.__version__, '| storage import OK')"
 ```
 
-- [x] Prints `fsd 0.0.1 | storage import OK`
+- [x] Prints `rise-eo 0.0.1 | storage import OK`
 
 Now start an interactive session and keep it open for the rest of Section A:
 
@@ -65,12 +65,12 @@ print(fs.exists(sub), fs.exists(os.path.join(WORK, "nope")))
 ```python
 p_txt = os.path.join(WORK, "hello.txt")
 with fs.open(p_txt, "w") as f:
-    f.write("hi fsd")
+    f.write("hi rise-eo")
 with fs.open(p_txt, "r") as f:
     print(repr(f.read()), fs.exists(p_txt))
 ```
 
-- [x] `'hi fsd' True`
+- [x] `'hi rise-eo' True`
 
 ### A3. save_npy / load_npy (array)
 

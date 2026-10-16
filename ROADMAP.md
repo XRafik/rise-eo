@@ -1,8 +1,8 @@
-# fsd — north-star, roadmap & model contract
+# rise-eo — north-star, roadmap & model contract
 
 > **Status: DRAFT for sign-off (2026-07-05).** This is the strategic umbrella doc: where
-> fsd is going (the north-star), how we get there in small releases (the roadmap), and the
-> **model contract** that lets project teams plug their own models into fsd. It feeds the
+> rise-eo is going (the north-star), how we get there in small releases (the roadmap), and the
+> **model contract** that lets project teams plug their own models into rise-eo. It feeds the
 > numbered specs in `fsd/specs/` — decisions here graduate into specs before implementation.
 > Infra ground-truth for the cloud phases lives in **`docs/reference/AZURE_INFRA.md`** (the `rise`
 > project). Current state: the pinned "Order of work" issue and the open PRs.
@@ -16,17 +16,17 @@
 A researcher developing a crop/land model for some region (say Afghanistan) can, with
 minimal cloud setup:
 
-1. `pip install fsd` (a GitHub link first; PyPI later).
+1. `pip install rise-eo` (a GitHub link first; PyPI later).
 2. **Create training data** from a list of known-label polygons (e.g. farm plots), possibly
-   across different years / date ranges / mosaic intervals depending on the model: fsd
+   across different years / date ranges / mosaic intervals depending on the model: rise-eo
    downloads the satellite data → builds datacubes for those polygons → flattens them into
    training arrays. The user never has to think about "flattening."
-3. **Train their own model** — sklearn, PyTorch, TensorFlow, anything. **fsd does not care.**
+3. **Train their own model** — sklearn, PyTorch, TensorFlow, anything. **rise-eo does not care.**
    Training stays permanently on the user's side.
 4. **Write a small model adapter** (see §3): declare the feature transform, load the model,
    run predict, shape the output.
-5. **Run inference at scale** by giving fsd a **region of interest + startdate + enddate +
-   mosaic interval**: fsd tiles the ROI into S2-geometry grids, downloads the imagery,
+5. **Run inference at scale** by giving rise-eo a **region of interest + startdate + enddate +
+   mosaic interval**: rise-eo tiles the ROI into S2-geometry grids, downloads the imagery,
    builds inference datacubes for each grid, runs the model over them, and writes the
    results as **COGs + a STAC catalog**. The user never has to think about "tiling the ROI."
 6. **View outputs** as XYZ map tiles through a hosted TiTiler (infra-side, raapid).
@@ -69,11 +69,11 @@ opposite economics are measured in
 [`docs/findings/workload-regimes.md`](docs/findings/workload-regimes.md).
 
 ### 2.5 Scope goes UP — high-level verbs hide the plumbing
-Intended users shouldn't say "flatten" or "tile the ROI." fsd grows a high-level API (§4);
+Intended users shouldn't say "flatten" or "tile the ROI." rise-eo grows a high-level API (§4);
 today's `flatten` / ROI-tiling / builder become its internals.
 
 ### 2.6 Preflight before the fan-out (fail cheap, before you pay)
-Download + datacube creation are the **expensive, billable** operations. So fsd runs every
+Download + datacube creation are the **expensive, billable** operations. So rise-eo runs every
 **cheaply-computable check up front** and **refuses to trigger** the heavy fan-out if any
 fails — a "preflight." The goal: *know before you spend* whether a run can succeed. Checks
 that cost nothing (no download) include:
@@ -106,32 +106,32 @@ Extracted from the legacy `demo_02_model_train` + `model/demo_model_deploy.py`, 
 The **feature transform** (e.g. `mask_invalid_and_interpolate → compute NDVI/NDRE/GCVI/SAVI
 → remove raw bands`) appears **identically** in the legacy train and deploy code, copy-pasted
 — a classic train/serve-skew trap. **Rule: exactly one feature-transform definition, run by
-fsd in BOTH training-data-generation and inference.** [F1]
+rise-eo in BOTH training-data-generation and inference.** [F1]
 
 ### 3.2 The interface (strawman)
 ```python
 class ModelAdapter(Protocol):
-    # --- declarations fsd reads to build compatible datacubes & outputs ---
+    # --- declarations rise-eo reads to build compatible datacubes & outputs ---
     required_bands: list[str]            # e.g. ["B02","B03","B04","B05","B06","B07","B08","B11","B12"]
     n_timestamps: int                    # T — the number of mosaic windows the model was trained on.
-                                         #     fsd DERIVES T from startdate/enddate/mosaic_days (calendar
+                                         #     rise-eo DERIVES T from startdate/enddate/mosaic_days (calendar
                                          #     mosaic, spec 15) and requires an exact match. [contract = same T + bands]
     output_dtype: str                    # e.g. "uint8"
     output_nodata: int | float           # e.g. 255
     output_band_names: list[str]         # 1 name = categorical map; N = probabilities/regression
 
     # --- feature engineering: ONE definition, used at train AND inference [F1] ---
-    feature_sequence: list[tuple[callable, dict]]        # fsd bands.modify vocabulary (primary)
+    feature_sequence: list[tuple[callable, dict]]        # rise-eo bands.modify vocabulary (primary)
     # def features(self, datacube, band_indices) -> (data, band_indices): ...   # arbitrary escape hatch
 
     # --- model lifecycle ---
     def load(self) -> None: ...                          # load artifact ONCE per worker
     def datacube_to_X(self, features, band_indices): ... # reshape features → model input
-    def predict(self, X_chunk): ...                      # raw output; fsd owns the chunk loop [F2]
+    def predict(self, X_chunk): ...                      # raw output; rise-eo owns the chunk loop [F2]
     def to_output(self, raw) -> "Output": ...            # → (bands, H, W) + dtype/nodata/names [F3]
 ```
 
-**fsd owns** (both modes): datacube/array I/O via the storage seam; running `feature_sequence`;
+**rise-eo owns** (both modes): datacube/array I/O via the storage seam; running `feature_sequence`;
 the predict **chunking loop** (`predict_batch_size`, default = whole tile) [F2]; assembling
 the output array into a **COG** using the datacube's `transform`/`crs`; and building the
 **STAC catalog** over the outputs. **The user owns** only: the feature declaration, the
@@ -139,10 +139,10 @@ reshape, the model call, and the output shaping.
 
 ### 3.3 Requirements declaration + validation (preflight — see §2.7)
 The model's input width is fixed at train time (e.g. RF sees `T×B`). **The contract is: same
-`T` and same `bands`.** fsd **validates this before any download/build**:
+`T` and same `bands`.** rise-eo **validates this before any download/build**:
 - **`T` (timestamps):** thanks to spec-15 **calendar** mosaicing, `T` is a pure function of
   `startdate`/`enddate`/`mosaic_days` — `T = ceil((enddate - startdate) / mosaic_days)`
-  (final window upper-inclusive). So fsd computes the inference `T` from the user's chosen
+  (final window upper-inclusive). So rise-eo computes the inference `T` from the user's chosen
   dates/interval and checks `T == adapter.n_timestamps` **at config time, before a single
   tile is fetched.** (This is a concrete payoff of the calendar-mosaic decision.)
 - **bands:** `adapter.required_bands` must be obtainable from the requested source.
@@ -152,13 +152,13 @@ mosaic_days give T=18 but the model needs T=19") — never a silent reshape fail
 fan-out after money has been spent on downloads.
 
 **Honest asymmetry (surfaced, not prevented):** the demo trains on per-field *median* samples
-[F4] but predicts per *pixel*. That's a legitimate modeling choice — fsd documents it, doesn't
+[F4] but predicts per *pixel*. That's a legitimate modeling choice — rise-eo documents it, doesn't
 block it.
 
 ### 3.4 The model bundle (packaging — surface #5)
 For deploy, especially on cloud workers, the adapter **code** + model **artifact(s)** + the
 **spec** (required bands, output spec, feature sequence) must travel together and be loadable
-anywhere. fsd defines a self-describing **bundle** and can push/register it (later: to ACR /
+anywhere. rise-eo defines a self-describing **bundle** and can push/register it (later: to ACR /
 blob / an AML-registry-like store). [F5: code-first — a Python class referenced by
 import-path/entry-point in config; no no-code path early.]
 
@@ -166,15 +166,15 @@ import-path/entry-point in config; no no-code path early.]
 | Concern | Owner |
 |---|---|
 | Feature engineering *definition* | user (declared) |
-| Running the feature transform (train + inference) | **fsd** |
+| Running the feature transform (train + inference) | **rise-eo** |
 | Reshape features → model input | user (`datacube_to_X`) |
 | Model load / predict | user (any framework) |
-| Predict chunking/batching loop | **fsd** |
+| Predict chunking/batching loop | **rise-eo** |
 | Output → `(bands,H,W)` + dtype/nodata/names | user (`to_output`) |
-| Array → COG (+ transform/crs) | **fsd** |
-| STAC catalog of outputs | **fsd** |
+| Array → COG (+ transform/crs) | **rise-eo** |
+| STAC catalog of outputs | **rise-eo** |
 | Training the model | user (permanent) |
-| ROI → S2 tiles, download, datacube, flatten | **fsd** (hidden behind verbs) |
+| ROI → S2 tiles, download, datacube, flatten | **rise-eo** (hidden behind verbs) |
 
 ---
 
@@ -210,7 +210,7 @@ legacy `rsutils.s2_grid_utils.get_s2_grids_gdf` already does it, and
 2. `gpd.overlay(grids_gdf, roi_gdf)` — clip the scaled grids to the ROI → the per-cell
    geometries that feed datacube creation (each **grid cell** = one inference datacube = one
    **per-cell task**).
-3. Deps: `s2` (`from s2 import s2`, gives `polyfill`) + `s2cell`. ✅ ported into `fsd/grid.py`
+3. Deps: `s2` (`from s2 import s2`, gives `polyfill`) + `s2cell`. ✅ ported into `rise_eo/grid.py`
    (spec 19); consumed by the **P0.75** wrapper, not P4. Not needed for P0's `create_training_data`.
 
 ---
@@ -225,9 +225,9 @@ a `raapid-infra` change to the admin (we never edit it ourselves).
 Everything below is background; **this is what we are driving at**, and anything not on this
 path is a distraction until it ships:
 
-> **A researcher runs the same fsd pipeline on Azure at scale — `runner="aml"` /
+> **A researcher runs the same rise-eo pipeline on Azure at scale — `runner="aml"` /
 > `storage="abfss://…"` is *configuration*, not a rewrite.** That is **P2 → P4** (TODO #41).
-> Audience: **a researcher who would actually use fsd**, so the self-serve bar applies —
+> Audience: **a researcher who would actually use rise-eo**, so the self-serve bar applies —
 > `pip install`, docs, adapter-writing, error messages that teach.
 
 > **Wording widened 2026-07-21 (user), from "on Azure **Batch** at scale" / `runner="batch"`.**
@@ -290,10 +290,10 @@ after this one, not part of it.
 
 | Phase | Ships | Demo | Infra-ask |
 |---|---|---|---|
-| **P0** | fsd pip-installable (GitHub); high-level verb *skeletons*; STAC-aligned catalog (§6) | `pip install fsd`, local download→datacube→flatten via `create_training_data` | none |
+| **P0** | rise-eo pip-installable (GitHub); high-level verb *skeletons*; STAC-aligned catalog (§6) | `pip install rise-eo`, local download→datacube→flatten via `create_training_data` | none |
 | **P0.5** | ✅ **DONE (spec 18, 2026-07-06)** — **ModelAdapter contract** + legacy train/deploy reimplemented on it, **fully local**. `src/rise_eo/model/` (adapter/features/engine/bundle), `run_inference` real, `create_training_data(adapter=…)`, self-describing bundle. | Mode A end-to-end: EuroCrops RF train → inference → COG + STAC, one plug-in adapter (`tests/manual/deploy.md`) | none |
 | **P0.75** | ✅ **DONE (spec 21, 2026-07-07)** — **Local ROI inference verb (completes Mode A).** `run_inference(roi=…)` chains **tile the ROI (`rise_eo.grid.roi_to_s2_grids`) → build one datacube per grid cell → infer → COG + STAC (+ optional display merge)** in a single call, all local. The per-cell **build+infer** is one runner-dispatched unit-of-work (`workflows/infer_task.py` + Snakefile → **Batch swaps in at P4 unchanged**, not a second pool). `merge=True\|"reproject"` (strict vs lossy display merge). Imagery assumed present in the catalog — **inference never calls CDSE** (conserve quota, SO-6). *(`create_training_data(roi=…)` deferred — labelled field shapes need no ROI→cell tiling.)* | Mode A: one call turns an ROI GeoJSON into per-cell crop-class COGs (`tests/manual/roi_inference.md`) | none |
-| **P0.9** | ✅ **DONE (spec 23, 2026-07-10)** — **Local-completeness gate + team run-book.** `demos/e2e_austria.py` runs the *whole* local pipeline on **fresh real CDSE data** (download → jp2→COG → datacube → flatten → train → bundle → ROI build+infer → COG/STAC/merged), a **reusable template** (swap `--roi/--train`), **cross-UTM-zone-safe** (`merge="reproject"` area-dominant/`merge_crs`). Adds **decomposed download timing** (transfer vs COG-convert) + a **throughput probe** (factor out link/VPN), the **`plan_download` guardrail** (missing imagery → actionable `rise_eo.download` plan; verbs never auto-fetch), and a **no-download `estimate_run`** (ETA for any region/window/bands). Doc: `demos/E2E_AUSTRIA.md`. | the go-to "how fsd runs locally" doc + trustworthy timings | none | 
+| **P0.9** | ✅ **DONE (spec 23, 2026-07-10)** — **Local-completeness gate + team run-book.** `demos/e2e_austria.py` runs the *whole* local pipeline on **fresh real CDSE data** (download → jp2→COG → datacube → flatten → train → bundle → ROI build+infer → COG/STAC/merged), a **reusable template** (swap `--roi/--train`), **cross-UTM-zone-safe** (`merge="reproject"` area-dominant/`merge_crs`). Adds **decomposed download timing** (transfer vs COG-convert) + a **throughput probe** (factor out link/VPN), the **`plan_download` guardrail** (missing imagery → actionable `rise_eo.download` plan; verbs never auto-fetch), and a **no-download `estimate_run`** (ETA for any region/window/bands). Doc: `demos/E2E_AUSTRIA.md`. | the go-to "how rise-eo runs locally" doc + trustworthy timings | none | 
 | **P1** | Storage seam on Azure: adlfs/MSI read+write to the `rise` project storage; GDAL-VSI auth proven | build a datacube locally but I/O against `rise` blob (over VPN) | none (uses existing) |
 | **P2** | Azure **AML** runner for datacube fan-out (the runner seam; spec 36) | N datacubes built across the autoscaled `rise` AML `d16` cluster | **none** (was: Batch quota bump + `max_tasks_per_node` — moot since the fork went to AML) |
 | **P3** | 🟡 **PARTIALLY DONE (spec 39, 2026-07-24, pending cluster validation)** — **create-training-data-at-scale.** `create_training_data`/`flatten_training_data` gain `runner="aml"`: an optional download phase (`api.download`, reused), the spec-36 build fan-out (reused), and a new **single-node flatten reduce** (`workflows.runners.run_aml_flatten`, D3 — flatten is a reduce over ALL cubes, not a per-cell fan-out) whose compact output lands back on the laptop (`api._land_local`, D4, `storage.transfer`). The driver stays control-plane-only (ADR-0004) — only the flattened array (+ optional `features.npy`, computed on the driver, ADR-0020) comes home, never the raw cubes. All unit tests mocked at the AML-client boundary — run-book `39-training-data-on-aml` (tag `docs-archive-2026`) Phases 0-2 are the pending real-cluster validation. Docs: `docs/adr/0020`, `CONTEXT.md`. | Mode B: laptop triggers cloud download→build→flatten, pulls the flattened arrays | none new |
@@ -311,7 +311,7 @@ order. The current goal's state lives in its tracking issue and the pinned "Orde
 
 | Goal | Set | Status |
 |---|---|---|
-| **fsd as an installed module, driven from a notebook** | 2026-08-21 | ✅ **Done** (maintainer, 2026-10-07). A notebook in a separate repository, with fsd installed as a pinned dependency, ran the full pipeline and the work was demoed. Built by specs 54–57 and issues #78–#82; `v0.1.0` was tagged on 2026-09-04. |
+| **rise-eo as an installed module, driven from a notebook** | 2026-08-21 | ✅ **Done** (maintainer, 2026-10-07). A notebook in a separate repository, with rise-eo installed as a pinned dependency, ran the full pipeline and the work was demoed. Built by specs 54–57 and issues #78–#82; `v0.1.0` was tagged on 2026-09-04. |
 | **Collection-agnostic verbs** (spec 58) | 2026-09-04 | 🅿️ **Parked** (maintainer, 2026-10-07). Sentinel-2 L2A and Sentinel-1 RTC work through the same verbs; Sentinel-1 ran on AML on 2026-09-29. HLS (spec 58 P3) is parked: new satellite sources are meant to come from contributors, not from the maintainer alone. MODIS was deferred on 2026-09-04. |
 | **Contributor readiness** (spec 102) | 2026-09-29 | Current. See #102. |
 
@@ -359,34 +359,34 @@ abstraction).
 
 ## 7.1 ✅ RESOLVED 2026-07-31 — rslearn (Plan B vs Plan C)
 
-**fsd will not use rslearn as a data-download source** — not wholesale, not as a hybrid source
+**rise-eo will not use rslearn as a data-download source** — not wholesale, not as a hybrid source
 behind an extra. **Plan B stands**; `spike/rslearn` does not merge into `main`. Issue #12 is
 closed.
 
-**The framing that decided it:** fsd is an alternative to **Google Earth Engine**, for running
+**The framing that decided it:** rise-eo is an alternative to **Google Earth Engine**, for running
 *simpler* models at scale over satellite imagery. rslearn is a **foundation-model library** that
 happens to ship an acquisition layer. Two tools, two jobs — merging the acquisition layers is a
 category error.
 
 **The successor project:** rslearn's real value is its **model library** and deploying heavy
-foundation models. That becomes its own project — *run rslearn on Azure the way fsd now can*. The
-transferable asset is fsd's **scale-out know-how** (the runner seam, the storage seam, the AML
-environment and identity work), not fsd's pipeline code.
+foundation models. That becomes its own project — *run rslearn on Azure the way rise-eo now can*. The
+transferable asset is rise-eo's **scale-out know-how** (the runner seam, the storage seam, the AML
+environment and identity work), not rise-eo's pipeline code.
 
 **What was measured** (rslearn v0.1.13 @ `a5c50c63`, Azure VM, 2026-07-31): rslearn's `T` is
-data-dependent (9 groups where fsd gives 10; 7 where fsd gives 9 once a period is empty); its
-period yields **one first-coverage scene** where fsd takes a per-pixel **median**; the install is
+data-dependent (9 groups where rise-eo gives 10; 7 where rise-eo gives 9 once a period is empty); its
+period yields **one first-coverage scene** where rise-eo takes a per-pixel **median**; the install is
 **5.3 GB** with no lite path and does not import out of the box; its blob reader runs **~22 MB/s
-against fsd's ~107 MB/s** via `/vsiadls/`, which **vindicates spec 31's design** for fsd's
+against rise-eo's ~107 MB/s** via `/vsiadls/`, which **vindicates spec 31's design** for rise-eo's
 workload; and it ships **no distributed runner** at all. Against that, rslearn has **50** concrete
-data-source entry points to fsd's 2 plus a foundation-model zoo fsd has no analogue for — the
+data-source entry points to rise-eo's 2 plus a foundation-model zoo rise-eo has no analogue for — the
 strongest argument for adoption, and the reason the successor project exists.
 
 **One finding carries straight into that project:** rslearn reads *and writes* ADLS Gen2 under
 managed identity **unmodified**, for the price of `pip install adlfs`. So rslearn-on-Azure does
 not begin with a storage problem — it begins at the runner.
 
-**Two byproducts land on fsd regardless:** rslearn's lazy per-read MPC signing answers issue
+**Two byproducts land on rise-eo regardless:** rslearn's lazy per-read MPC signing answers issue
 **#32**'s design question, and its `class_path` + `init_args` pattern is a good model for the
 `Source` ABC that issue **#11** still owns — which **does not exist yet** (`sources/__init__.py:5`;
 `api.py:264,413` dispatch on a hardcoded `("cdse", "mpc")` check, duplicated).
@@ -394,7 +394,7 @@ not begin with a storage problem — it begins at the runner.
 **Evidence:** [`spike/RSLEARN_SPIKE_REPORT.md`](spike/RSLEARN_SPIKE_REPORT.md) — §6.4 is the
 decision, §6.5 explains why it cut differently from the report's own recommendation. The report
 also supersedes [`docs/findings/RSLEARN_COMPARISON.md`](docs/findings/RSLEARN_COMPARISON.md) (2026-07-06), which was wrong
-about fsd's calendar-`T` contract being unique.
+about rise-eo's calendar-`T` contract being unique.
 
 ---
 

@@ -61,9 +61,9 @@ def _find_workspace() -> pathlib.Path:
     `parents[2]` is `fsd/` from the normal checkout but `fsd/.claude/worktrees/<name>/`
     from a worktree, which silently resolves every ROI path to a file that does not
     exist. Walking up finds the real workspace from either. Override with
-    `RISE_EO_WORKSPACE=/path/to/fetch_satdata_claude` if you keep the checkout elsewhere.
+    `FSD_WORKSPACE=/path/to/fetch_satdata_claude` if you keep the checkout elsewhere.
     """
-    override = os.environ.get("RISE_EO_WORKSPACE")
+    override = os.environ.get("FSD_WORKSPACE")
     if override:
         return pathlib.Path(override).resolve()
     here = pathlib.Path(__file__).resolve()
@@ -72,21 +72,21 @@ def _find_workspace() -> pathlib.Path:
             return candidate
     raise SystemExit(
         f"could not locate the workspace root above {here}: looked for an ancestor "
-        "containing both 'shapefiles/AT_ROI.geojson' and 'fsd/'. Set RISE_EO_WORKSPACE."
+        "containing both 'shapefiles/AT_ROI.geojson' and 'fsd/'. Set FSD_WORKSPACE."
     )
 
 
 WORKSPACE = _find_workspace()
 # Always the real checkout, never a worktree copy -- the archive and its `tests/outputs/`
 # live there and are gitignored, so a worktree has neither.
-RISE_EO_ROOT = WORKSPACE / "fsd"
+FSD_ROOT = WORKSPACE / "fsd"
 
 ROI_PATH = WORKSPACE / "shapefiles" / "AT_ROI.geojson"
 CELL_PATH = WORKSPACE / "shapefiles" / "s2grid=476da24.geojson"   # 100% inside T33UWP
 
 # In place, exactly where `demos/e2e_austria.py` and `CLAUDE.md`'s real-data note point.
-DATA_DIR = RISE_EO_ROOT / "tests" / "outputs" / "demo_e2e" / "imagery"
-OUT = RISE_EO_ROOT / "tests" / "outputs" / "p58_redownload"
+DATA_DIR = FSD_ROOT / "tests" / "outputs" / "demo_e2e" / "imagery"
+OUT = FSD_ROOT / "tests" / "outputs" / "p58_redownload"
 
 # The archive's own parameters, copied from `demos/e2e_austria.py` so the re-download
 # reproduces the same window/bands rather than a new archive that happens to be nearby.
@@ -187,31 +187,31 @@ def step_reclaim(confirmed: bool) -> int:
     """
     result = _result("reclaim", {"reclaimed_gb": "> 0", "candidates_removed": True})
     try:
-        sizes = {c: _dir_gb(RISE_EO_ROOT / c) for c in RECLAIM_CANDIDATES}
+        sizes = {c: _dir_gb(FSD_ROOT / c) for c in RECLAIM_CANDIDATES}
         total = sum(sizes.values())
         if not confirmed:
             result["status"] = "fail"
             result["metrics"] = {"would_reclaim_gb": round(total, 1),
                                  "per_path_gb": {k: round(v, 2) for k, v in sizes.items()},
-                                 "free_gb_now": round(_free_gb(RISE_EO_ROOT), 1)}
+                                 "free_gb_now": round(_free_gb(FSD_ROOT), 1)}
             result["error"] = ("dry run: pass --yes-delete to actually remove these. "
                                "Nothing was deleted.")
             return _write(result)
 
-        free_before = _free_gb(RISE_EO_ROOT)
+        free_before = _free_gb(FSD_ROOT)
         for c in RECLAIM_CANDIDATES:
-            target = RISE_EO_ROOT / c
+            target = FSD_ROOT / c
             if target.is_dir():
                 shutil.rmtree(target)
             elif target.exists():
                 target.unlink()
-        free_after = _free_gb(RISE_EO_ROOT)
+        free_after = _free_gb(FSD_ROOT)
         result["metrics"] = {
             "reclaimed_gb": round(total, 1),
             "per_path_gb": {k: round(v, 2) for k, v in sizes.items()},
             "free_gb_before": round(free_before, 1),
             "free_gb_after": round(free_after, 1),
-            "all_removed": not any((RISE_EO_ROOT / c).exists() for c in RECLAIM_CANDIDATES),
+            "all_removed": not any((FSD_ROOT / c).exists() for c in RECLAIM_CANDIDATES),
         }
         result["pass"] = result["metrics"]["all_removed"]
         if not result["pass"]:
@@ -240,8 +240,8 @@ def step_discover(bands: list[str], max_cloudcover: float) -> int:
         "free_gb_after_delete_exceeds_estimate": True,
     })
     try:
-        from rise_eo import collections as _collections
-        from rise_eo.sources import mpc
+        from fsd import collections as _collections
+        from fsd.sources import mpc
 
         declaration = _collections.get("sentinel-2-l2a")
         print("[58] querying MPC STAC (no bytes) ...", flush=True)
@@ -256,7 +256,7 @@ def step_discover(bands: list[str], max_cloudcover: float) -> int:
         n = len(gdf)
         est_gb = n * gb_per_granule
         current_gb = _dir_gb(DATA_DIR)
-        free_now = _free_gb(RISE_EO_ROOT)
+        free_now = _free_gb(FSD_ROOT)
         free_after_delete = free_now + current_gb
 
         result["metrics"] = {
@@ -340,7 +340,7 @@ def step_free_disk(confirmed: bool) -> int:
     })
     try:
         before_gb = _dir_gb(DATA_DIR)
-        free_before = _free_gb(RISE_EO_ROOT)
+        free_before = _free_gb(FSD_ROOT)
         if not confirmed:
             result["status"] = "fail"
             result["error"] = (
@@ -358,7 +358,7 @@ def step_free_disk(confirmed: bool) -> int:
         else:
             print(f"[58] {DATA_DIR} already absent -- nothing to delete", flush=True)
 
-        free_after = _free_gb(RISE_EO_ROOT)
+        free_after = _free_gb(FSD_ROOT)
         result["metrics"] = {
             "deleted_gb": round(before_gb, 1),
             "free_gb_before": round(free_before, 1),
@@ -397,7 +397,7 @@ def step_download(bands: list[str], max_cloudcover: float, max_concurrent: int) 
     try:
         import time
 
-        from rise_eo import api
+        from fsd import api
 
         t0 = time.time()
         print(f"[58] downloading {bands} -> {DATA_DIR} "
@@ -418,7 +418,7 @@ def step_download(bands: list[str], max_cloudcover: float, max_concurrent: int) 
         )
         elapsed = time.time() - t0
 
-        from rise_eo.storage import fs
+        from fsd.storage import fs
         gdf = fs.read_parquet(catalog_filepath)
         archive_bands, uneven = _bands_in_catalog(gdf)
         # A partial run is the normal outcome of a throttled or interrupted download, and
@@ -445,7 +445,7 @@ def step_download(bands: list[str], max_cloudcover: float, max_concurrent: int) 
             "files_on_disk": sum(1 for _ in DATA_DIR.rglob("*.tif")),
             "archive_gb": round(_dir_gb(DATA_DIR), 1),
             "elapsed_s": round(elapsed, 1),
-            "free_gb_after": round(_free_gb(RISE_EO_ROOT), 1),
+            "free_gb_after": round(_free_gb(FSD_ROOT), 1),
         }
         # Re-run the SAME command to resume: `mpc.download` skips what is already on disk,
         # so a partial run costs only the missing files next time.
@@ -479,9 +479,9 @@ def step_verify() -> int:
         "every_granule_has_the_same_bands": True,
     })
     try:
-        from rise_eo.catalog import declaration as dm
-        from rise_eo.catalog.catalog import COLUMNS
-        from rise_eo.storage import fs
+        from fsd.catalog import declaration as dm
+        from fsd.catalog.catalog import COLUMNS
+        from fsd.storage import fs
 
         catalog_filepath = str(DATA_DIR / "catalog.parquet")
         # Via the storage seam, not gpd.read_parquet: `fs.read_parquet` is what restores the
@@ -563,7 +563,7 @@ def _offset_matches_baseline(gdf) -> tuple[list[dict], list[str]]:
     """Per row: does the catalog's `offset` match what the item's OWN declared processing
     baseline implies? Returns `(mismatches, baselines_seen)`.
 
-    ESA's rule (`rise_eo.sources._s2_radiometry`): offset is −1000 for baseline ≥ 04.00, else 0.
+    ESA's rule (`fsd.sources._s2_radiometry`): offset is −1000 for baseline ≥ 04.00, else 0.
     Reading the baseline out of the `properties` column (spec 58 D12's addition) and
     re-deriving the offset checks the ingest end to end without assuming which provider or
     which reprocessing this archive came from — MPC's original-2018 items declare a pre-04.00
@@ -574,7 +574,7 @@ def _offset_matches_baseline(gdf) -> tuple[list[dict], list[str]]:
     A row whose `properties` names no baseline is a mismatch, not a pass: `offset_for_item`
     raises rather than defaulting for exactly that reason (spec 34 §3a A1).
     """
-    from rise_eo.sources._s2_radiometry import _BASELINE_PROPS, baseline_tuple
+    from fsd.sources._s2_radiometry import _BASELINE_PROPS, baseline_tuple
 
     mismatches: list[dict] = []
     baselines: set[str] = set()
@@ -634,7 +634,7 @@ def step_build_cube() -> int:
     try:
         import geopandas as gpd
 
-        from rise_eo.storage import fs
+        from fsd.storage import fs
 
         cube_dir = OUT / "cubes"
         cube_dir.mkdir(parents=True, exist_ok=True)
@@ -677,9 +677,9 @@ def _most_multi_tile_cell(catalog_filepath: str):
     cover for that seam (`CLAUDE.md`); the Ethiopia ROI has no imagery behind it any more."""
     import geopandas as gpd
 
-    from rise_eo import grid as _grid
-    from rise_eo.catalog.catalog import filter_gdf
-    from rise_eo.storage import fs
+    from fsd import grid as _grid
+    from fsd.catalog.catalog import filter_gdf
+    from fsd.storage import fs
 
     catalog_gdf = fs.read_parquet(catalog_filepath)
     grids = _grid.roi_to_s2_grids(str(ROI_PATH))
@@ -707,7 +707,7 @@ def _build_one(cell_filepath: str, catalog_filepath: str, out_dir: pathlib.Path,
     import numpy as np
     import pandas as pd
 
-    from rise_eo.workflows import create_datacube
+    from fsd.workflows import create_datacube
 
     out_dir.mkdir(parents=True, exist_ok=True)
     create_datacube.run_create_datacube(

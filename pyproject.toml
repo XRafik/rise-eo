@@ -44,7 +44,7 @@ notebooks = [
     "scikit-learn",
     "joblib",
 ]
-model-example = [  # for examples/eurocrops_rf.py + tests/manual/deploy.md + demos/ (not fsd core)
+model-example = [  # for examples/eurocrops_rf.py + tests/manual/deploy.md + demos/ (not rise-eo core)
     "scikit-learn",
     "joblib",
     "matplotlib",
@@ -72,13 +72,13 @@ mpc = [            # MPC source (spec 32): Microsoft Planetary Computer signing
     # that already has it.
     "planetary-computer>=1,<2",
 ]
-titiler = [        # P5 serving validation (spec 29 Tier 1; grows for Tier 2). NOT fsd core.
+titiler = [        # P5 serving validation (spec 29 Tier 1; grows for Tier 2). NOT rise-eo core.
     "rio-tiler>=6,<8",       # the COG tile read + render (the pre-styled route)
     "fastapi",               # the app
     "uvicorn[standard]",     # ASGI server
     # titiler.core / titiler.mosaic are added in Tier 2 (pgSTAC); Tier 1 needs only rio-tiler.
 ]
-serving = [        # P5 serving Tier 2 (spec 30): stac-geoparquet export. NOT fsd core.
+serving = [        # P5 serving Tier 2 (spec 30): stac-geoparquet export. NOT rise-eo core.
     "stac-geoparquet",
 ]
 dev = [

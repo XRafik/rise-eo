@@ -4,7 +4,7 @@
 > change to `rise_eo.model.BaseModelAdapter`, `rise_eo.model.bundle`, or the feature-sequence contract in
 > `rise_eo.bands.modify`.
 
-**fsd owns the plumbing** — download, datacube build, tiling, COG/STAC/merge, the local and AML
+**rise-eo owns the plumbing** — download, datacube build, tiling, COG/STAC/merge, the local and AML
 runners. **You own two endpoints** that connect your trained model to that plumbing. This page is
 the step-by-step version of what [`docs/tutorial.md`](../tutorial.md) §6 did with a five-line
 throwaway class; [`examples/eurocrops_rf.py`](../../examples/eurocrops_rf.py) is a complete,
@@ -32,7 +32,7 @@ caller's window to choose.)
 
 ### 2. Endpoint ① — datacube → model input (your feature transform)
 
-Declared **once**, run by fsd at **both** training and inference — the anti-skew guarantee: train
+Declared **once**, run by rise-eo at **both** training and inference — the anti-skew guarantee: train
 and serve see identical features, by construction, not by discipline.
 
 **That guarantee only holds if you hand the adapter to the training call too:**
@@ -67,13 +67,13 @@ def predict(self, X_chunk):
     return self.clf.predict(X_chunk).astype("uint8")
 ```
 
-fsd hands you valid (non-NaN) rows already chunked (`predict_batch_size`) and scatters NaN → nodata
+rise-eo hands you valid (non-NaN) rows already chunked (`predict_batch_size`) and scatters NaN → nodata
 on the output side — `predict` never sees a NaN and never has to think about masking.
 
 ### 4. Endpoint ② — raw output → standard `Output` (your packaging)
 
 `to_output(raw, hw)` → `Output((bands, H, W), dtype, nodata, band_names)` — how your model's numbers
-become the COG bands fsd writes. A default is provided that maps one categorical/vector value per
+become the COG bands rise-eo writes. A default is provided that maps one categorical/vector value per
 pixel using the declarations from step 1; override only for custom band packing.
 
 ### 5. `load()` — read your artifact once per worker
@@ -83,7 +83,7 @@ def load(self):
     self.clf, self.label_encoder = joblib.load(self.artifacts["model"])
 ```
 
-`self.artifacts` is `{name: absolute path}`, injected by the bundle before `load()` runs. fsd never
+`self.artifacts` is `{name: absolute path}`, injected by the bundle before `load()` runs. rise-eo never
 trains a model — you bring one that's already fit.
 
 ## Bundle it
