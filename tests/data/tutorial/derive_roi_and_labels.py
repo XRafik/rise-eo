@@ -15,7 +15,7 @@ CLI is normative (run-book 43 Step 0) -- match these flags exactly:
         --out      tests/data/tutorial \\
         --result   tests/outputs/p6_tutorial_fixture/_result_step0.json
 
-Not part of the fsd wheel; not run by the test suite (spec 42 D4) -- its output
+Not part of the rise-eo wheel; not run by the test suite (spec 42 D4) -- its output
 (`roi.geojson`, `fields.geojson`) is the artifact, committed alongside it.
 """
 

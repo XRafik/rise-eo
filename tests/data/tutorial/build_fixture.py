@@ -19,7 +19,7 @@ Idempotent and resumable per output file (spec 42 §3/run-book 43): re-running
 skips any granule x band COG that already exists and is non-empty; nothing is
 ever deleted.
 
-Not part of the fsd wheel; not run by the test suite (spec 42 D4) -- its output
+Not part of the rise-eo wheel; not run by the test suite (spec 42 D4) -- its output
 (`tests/data/tutorial/`) is the artifact, committed alongside it.
 
 CLI is normative (spec 42 D4, run-book 43 Steps 2-4) -- match these flags
