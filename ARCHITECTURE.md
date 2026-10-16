@@ -228,7 +228,7 @@ architecture adds:
 - **Tests are synthetic and offline.** Anything needing credentials, a cluster or human eyes is a
   **run-book** (`runbooks/`, spec 24), not a test.
 - **Docs can fail the suite** — `tests/test_docs.py` checks point-in-time status headers, config-key
-  parity, that every relative link in the maintained docs resolves, and that every `rise-eo.<verb>(…)`
+  parity, that every relative link in the maintained docs resolves, and that every `rise_eo.<verb>(…)`
   the README calls really binds to the live signature. Adding or renaming a config key means editing
   `rise_eo/config.py` and `docs/reference/environment.md` in the same change.
 - **Design lands as a spec first** (`specs/`), signed off before implementation.

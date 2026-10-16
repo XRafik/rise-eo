@@ -179,17 +179,17 @@ def test_relative_links_resolve(path: Path):
 
 
 def test_readme_verbs_exist():
-    """Every `rise-eo.<verb>(` the README calls is really in `rise_eo.__all__`."""
+    """Every `rise_eo.<verb>(` the README calls is really in `rise_eo.__all__`."""
     import rise_eo
 
     called = set(re.findall(r"\brise_eo\.([a-z_][a-z0-9_]*)\s*\(", (REPO_ROOT / "README.md").read_text()))
     assert called, "README quickstart calls no rise-eo verbs — did the example disappear?"
     missing = sorted(v for v in called if v not in rise_eo.__all__)
-    assert not missing, f"README calls rise-eo.<verb> that is not in rise_eo.__all__: {missing}"
+    assert not missing, f"README calls rise_eo.<verb> that is not in rise_eo.__all__: {missing}"
 
 
 def _readme_rise_eo_calls():
-    """Every `rise-eo.<verb>(...)` call in the README's python blocks, as (verb, npos, kwnames).
+    """Every `rise_eo.<verb>(...)` call in the README's python blocks, as (verb, npos, kwnames).
 
     Calls that splat (`*args`/`**kwargs`) are skipped — arity is unknowable statically.
     """
@@ -220,7 +220,7 @@ def test_readme_calls_bind_to_real_signatures():
     import rise_eo
 
     calls = list(_readme_rise_eo_calls())
-    assert calls, "README's python blocks contain no rise-eo.<verb>(...) calls to check."
+    assert calls, "README's python blocks contain no rise_eo.<verb>(...) calls to check."
     sentinel = object()
     failures = []
     for verb, npos, kwnames in calls:
@@ -273,7 +273,7 @@ def _docs_with_python_snippets() -> list[Path]:
 
 def _rise_eo_attr_uses(text: str):
     """`(module, attr)` for every `alias.attr` where `alias` came from an
-    `import rise-eo...`/`from rise_eo... import ...` in the SAME snippet.
+    `import rise_eo...`/`from rise_eo... import ...` in the SAME snippet.
 
     Both `python -c "..."` bodies inside bash blocks and plain ```python blocks are
     covered: the former are extracted first, so a snippet's imports and its uses are

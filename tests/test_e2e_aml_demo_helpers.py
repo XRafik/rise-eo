@@ -3,7 +3,7 @@
 The demo run itself is not unit-testable by design (spec 40 §6) -- it needs a cluster.
 Its *helpers* are, and three of them are the ones a real run bets 80 GB on:
 
-- `_list_run_ids`/`_new_dispatch_timings`: how a step learns which run(s) its `rise-eo.*`
+- `_list_run_ids`/`_new_dispatch_timings`: how a step learns which run(s) its `rise_eo.*`
   call dispatched under, since no verb returns a run id (ADR 0021). Exercised here
   against a real fsspec backend (`memory://`), because the bug it has to survive --
   `fs.glob` returning the filesystem's own scheme-less path form -- only shows up
@@ -58,7 +58,7 @@ def test_list_run_ids_is_empty_when_nothing_has_dispatched():
 
 
 def test_new_dispatch_timings_returns_only_runs_created_after_the_snapshot():
-    """The before/after diff each dispatching step wraps its `rise-eo.*` call in."""
+    """The before/after diff each dispatching step wraps its `rise_eo.*` call in."""
     root = "memory://disc_diff"
     _write_timing(root, "run-old")
     before = demo._list_run_ids(root)
