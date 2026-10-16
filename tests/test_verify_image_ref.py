@@ -168,6 +168,34 @@ def test_verify_image_ref_stale_rise_eo_refuses_before_submission(tmp_path, impo
     assert ml_client.submitted == []
 
 
+def test_verify_image_ref_prerename_image_raises_before_submission(tmp_path, importable, fake_aml_command):
+    importable("vrefold_mod.py")
+    import vrefold_mod
+    try:
+        bdir = bundle.save(vrefold_mod.TinyAdapter(), {}, str(tmp_path / "b"), verbose=False)
+    finally:
+        _purge("vrefold_mod")
+
+    registry_root = str(tmp_path / "image_registry")
+    resolved = {
+        "base": "mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04@sha256:" + "a" * 64,
+        "fsd": "git+https://github.com/nikhilsrajan/fsd@" + "e" * 40,
+        "extras": ["azure"], "extra_pip": [], "base_resolved": True,
+    }
+    from rise_eo.image import digest as digest_mod
+    image_registry.publish("rise-eo-infer-sklearn", registry_root, resolved, digest_mod.digest(resolved))
+
+    ml_client = _FakeMLClient({"smoke": "Completed"})
+    with pytest.raises(ValueError, match="built before the package was renamed"):
+        verify_image(
+            bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
+            runner_kwargs=dict(cluster="c", root="memory://vimgref_old/root",
+                               identity_client_id="x", ml_client=ml_client),
+            image_ref="rise-eo-infer-sklearn:1", registry=registry_root,
+        )
+    assert ml_client.submitted == []
+
+
 def test_verify_image_ref_without_registry_raises(tmp_path, importable, fake_aml_command):
     importable("vrefnoreg_mod.py")
     import vrefnoreg_mod

@@ -182,7 +182,13 @@ def verify_image(
     if image_ref and not build_context:
         if not registry:
             raise ValueError("verify_image(image_ref=...) requires registry=.")
-        image_ref_rise_eo = _image_registry.resolve(image_ref, registry).definition.get("rise_eo")
+        definition = _image_registry.resolve(image_ref, registry).definition
+        if "rise_eo" not in definition and "fsd" in definition:
+            raise ValueError(
+                f"{image_ref} was built before the package was renamed to rise-eo, so it cannot run "
+                "this code. Rebuild it (docs/howto/build-the-images.md), then re-run verify_image."
+            )
+        image_ref_rise_eo = definition.get("rise_eo")
 
     result: dict = {
         "step": "verify_image",
