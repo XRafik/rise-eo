@@ -295,7 +295,7 @@ def _only_old_config(tmp_path, monkeypatch):
         monkeypatch.delenv(env_name, raising=False)
     old = tmp_path / "xdg" / "fsd"
     old.mkdir(parents=True)
-    (old / "config.toml").write_text('subscription_id = "from-the-old-folder"\n')
+    (old / "config.toml").write_text('[azure]\nsubscription_id = "from-the-old-folder"\n')
     return old / "config.toml"
 
 
