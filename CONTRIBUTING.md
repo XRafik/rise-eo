@@ -83,9 +83,16 @@ Each line points at the incident that taught it.
 - **Release.** Tag `v0.y.z` when there is something worth shipping; `breaking` bumps `y`, everything else bumps `z`.
   Only the maintainer edits the `pyproject.toml` version, the one place it is written (`fsd.__version__` reads it
   from the installed package). First merge a PR that sets the new version. Then, on an up-to-date `main`, create
-  the release with the tag read from `pyproject.toml`, so a missed bump fails because the tag already exists:
-  `gh release create "v$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" --target main --generate-notes`
-  (`.github/release.yml` groups the notes by label). CI runs on the new tag and fails if tag and version differ.
+  the release with the tag read from `pyproject.toml`. The check stops a missed bump: `gh release create` would
+  otherwise publish a release on an old tag that has none (`v0.1.0` is one).
+
+  ```bash
+  v="v$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+  if git ls-remote --exit-code --tags origin "refs/tags/$v" >/dev/null; then echo "$v exists: bump pyproject.toml first"
+  else gh release create "$v" --target main --generate-notes; fi
+  ```
+
+  `.github/release.yml` groups the notes by label. CI runs on the new tag and fails if tag and version differ.
 - **Weekly CI run** (Mondays, on `main`): a failure opens an issue. Fix it by pinning a range in `pyproject.toml`
   with a comment saying why. GitHub disables scheduled runs after 60 days without repository activity.
 - **Shared cloud aliases** (`current`, `champion`, `demo-*`) move only from `main`, and only the maintainer
