@@ -26,7 +26,7 @@ advance so it doesn't look like a hang.
 
 ```bash
 git clone https://github.com/nikhilsrajan/fsd.git
-cd rise-eo
+cd fsd        # the clone folder keeps the repo's name until the transfer
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,local,model-example]"
 ```
