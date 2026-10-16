@@ -13,6 +13,7 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ["v*"]  # tests/test_scaffold.py checks the tag against the package version
   schedule:
     # Weekly, Monday 06:00 UTC, on the default branch. An upstream break opens an issue
     # (see the last step) instead of emailing whoever last edited this cron line.
