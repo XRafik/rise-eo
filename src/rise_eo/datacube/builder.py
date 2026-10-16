@@ -335,7 +335,7 @@ def build_datacube(
     `write_read_log=True` writes a `reads.jsonl` sidecar (one row per windowed read: grid
     id, mgrs_tile, product_id, band, filepath, wall-clock epoch start/end, duration) and
     needs `njobs_load_images == 1` (no-op with a warning otherwise). The
-    workflow enables them via `FSD_WRITE_TIMINGS` / `FSD_WRITE_READ_LOG` (see
+    workflow enables them via `RISE_EO_WRITE_TIMINGS` / `RISE_EO_WRITE_READ_LOG` (see
     workflows.task).
 
     Spec: 03, 58.

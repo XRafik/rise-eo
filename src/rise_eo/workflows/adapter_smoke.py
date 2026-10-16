@@ -28,13 +28,13 @@ from rise_eo.workflows.infer_shard import fetch_bundle_to_scratch
 
 
 def run_smoke(bundle_url: str, status_url: str) -> dict:
-    scratch_dir = tempfile.mkdtemp(prefix="fsd-smoke-bundle-")
+    scratch_dir = tempfile.mkdtemp(prefix="rise-eo-smoke-bundle-")
     error = None
     try:
         local_bundle = fetch_bundle_to_scratch(bundle_url, scratch_dir)
         # Check DECLARED dependencies before importing, so a missing `sklearn` is
         # reported as a named dependency rather than as an ImportError traceback from deep
-        # inside the adapter. fsd never installs them -- they belong in the Environment image
+        # inside the adapter. rise-eo never installs them -- they belong in the Environment image
         # Dependency installation stays front-loaded to image build time.
         manifest = _bundle.read_spec(local_bundle)
         missing = _bundle.check_requirements(manifest.get("requirements"))

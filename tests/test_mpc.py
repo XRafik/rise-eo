@@ -463,7 +463,7 @@ def test_download_accepts_remote_root_and_stamps_via_local_scratch(tmp_path, mon
 
     catalog = TileCatalog(str(tmp_path / "catalog.parquet"))
     roi = gpd.GeoDataFrame(geometry=[sg.box(0.2, 0.2, 0.5, 0.5)], crs="EPSG:4326")
-    remote_root = "memory://fsd-mpc-test/imagery"
+    remote_root = "memory://rise-eo-mpc-test/imagery"
 
     result = mpc.download(
         roi, datetime.datetime(2021, 1, 1), datetime.datetime(2022, 12, 31),
@@ -476,7 +476,7 @@ def test_download_accepts_remote_root_and_stamps_via_local_scratch(tmp_path, mon
 
     memfs = fsspec.filesystem("memory")
     d = items[0].datetime
-    assert memfs.exists(f"fsd-mpc-test/imagery/{config.SATELLITE_S2L2A}/{d:%Y/%m/%d}/"
+    assert memfs.exists(f"rise-eo-mpc-test/imagery/{config.SATELLITE_S2L2A}/{d:%Y/%m/%d}/"
                         f"{_canon(items[0])}/B04.tif")
 
 
@@ -587,7 +587,7 @@ def test_stac_roundtrip_preserves_dn_offset_for_builder(tmp_path):
 
 # --- the [mpc] extra names itself, like [grid]/[local]/[s3] ------------------------
 # `planetary_computer` is imported lazily at two points, so without this a user who
-# installed fsd without `[mpc]` sees a bare ModuleNotFoundError naming a package they
+# installed rise-eo without `[mpc]` sees a bare ModuleNotFoundError naming a package they
 # never typed -- from a call they made as source="mpc".
 
 
@@ -603,7 +603,7 @@ def test_missing_planetary_computer_names_the_mpc_extra(monkeypatch):
 
     monkeypatch.delitem(__import__("sys").modules, "planetary_computer", raising=False)
     monkeypatch.setattr(builtins, "__import__", _no_pc)
-    with pytest.raises(ImportError, match=r"fsd\[mpc\]"):
+    with pytest.raises(ImportError, match=r"rise-eo\[mpc\]"):
         mpc._import_pc()
 
 

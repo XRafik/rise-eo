@@ -272,7 +272,7 @@ def test_run_aml_download_cdse_submits_exactly_one_job(fake_aml_command, monkeyp
     result = runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04", "B08"],
         "memory://aml_dl_cdse/data", "memory://aml_dl_cdse/data/catalog.parquet",
-        source="cdse", cluster="c", environment="fsd-env:1", root=root,
+        source="cdse", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="deadbeef", max_tiles=100, vault_url="kv-x.vault.azure.net",
         secret_name="cdse-creds", ml_client=ml_client, run_id=run_id,
         get_secret=_fake_get_secret,
@@ -296,7 +296,7 @@ def test_run_aml_download_cdse_one_job_is_non_vacuous(fake_aml_command, monkeypa
         runners.run_aml_download(
             "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
             f"{root}/data", f"{root}/data/catalog.parquet",
-            source="cdse", cluster="c", environment="fsd-env:1", root=root,
+            source="cdse", cluster="c", environment="rise-eo-env:1", root=root,
             identity_client_id="deadbeef", max_tiles=100, vault_url="kv-x.vault.azure.net",
             secret_name="cdse-creds", ml_client=ml_client, run_id=run_id,
             get_secret=_fake_get_secret,
@@ -331,7 +331,7 @@ def test_run_aml_download_mpc_shards_into_n_jobs(fake_aml_command, monkeypatch):
     result = runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_mpc/data", "memory://aml_dl_mpc/data/catalog.parquet",
-        source="mpc", cluster="c", environment="fsd-env:1", root=root,
+        source="mpc", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="deadbeef", max_tiles=100, n_shards=3,
         ml_client=ml_client, run_id=run_id,
     )
@@ -393,7 +393,7 @@ def test_run_aml_download_mpc_shortfall_empty_returns_without_submitting(
     result = runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_mpc_short/data", str(catalog_path),
-        source="mpc", cluster="c", environment="fsd-env:1",
+        source="mpc", cluster="c", environment="rise-eo-env:1",
         root="memory://aml_dl_mpc_short/root", identity_client_id="x", max_tiles=100,
         ml_client=ml_client, run_id="shortrun",
     )
@@ -419,7 +419,7 @@ def test_run_aml_download_mpc_shortfall_partial_dispatches_only_missing(
     result = runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_mpc_part/data", str(catalog_path),
-        source="mpc", cluster="c", environment="fsd-env:1",
+        source="mpc", cluster="c", environment="rise-eo-env:1",
         root="memory://aml_dl_mpc_part/root", identity_client_id="x", max_tiles=100,
         n_shards=3, ml_client=ml_client, run_id="partrun",
     )
@@ -445,7 +445,7 @@ def test_run_aml_download_mpc_shortfall_prints_before_and_after_counts(
     runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_mpc_msg/data", str(catalog_path),
-        source="mpc", cluster="c", environment="fsd-env:1",
+        source="mpc", cluster="c", environment="rise-eo-env:1",
         root="memory://aml_dl_mpc_msg/root", identity_client_id="x", max_tiles=100,
         n_shards=3, ml_client=ml_client, run_id="msgrun",
     )
@@ -492,7 +492,7 @@ def test_run_aml_download_cdse_job_carries_identity_timeout_and_kv_coords_not_se
     runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_kv/data", "memory://aml_dl_kv/data/catalog.parquet",
-        source="cdse", cluster="c", environment="fsd-env:1", root=root,
+        source="cdse", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="deadbeef-guid", max_tiles=100,
         vault_url="kv-x.vault.azure.net", secret_name="cdse-creds",
         ml_client=ml_client, run_id=run_id, get_secret=_fake_get_secret,
@@ -526,7 +526,7 @@ def test_run_aml_download_cdse_creds_url_puts_location_not_value_in_command(
     runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_blob/data", "memory://aml_dl_blob/data/catalog.parquet",
-        source="cdse", cluster="c", environment="fsd-env:1", root=root,
+        source="cdse", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="deadbeef", max_tiles=100, creds_url=creds_url,
         ml_client=ml_client, run_id=run_id,
     )
@@ -591,7 +591,7 @@ def test_run_aml_download_raises_when_job_reports_failed(fake_aml_command, monke
         runners.run_aml_download(
             "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
             "memory://aml_dl_fail/data", "memory://aml_dl_fail/data/catalog.parquet",
-            source="mpc", cluster="c", environment="fsd-env:1", root=root,
+            source="mpc", cluster="c", environment="rise-eo-env:1", root=root,
             identity_client_id="id", max_tiles=100, n_shards=2,
             ml_client=ml_client, run_id=run_id,
         )
@@ -610,7 +610,7 @@ def test_run_aml_download_raises_on_circuit_tripped_even_if_aml_completed(
         runners.run_aml_download(
             "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
             "memory://aml_dl_trip/data", "memory://aml_dl_trip/data/catalog.parquet",
-            source="cdse", cluster="c", environment="fsd-env:1", root=root,
+            source="cdse", cluster="c", environment="rise-eo-env:1", root=root,
             identity_client_id="id", max_tiles=100, vault_url="kv-x.vault.azure.net",
             secret_name="cdse-creds", ml_client=ml_client, run_id=run_id,
             get_secret=_fake_get_secret,
@@ -791,7 +791,7 @@ def test_run_aml_download_mpc_rejects_creds_url_end_to_end(fake_aml_command, mon
         runners.run_aml_download(
             "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
             "memory://aml_mpc_creds/data", "memory://aml_mpc_creds/data/catalog.parquet",
-            source="mpc", cluster="c", environment="fsd-env:1",
+            source="mpc", cluster="c", environment="rise-eo-env:1",
             root="memory://aml_mpc_creds/root", identity_client_id="deadbeef",
             max_tiles=100, creds_url="memory://aml_mpc_creds/_secrets/c.json",
             ml_client=_FakeMLClient(["Completed"]), run_id="mpccreds",
@@ -819,7 +819,7 @@ def test_run_aml_download_mpc_enforces_max_tiles_on_the_driver(fake_aml_command,
         runners.run_aml_download(
             "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
             "memory://aml_cap/data", "memory://aml_cap/data/catalog.parquet",
-            source="mpc", cluster="c", environment="fsd-env:1", root="memory://aml_cap/root",
+            source="mpc", cluster="c", environment="rise-eo-env:1", root="memory://aml_cap/root",
             identity_client_id="deadbeef", max_tiles=2,
             ml_client=_FakeMLClient(["Completed"]), run_id="cap",
         )
@@ -839,7 +839,7 @@ def test_run_aml_download_mpc_counts_distinct_tiles_not_assets(fake_aml_command,
     runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_cap_ok/data", "memory://aml_cap_ok/data/catalog.parquet",
-        source="mpc", cluster="c", environment="fsd-env:1", root=root,
+        source="mpc", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="deadbeef", max_tiles=2, n_shards=2,
         ml_client=ml_client, run_id="capok",
     )
@@ -853,7 +853,7 @@ def test_run_aml_download_cdse_enforces_max_tiles_before_dispatch(fake_aml_comma
         runners.run_aml_download(
             "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
             "memory://aml_cap_cdse/data", "memory://aml_cap_cdse/data/catalog.parquet",
-            source="cdse", cluster="c", environment="fsd-env:1",
+            source="cdse", cluster="c", environment="rise-eo-env:1",
             root="memory://aml_cap_cdse/root", identity_client_id="deadbeef",
             max_tiles=2, vault_url="kv", secret_name="n", get_secret=_fake_get_secret,
             ml_client=ml_client, run_id="capcdse",
@@ -874,7 +874,7 @@ def test_run_aml_download_cdse_command_carries_cloudcover_and_no_cog(
     runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_cc/data", "memory://aml_dl_cc/data/catalog.parquet",
-        source="cdse", cluster="c", environment="fsd-env:1", root=root,
+        source="cdse", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="g", max_tiles=100, vault_url="kv", secret_name="n",
         get_secret=_fake_get_secret, max_cloudcover=12.5, cog=False,
         ml_client=ml_client, run_id="ccrun",

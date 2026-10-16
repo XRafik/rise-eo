@@ -1,4 +1,4 @@
-"""fsd high-level API — the verbs users call.
+"""rise-eo high-level API — the verbs users call.
 
 Spec: specs/16-packaging-and-api.md. A façade over the internal modules
 (`sources`, `catalog`, `datacube`, `workflows`, `flatten`) that raises the scope from
@@ -624,7 +624,7 @@ def create_training_data(
     *same* one used at inference, which is what keeps training and inference features from
     skewing apart) **or** a raw `feature_sequence` (adapter-less/exploratory). `aggregate` ∈
     {None, "median_per_id", callable} reduces per-pixel samples before the transform. When any
-    is given, fsd writes `features.npy` (+ `feature_ids`/`feature_labels`) additively **on the
+    is given, rise-eo writes `features.npy` (+ `feature_ids`/`feature_labels`) additively **on the
     driver, after land-local** — the raw `data.npy` is kept and cluster images stay
     general-purpose.
 
@@ -1422,7 +1422,7 @@ def _merge_outputs(filepaths, dst, nodata, *, reproject_to_dominant: bool = Fals
     if fs.is_local(dst):
         raw = f"{dst}.raw.tif"
     else:
-        raw = os.path.join(tempfile.gettempdir(), f"fsd-merge-{_uuid.uuid4().hex}.raw.tif")
+        raw = os.path.join(tempfile.gettempdir(), f"rise-eo-merge-{_uuid.uuid4().hex}.raw.tif")
     try:
         with rasterio.open(raw, "w", **profile) as d:
             d.write(mosaic)
@@ -1497,7 +1497,7 @@ def _merge_mosaic(filepaths, nodata, *, reproject_to_dominant: bool, merge_crs):
                 # temp on the remote URL, and rasterio cannot open a remote path for WRITE.
                 # Same trap as the `raw` file below.
                 tmp = os.path.join(tempfile.gettempdir(),
-                                   f"fsd-reproj-{_uuid.uuid4().hex}.tif")
+                                   f"rise-eo-reproj-{_uuid.uuid4().hex}.tif")
                 tmps.append(tmp)
                 with rasterio.open(tmp, "w", **prof) as d:
                     rio_reproject(
@@ -1537,7 +1537,7 @@ def _merge_mosaic(filepaths, nodata, *, reproject_to_dominant: bool, merge_crs):
                 raise PreflightError(
                     f"cannot merge outputs across multiple CRS {sorted(crs_set)}; pass "
                     'merge="reproject" for a display map (reprojects to the dominant zone, '
-                    "lossy), or use the per-output COGs + STAC (fsd single-CRS-merge principle)."
+                    "lossy), or use the per-output COGs + STAC (rise-eo single-CRS-merge principle)."
                 )
             mosaic, out_transform = rio_merge(srcs, nodata=nodata)
             profile = srcs[0].profile.copy()
@@ -1566,8 +1566,8 @@ def _finalize_outputs(output_filepaths, output_folderpath, spec, merge, collecti
     )
     stac_catalog_filepath = _stac.write_stac_catalog(
         items, os.path.join(output_folderpath, "stac"),
-        catalog_id="fsd-inference", collection_id=collection_id,
-        description="fsd inference outputs (STAC).",
+        catalog_id="rise-eo-inference", collection_id=collection_id,
+        description="rise-eo inference outputs (STAC).",
     )
     merged_filepath = None
     if merge:
@@ -1611,7 +1611,7 @@ def run_inference(
     runner: str = "local",
     runner_kwargs: dict | None = None,
     storage=None,
-    collection_id: str = "fsd-inference",
+    collection_id: str = "rise-eo-inference",
     dt=None,
     progress: bool = True,
     registry: str | None = None,
@@ -1622,10 +1622,10 @@ def run_inference(
 
     - **pre-built cubes**: pass ``inference_datacubes`` — an ``input.csv``, a folder of
       datacube subfolders, or a list of ``datacube.npy`` filepaths. ``cores=1`` infers in-process
-      (sequential); ``cores>1`` fans out via the Snakemake **infer-only** runner — fsd has no
+      (sequential); ``cores>1`` fans out via the Snakemake **infer-only** runner — rise-eo has no
       in-process pool; ``cubes_per_task`` groups cubes per job to amortise the bundle load.
     - **ROI**: pass ``roi`` (+ ``catalog_filepath``,
-      ``startdate``/``enddate``/``mosaic_days``/``bands``). fsd splits the ROI into S2 grid cells
+      ``startdate``/``enddate``/``mosaic_days``/``bands``). rise-eo splits the ROI into S2 grid cells
       (``rise_eo.grid``), then fans out a per-cell **build-datacube + infer -> COG** task through the
       **runner seam** (Snakemake locally, Azure ML with ``runner="aml"``). Imagery is assumed
       already present in ``catalog_filepath`` — inference never touches CDSE (conserve quota).
@@ -2643,7 +2643,7 @@ def deploy(
 
     version = registry_mod.publish(bundle_path, name, registry, alias=alias)
 
-    import rise_eo as _fsd  # lazy: fsd/__init__.py imports this module, so a top-level import cycles
+    import rise_eo as _rise_eo  # lazy: rise_eo/__init__.py imports this module, so a top-level import cycles
 
     record = {
         "name": name,
@@ -2652,7 +2652,7 @@ def deploy(
         "environment": environment,
         "verified": result,
         "deployed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "fsd_version": _fsd.__version__,
+        "fsd_version": _rise_eo.__version__,
     }
     registry_mod.write_deploy_record(name, version, record, registry)
 

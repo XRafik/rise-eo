@@ -1,9 +1,9 @@
-"""fsd's console script.
+"""rise-eo's console script.
 
 Spec: specs/54-user-level-config.md
 
-`fsd init` writes `~/.config/fsd/config.toml` (or wherever `rise_eo.config.config_dir()`
-resolves to); `fsd config` shows the resolved values and where each came from. Both are
+`rise-eo init` writes `~/.config/rise-eo/config.toml` (or wherever `rise_eo.config.config_dir()`
+resolves to); `rise-eo config` shows the resolved values and where each came from. Both are
 operator-facing tools that ship with the library -- `src/rise_eo/` itself never calls this
 module or reads the file it writes.
 """
@@ -14,15 +14,15 @@ import argparse
 import os
 import sys
 
-from rise_eo import config as fsd_config
+from rise_eo import config as rise_eo_config
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
     if args.blank:
-        existing = fsd_config._read_file_values()
+        existing = rise_eo_config._read_file_values()
         if any(existing.values()) and not args.force:
             print(
-                f"fsd init --blank: {fsd_config.config_path()} already holds values. "
+                f"rise-eo init --blank: {rise_eo_config.config_path()} already holds values. "
                 "--blank would erase nothing but writes an empty template over your edits; "
                 "pass --force if that is what you want.",
                 file=sys.stderr,
@@ -31,28 +31,28 @@ def _cmd_init(args: argparse.Namespace) -> int:
         # write_config drops empty values, so a blank file cannot go through it (
         # keys present and empty, so the file PARSES and `load()` names the gaps instead of
         # `tomllib` reporting a syntax error).
-        path = fsd_config.write_blank_config()
+        path = rise_eo_config.write_blank_config()
         print(f"Wrote {path}")
         return 0
 
     if args.from_env_file:
-        env_values = fsd_config.parse_env_file(args.from_env_file)
+        env_values = rise_eo_config.parse_env_file(args.from_env_file)
         updates = {
-            fsd_config.ENV_TO_KEY[env_name]: value
+            rise_eo_config.ENV_TO_KEY[env_name]: value
             for env_name, value in env_values.items()
-            if env_name in fsd_config.ENV_TO_KEY
+            if env_name in rise_eo_config.ENV_TO_KEY
         }
     elif args.set:
         updates = {}
         for item in args.set:
             key, sep, value = item.partition("=")
             if not sep:
-                print(f"fsd init --set: {item!r} is not key=value", file=sys.stderr)
+                print(f"rise-eo init --set: {item!r} is not key=value", file=sys.stderr)
                 return 2
-            if key not in fsd_config.KEYS:
+            if key not in rise_eo_config.KEYS:
                 print(
-                    f"fsd init --set: unknown key {key!r} "
-                    f"(expected one of {', '.join(fsd_config.KEYS)})",
+                    f"rise-eo init --set: unknown key {key!r} "
+                    f"(expected one of {', '.join(rise_eo_config.KEYS)})",
                     file=sys.stderr,
                 )
                 return 2
@@ -62,32 +62,32 @@ def _cmd_init(args: argparse.Namespace) -> int:
             # Prompting is the default form, so a piped shell or a CI step lands here and used
             # to die on a bare EOFError out of `input()`. Name the three non-interactive forms.
             print(
-                "fsd init: no terminal to prompt on. Use one of:\n"
-                "  fsd init --blank                  write an empty config.toml to fill in\n"
-                "  fsd init --set key=value …        set named keys\n"
-                "  fsd init --from-env-file PATH     import an env.local.sh-shaped file",
+                "rise-eo init: no terminal to prompt on. Use one of:\n"
+                "  rise-eo init --blank                  write an empty config.toml to fill in\n"
+                "  rise-eo init --set key=value …        set named keys\n"
+                "  rise-eo init --from-env-file PATH     import an env.local.sh-shaped file",
                 file=sys.stderr,
             )
             return 2
-        existing = fsd_config._read_file_values()
+        existing = rise_eo_config._read_file_values()
         updates = {}
-        for key in fsd_config.KEYS:
+        for key in rise_eo_config.KEYS:
             default = existing.get(key, "")
-            optional = " (optional)" if key in fsd_config.OPTIONAL_KEYS else ""
+            optional = " (optional)" if key in rise_eo_config.OPTIONAL_KEYS else ""
             prompt = f"{key}{optional} [{default}]: " if default else f"{key}{optional}: "
             entered = input(prompt).strip()
             updates[key] = entered or default
 
-    path = fsd_config.write_config(updates)
+    path = rise_eo_config.write_config(updates)
     print(f"Wrote {path}")
     return 0
 
 
 def _cmd_config(args: argparse.Namespace) -> int:
-    file_values = fsd_config._read_file_values()
-    print(f"config file: {fsd_config.config_path()}")
-    for key in fsd_config.KEYS:
-        env_value = os.environ.get(fsd_config._KEY_TO_ENV[key])
+    file_values = rise_eo_config._read_file_values()
+    print(f"config file: {rise_eo_config.config_path()}")
+    for key in rise_eo_config.KEYS:
+        env_value = os.environ.get(rise_eo_config._KEY_TO_ENV[key])
         file_value = file_values.get(key)
         if env_value:
             source, value = "env", env_value
@@ -97,7 +97,7 @@ def _cmd_config(args: argparse.Namespace) -> int:
             source, value = None, None
         if source:
             print(f"  {key} = {value!r}  ({source})")
-        elif key in fsd_config.OPTIONAL_KEYS:
+        elif key in rise_eo_config.OPTIONAL_KEYS:
             print(f"  {key} unset (optional)")
         else:
             print(f"  {key} unset")
@@ -105,7 +105,7 @@ def _cmd_config(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="fsd")
+    parser = argparse.ArgumentParser(prog="rise-eo")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init_parser = sub.add_parser("init", help="write the user-level config file")

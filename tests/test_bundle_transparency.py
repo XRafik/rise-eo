@@ -187,7 +187,7 @@ def test_unembedded_sibling_import_raises_naming_it_and_the_fix(tmp_path, import
 
 
 def test_dependency_import_does_not_raise(tmp_path, importable):
-    """A real installed distribution (packaging, already a fsd dependency) must be left
+    """A real installed distribution (packaging, already a rise-eo dependency) must be left
     alone -- it's declared via `requirements=`, never embedded."""
     importable("d3dep_mod.py", src='''
         from packaging.requirements import Requirement
@@ -303,7 +303,7 @@ def test_verify_image_passes_against_a_known_good_bundle(tmp_path, importable, f
         json.dump({"status": "ok", "error": None}, f)
 
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:3", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:3", runner="aml",
         runner_kwargs=dict(cluster="c", root=root, identity_client_id="x",
                            ml_client=ml_client, run_id="runok"),
     )
@@ -330,7 +330,7 @@ def test_verify_image_fails_with_populated_error_when_bundle_has_no_code(
     ml_client = _FakeMLClient({"smoke": "Completed"})
 
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:3", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:3", runner="aml",
         runner_kwargs=dict(cluster="c", root=root, identity_client_id="x", ml_client=ml_client),
     )
 
@@ -355,13 +355,13 @@ def test_verify_image_stale_wheel_detected_before_submission(tmp_path, importabl
 
     build_ctx = tmp_path / "ctx"
     build_ctx.mkdir()
-    stale_wheel = build_ctx / "fsd-0.1.0-py3-none-any.whl"
+    stale_wheel = build_ctx / "rise_eo-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(stale_wheel, "w") as zf:
-        zf.writestr("fsd/model/bundle.py", "# a pre-spec-44 bundle.py, no manifest_code_files\n")
+        zf.writestr("rise_eo/model/bundle.py", "# a pre-spec-44 bundle.py, no manifest_code_files\n")
 
     ml_client = _FakeMLClient({"smoke": "Completed"})
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:3", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:3", runner="aml",
         runner_kwargs=dict(cluster="c", root="memory://vimg_stale/root", identity_client_id="x",
                            ml_client=ml_client),
         build_context=str(build_ctx),
@@ -373,7 +373,7 @@ def test_verify_image_stale_wheel_detected_before_submission(tmp_path, importabl
 
 
 def test_verify_image_absent_wheel_raises_not_a_verdict(tmp_path, importable, fake_aml_command):
-    """Spec 47 D10/D11: a build_context with no fsd-*.whl is caller misuse, not a statement about
+    """Spec 47 D10/D11: a build_context with no rise_eo-*.whl is caller misuse, not a statement about
     the image -- it must raise ValueError and submit nothing, never come back as pass=False."""
     importable("vabsent_mod.py")
     import vabsent_mod
@@ -387,9 +387,9 @@ def test_verify_image_absent_wheel_raises_not_a_verdict(tmp_path, importable, fa
     build_ctx.mkdir()
 
     ml_client = _FakeMLClient({"smoke": "Completed"})
-    with pytest.raises(ValueError, match="contains no fsd-\\*.whl"):
+    with pytest.raises(ValueError, match="contains no rise_eo-\\*.whl"):
         verify_image(
-            bdir, environment="fsd-infer-sklearn:3", runner="aml",
+            bdir, environment="rise-eo-infer-sklearn:3", runner="aml",
             runner_kwargs=dict(cluster="c", root="memory://vimg_absent/root", identity_client_id="x",
                                ml_client=ml_client),
             build_context=str(build_ctx),
@@ -411,7 +411,7 @@ def test_verify_image_missing_status_file_is_its_own_diagnosis(tmp_path, importa
 
     ml_client = _FakeMLClient({"smoke": "Completed"})
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:3", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:3", runner="aml",
         runner_kwargs=dict(cluster="c", root="memory://vimg_missing/root", identity_client_id="x",
                            ml_client=ml_client, run_id="runmissing"),
     )
@@ -423,11 +423,11 @@ def test_verify_image_missing_status_file_is_its_own_diagnosis(tmp_path, importa
 def test_verify_image_runner_local_raises(tmp_path):
     """D5: 'verified locally' is the false positive this helper exists to prevent."""
     with pytest.raises(ValueError, match="not a verification"):
-        verify_image("some/bundle", environment="fsd-infer-sklearn:3", runner="local")
+        verify_image("some/bundle", environment="rise-eo-infer-sklearn:3", runner="local")
 
 
 def test_verify_image_missing_runner_kwargs_raises(tmp_path):
     with pytest.raises(ValueError, match="runner_kwargs"):
         verify_image(
-            "some/bundle", environment="fsd-infer-sklearn:3", runner="aml", runner_kwargs={},
+            "some/bundle", environment="rise-eo-infer-sklearn:3", runner="aml", runner_kwargs={},
         )

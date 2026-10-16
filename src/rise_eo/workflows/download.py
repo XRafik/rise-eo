@@ -14,7 +14,7 @@ two job shapes `runners.run_aml_download` submits -- dispatch shape is per-sourc
   `sources.mpc.download_shard` over a pre-discovered, pre-partitioned asset-row CSV
   the driver wrote (`sources.mpc.discover_shard_rows` + `runners.shard_units`).
 
-Both write a `_status/<k>.json` -- the same `_result.json` shape every fsd job reports in
+Both write a `_status/<k>.json` -- the same `_result.json` shape every rise-eo job reports in
 -- built from the source call's `DownloadResult`.
 
 Run as:

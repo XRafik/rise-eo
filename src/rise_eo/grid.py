@@ -7,7 +7,7 @@ task in `run_inference(roi=…)`. Cells are scaled up slightly so adjacent cells
 seams at mosaic time) and clipped to the ROI so they don't spill outside it.
 
 Needs the optional `[grid]` extra (`pip install -e ".[grid]"`: `s2` + `s2cell`) — kept out of
-fsd core so the base install stays lean.
+rise-eo core so the base install stays lean.
 """
 
 from __future__ import annotations

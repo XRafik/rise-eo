@@ -29,7 +29,7 @@ _PROVENANCE_KEY = "provenance"
 
 
 def compute_callable_fingerprint(fn) -> str:
-    """`module.qualname` of a callable -- the cheap fingerprint fsd settled on
+    """`module.qualname` of a callable -- the cheap fingerprint rise-eo settled on
     (qualname + kwargs, not a source hash). Editing a feature function's BODY with the same
     name does not change this fingerprint; the docstring of any caller relying on this must
     say so plainly."""

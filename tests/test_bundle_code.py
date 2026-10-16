@@ -103,7 +103,7 @@ def test_save_call_signature_is_unchanged(tmp_path, importable):
 
 
 def test_package_adapter_preserves_layout_and_intra_package_imports(tmp_path, importable):
-    """The MLflow `code_paths` defect fsd fixes: flattening would break `from .helpers import`."""
+    """The MLflow `code_paths` defect rise-eo fixes: flattening would break `from .helpers import`."""
     importable("mypkg/__init__.py", src="")
     importable("mypkg/helpers.py", src="BANDS = ['B04', 'B08']\n")
     importable(
@@ -148,8 +148,8 @@ def test_installed_adapter_is_not_embedded(tmp_path):
     assert detail is None
 
 
-def test_fsd_own_classes_are_never_embedded():
-    """An adapter subclassing fsd's base must not drag src/rise_eo/ into the bundle."""
+def test_rise_eo_own_classes_are_never_embedded():
+    """An adapter subclassing rise-eo's base must not drag src/rise_eo/ into the bundle."""
     from rise_eo.model.adapter import BaseModelAdapter
 
     assert bundle.classify_adapter_source(BaseModelAdapter)[0] == "installed"
@@ -573,3 +573,30 @@ def test_drift_message_is_per_origin(tmp_path, importable):
             bundle.load(bdir)
     finally:
         _purge("drift_mod")
+
+
+# --- spec 102 A11.5: a bundle saved with fsd <= v0.2 names the old package --------------------
+
+
+@pytest.mark.parametrize("old_import", [
+    "import fsd\n",
+    "from fsd.model.adapter import BaseModelAdapter\n",
+    "def predict(X):\n    import fsd.model\n    return X\n",
+])
+def test_load_of_a_bundle_whose_adapter_imports_fsd_says_how_to_fix_it(tmp_path, old_import):
+    bundle_dir = tmp_path / "old_bundle"
+    (bundle_dir / "code").mkdir(parents=True)
+    (bundle_dir / "code" / "my_adapter.py").write_text(old_import)
+    (bundle_dir / "bundle.json").write_text(json.dumps({
+        "fsd_bundle_version": bundle.BUNDLE_VERSION,
+        "adapter": "my_adapter:Whatever",
+        "artifacts": {},
+        "code": {"root": "code"},
+    }))
+    with pytest.raises(ValueError) as exc:
+        bundle.load(str(bundle_dir))
+    msg = str(exc.value)
+    assert "fsd <= v0.2" in msg
+    assert os.path.join("code", "my_adapter.py") in msg
+    assert "change `fsd` to `rise_eo`" in msg
+    assert "save the bundle again" in msg

@@ -1,7 +1,7 @@
 """Register a pgSTAC search + print the XYZ mosaic tile URL (spec 30 A3/A4).
 
 Reuses `demos.titiler_serve.build_colormap()` (spec 29) for the discrete crop-class colormap,
-`POST`s a `collections: ["fsd-inference"]` search to titiler-pgstac's **register** endpoint, and
+`POST`s a `collections: ["rise-eo-inference"]` search to titiler-pgstac's **register** endpoint, and
 prints the full XYZ template for both curl and a QGIS XYZ layer.
 
 **Pinned API note (installed `titiler.pgstac==3.0.0`, the source of truth — spec 30 deviates from
@@ -38,12 +38,12 @@ from titiler_serve import build_colormap  # noqa: E402
 def _parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="python demos/mini_mpc/register_and_url.py",
-        description="Register a fsd-inference search against titiler-pgstac and print the "
+        description="Register a rise-eo-inference search against titiler-pgstac and print the "
                     "register->searchId->XYZ mosaic tile URL (spec 30 A3/A4).",
     )
     p.add_argument("--raster-base", default="http://127.0.0.1:8082",
                     help="the mini-MPC raster (titiler-pgstac) base URL")
-    p.add_argument("--collection-id", default="fsd-inference")
+    p.add_argument("--collection-id", default="rise-eo-inference")
     p.add_argument("--render-json", default=None,
                     help="optional [{code,name,color}] override for CLASS_COLORS")
     p.add_argument("--result-json", default="_result_register.json")

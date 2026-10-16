@@ -65,7 +65,7 @@ Per-band success (files landed): `MTD_TL.xml` 135 · `B8A` 129 · `SCL` 121 · `
 most tiles came down **partial** (135 tiles with only 1 file; only 80 with all 5).
 
 ## Failure analysis
-- **Root cause = BUG-001**, not an fsd bug: CDSE's S3 endpoint fails per-request due to
+- **Root cause = BUG-001**, not a rise-eo bug: CDSE's S3 endpoint fails per-request due to
   load-balanced node inconsistency. Live probes the same day: serial 0/3 `ok`; threaded
   a mix of `Forbidden`, `InvalidAccessKeyId`, and `ok` — the classic node roulette.
 - **Failure reasons (qualitative):** dominated by `Forbidden` (403), with some

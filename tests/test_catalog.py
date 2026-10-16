@@ -170,7 +170,7 @@ def test_append_declaration_none_preserves_existing_stamp(tmp_path):
     a = CollectionDeclaration(reference_band="B04")
     cat = TileCatalog(str(tmp_path / "catalog.parquet"))
     cat.append([_row("t1", "2024-08-01T10:00:00Z", "B02.jp2", _box(0, 0, 1, 1), offset=0, nodata=0)], declaration=a)
-    # an fsd-agnostic top-up (no declaration= given) must not erase the stamp.
+    # an rise-eo-agnostic top-up (no declaration= given) must not erase the stamp.
     cat.append([_row("t2", "2024-08-02T10:00:00Z", "B02.jp2", _box(1, 1, 2, 2), offset=0, nodata=0)])
     assert cat.declaration == a
     assert len(cat.read()) == 2

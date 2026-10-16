@@ -15,13 +15,13 @@ Do this **before** [`run-at-scale.md`](run-at-scale.md). That page assumes both 
 
 | image | used by | what it adds |
 |---|---|---|
-| **`fsd-aml-env`** | download shards, datacube builds, `create_training_data`'s flatten | fsd + `[azure,mpc]` |
-| **`fsd-infer-sklearn`** | the `run_inference` fan-out, `verify_image`'s smoke job | the same, **plus** `scikit-learn` + `joblib` |
+| **`rise-eo-aml-env`** | download shards, datacube builds, `create_training_data`'s flatten | fsd + `[azure,mpc]` |
+| **`rise-eo-infer-sklearn`** | the `run_inference` fan-out, `verify_image`'s smoke job | the same, **plus** `scikit-learn` + `joblib` |
 
 The inference image is generic **per dependency family**, never per model. Since spec 44 the
 adapter's *source* travels inside the bundle, so the image copies no adapter and sets no
 `PYTHONPATH`. Every sklearn model you ever bundle runs on this one image. A torch model needs an
-`fsd-infer-torch` -- `BASE.derive(name="fsd-infer-torch", extra_pip=("torch",))` -- built
+`rise-eo-infer-torch` -- `BASE.derive(name="rise-eo-infer-torch", extra_pip=("torch",))` -- built
 identically with the last dependency swapped.
 
 ## Prerequisites
@@ -31,7 +31,7 @@ identically with the last dependency swapped.
   provisions. Ask for them by name; see [`run-at-scale.md`](run-at-scale.md).
 - A local fsd checkout with its venv (`pip install -e ".[dev,aml,mpc,azure,grid]"`) -- or, for a
   consumer with no checkout, fsd installed from a git ref (`pip install "fsd[aml] @ git+https://github.com/nikhilsrajan/fsd@<ref>"`).
-- Your Azure coordinates in `~/.config/fsd/config.toml`, **including `image_registry`** (spec 55
+- Your Azure coordinates in `~/.config/rise-eo/config.toml`, **including `image_registry`** (spec 55
   D2 -- the storage-seam path definitions are published to):
   ```bash
   fsd init      # interactive; fill in every value, including image_registry
@@ -43,15 +43,15 @@ identically with the last dependency swapped.
 ```python
 from rise_eo.image import ImageDefinition
 
-# fsd developer, from a checkout: fsd="path:..." -- the ONE case that builds a wheel and hashes
+# fsd developer, from a checkout: rise_eo="path:..." -- the ONE case that builds a wheel and hashes
 # its content (spec 56 D5). A consumer with no checkout uses a pinned git ref instead:
-#   fsd="git+https://github.com/nikhilsrajan/fsd@<40-char sha or branch>"
+#   rise_eo="git+https://github.com/nikhilsrajan/fsd@<40-char sha or branch>"
 BASE = ImageDefinition(
-    name="fsd-aml-env",
-    fsd="path:/path/to/your/fsd/checkout",
+    name="rise-eo-aml-env",
+    rise_eo="path:/path/to/your/fsd/checkout",
     extras=("local", "azure", "mpc"),
 )
-INFER = BASE.derive(name="fsd-infer-sklearn", extra_pip=("scikit-learn", "joblib"))
+INFER = BASE.derive(name="rise-eo-infer-sklearn", extra_pip=("scikit-learn", "joblib"))
 ```
 
 > **`local` is not optional here (#80).** `snakemake` lives in the `[local]` extra, and the
@@ -67,7 +67,7 @@ contains (D2) -- `BASE.derive(name=...)` alone changes nothing about the image.
 
 **Bringing your own Dockerfile?** `ImageDefinition(name=..., build_context="./my-context")` takes
 a directory you own; fsd digests its file contents (never the path) and builds it unchanged, no
-`fsd=`/`base=`/`extras=` needed.
+`rise_eo=`/`base=`/`extras=` needed.
 
 ## Ensure the environments
 
@@ -150,7 +150,7 @@ assert vres["pass"], vres
 
 **`result.ref` and `result.registry_ref` are different numbers and are not interchangeable.**
 AML versions *assets*; the image registry versions *definitions*, in its own integer sequence —
-`fsd-aml-env:5` in AML can be `fsd-aml-env:1` in the registry. `environment=` wants AML's
+`rise-eo-aml-env:5` in AML can be `rise-eo-aml-env:1` in the registry. `environment=` wants AML's
 (`.ref`, `.version`); `image_ref=` wants the registry's (`.registry_ref`, `.registry_version`).
 Swapping them fails as a missing `v<N>` directory, not as a type error, so name the field.
 
@@ -164,7 +164,7 @@ matches how the image was built; `build_context` wins if both are given.
 
 [`notebooks/build_images.ipynb`](../../notebooks/build_images.ipynb) is this page as a
 runnable notebook, and is **the one notebook this repo tracks**. It reads every Azure coordinate
-(including `image_registry`) from `~/.config/fsd/config.toml` via `rise_eo.config.load()` rather than
+(including `image_registry`) from `~/.config/rise-eo/config.toml` via `rise_eo.config.load()` rather than
 carrying them, and `tests/test_notebooks.py` fails the build if it ever gains a saved output or a
 hardcoded identifier -- that guard is why it can be public at all. Clear its outputs
 (*Kernel -> Restart & Clear All Outputs*) before committing.
@@ -172,7 +172,7 @@ hardcoded identifier -- that guard is why it can be public at all. Clear its out
 ## Troubleshooting
 
 **`ensure_environment` built when I expected a reuse.** Either the definition really changed (for
-`fsd="path:..."`, an uncommitted edit changes the wheel's content digest -- there is no separate
+`rise_eo="path:..."`, an uncommitted edit changes the wheel's content digest -- there is no separate
 git-dirty check, D5), or the registry entry's AML asset no longer exists and `ensure_environment`
 correctly refused to hand back a dead reference.
 

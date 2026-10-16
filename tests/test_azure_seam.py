@@ -16,7 +16,7 @@ import types
 import fsspec
 import pytest
 
-from rise_eo.storage import azure as fsd_azure
+from rise_eo.storage import azure as rise_eo_azure
 from rise_eo.storage.fs import to_vsi
 
 pytest_adlfs = pytest.importorskip("adlfs", reason="needs the [azure] extra (adlfs)")
@@ -42,9 +42,9 @@ def test_to_vsi_az_alias():
 
 
 def test_to_vsi_account_extractable():
-    assert fsd_azure.account_from_url("abfss://fs@acct.dfs.core.windows.net/a/b.tif") == "acct"
-    assert fsd_azure.account_from_url("/local/a/b.tif") is None
-    assert fsd_azure.account_from_url("az://fs/a/b.tif") is None
+    assert rise_eo_azure.account_from_url("abfss://fs@acct.dfs.core.windows.net/a/b.tif") == "acct"
+    assert rise_eo_azure.account_from_url("/local/a/b.tif") is None
+    assert rise_eo_azure.account_from_url("az://fs/a/b.tif") is None
 
 
 def test_to_vsi_malformed_abfss_raises():
@@ -75,29 +75,29 @@ def _clean_fsspec_conf(monkeypatch):
 
 
 def test_configure_storage_azure_string_sets_env_and_conf(_clean_fsspec_conf):
-    fsd_azure.configure_storage("azure")
+    rise_eo_azure.configure_storage("azure")
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
     assert fsspec.config.conf["abfss"]["anon"] is False
 
 
 def test_configure_storage_azure_dict_form(_clean_fsspec_conf):
-    fsd_azure.configure_storage({"backend": "azure"})
+    rise_eo_azure.configure_storage({"backend": "azure"})
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
     assert fsspec.config.conf["abfss"]["anon"] is False
 
 
 def test_configure_storage_none_is_noop(_clean_fsspec_conf):
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    fsd_azure.configure_storage(None)
+    rise_eo_azure.configure_storage(None)
     assert "FSSPEC_ABFSS_ANON" not in os.environ
     assert "abfss" not in fsspec.config.conf
 
 
 def test_configure_storage_bad_backend_raises(_clean_fsspec_conf):
     with pytest.raises(ValueError):
-        fsd_azure.configure_storage("s3")
+        rise_eo_azure.configure_storage("s3")
     with pytest.raises(ValueError):
-        fsd_azure.configure_storage({"backend": "gcs"})
+        rise_eo_azure.configure_storage({"backend": "gcs"})
 
 
 def test_api_storage_local_or_none_leaves_env_unset(tmp_path, monkeypatch):
@@ -112,7 +112,7 @@ def test_api_storage_local_or_none_leaves_env_unset(tmp_path, monkeypatch):
 
 def test_configure_storage_local_string_is_noop(_clean_fsspec_conf):
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    fsd_azure.configure_storage("local")
+    rise_eo_azure.configure_storage("local")
     assert "FSSPEC_ABFSS_ANON" not in os.environ
     assert "abfss" not in fsspec.config.conf
 
@@ -153,7 +153,7 @@ def test_deploy_calls_configure_storage_before_its_first_storage_access(_clean_f
     with pytest.raises(api.PreflightError):
         api.deploy(
             "/nonexistent/bundle", name="bad/name", registry="/nonexistent/registry",
-            environment="fsd-infer-sklearn:1", storage="azure",
+            environment="rise-eo-infer-sklearn:1", storage="azure",
         )
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
 
@@ -247,7 +247,7 @@ def test_verify_image_calls_configure_storage_before_its_first_storage_access(
     from rise_eo.model.verify_image import verify_image
 
     result = verify_image(
-        "/nonexistent/bundle", environment="fsd-infer-sklearn:1", runner="aml",
+        "/nonexistent/bundle", environment="rise-eo-infer-sklearn:1", runner="aml",
         runner_kwargs={"cluster": "c", "root": "r", "identity_client_id": "i"},
         storage="azure",
     )
@@ -310,10 +310,10 @@ def test_storage_token_reuses_one_credential_instance(monkeypatch):
     fake_azure_pkg = types.ModuleType("azure")
     monkeypatch.setitem(sys.modules, "azure", fake_azure_pkg)
     monkeypatch.setitem(sys.modules, "azure.identity", fake_identity_mod)
-    monkeypatch.setattr(fsd_azure, "_credential", None)
+    monkeypatch.setattr(rise_eo_azure, "_credential", None)
 
-    t1 = fsd_azure.storage_token()
-    t2 = fsd_azure.storage_token()
+    t1 = rise_eo_azure.storage_token()
+    t2 = rise_eo_azure.storage_token()
 
     assert t1 == t2 == "fake-token-123"
     assert len(constructed) == 1  # one credential instance, reused
@@ -456,7 +456,7 @@ def test_rio_open_worker_thread_gets_its_own_env_not_the_drivers(monkeypatch):
     rasterio's env stack is thread-local (`rasterio/env.py`, `local = ThreadEnv()`), so an Env
     entered on the driver thread does not exist in a worker thread. Exercised against REAL
     `rasterio.Env`/`hasenv`/`getenv` (not mocked) -- that thread-locality is rasterio's own
-    behaviour, not fsd's, so mocking it would prove nothing."""
+    behaviour, not rise-eo's, so mocking it would prove nothing."""
     import threading
 
     import rasterio.env
@@ -584,5 +584,5 @@ def test_unsupported_backend_text_in_both_places(_clean_fsspec_conf, storage, sh
     line = f"storage backend {shown} not supported (only 'azure' in P1)."
     assert api._check_local_seams("local", storage) == [line]
     with pytest.raises(ValueError) as ei:
-        fsd_azure.configure_storage(storage)
+        rise_eo_azure.configure_storage(storage)
     assert str(ei.value) == line

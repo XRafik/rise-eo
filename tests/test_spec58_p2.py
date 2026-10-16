@@ -310,11 +310,11 @@ def test_ac14_download_preflight_raises_for_s1_max_cloudcover():
         )
 
 
-def test_ac14_no_fsd_code_reads_pc_sdk_subscription_key():
+def test_ac14_no_rise_eo_code_reads_pc_sdk_subscription_key():
     """D10 (retracted): sentinel-1-rtc needs no key, and P2 builds no preflight for
-    one. `planetary_computer` (the third-party package) reads the env var itself; fsd
+    one. `planetary_computer` (the third-party package) reads the env var itself; rise-eo
     is free to MENTION it in comments/docstrings (it does, documenting that the
-    package reads it) but no fsd code may itself read `os.environ`/`os.getenv` for it
+    package reads it) but no rise-eo code may itself read `os.environ`/`os.getenv` for it
     -- that would be a second source of truth for the same secret (D10's own text)."""
     root = pathlib.Path(__file__).resolve().parents[1] / "src" / "rise_eo"
     read_patterns = (

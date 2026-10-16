@@ -48,7 +48,7 @@ python3.11 -m venv .venv-serving && .venv-serving/bin/pip install -e ".[dev,serv
 
 .venv-serving/bin/python demos/mini_mpc/load_pgstac.py \
     --stac-dir <your run>/model_outputs/stac --outputs-dir <your run>/model_outputs/cells
-# --outputs-dir must match compose's FSD_OUTPUTS_DIR (the folder mounted at /data)
+# --outputs-dir must match compose's RISE_EO_OUTPUTS_DIR (the folder mounted at /data)
 
 .venv-serving/bin/python demos/mini_mpc/register_and_url.py
 # -> prints http://127.0.0.1:8082/searches/<id>/tiles/WebMercatorQuad/{z}/{x}/{y}.png?...

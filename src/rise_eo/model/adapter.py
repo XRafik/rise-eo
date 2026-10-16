@@ -2,7 +2,7 @@
 
 Spec: specs/18-model-adapter.md
 
-A project team plugs a model into fsd by writing a small adapter class. fsd **duck-types**
+A project team plugs a model into rise-eo by writing a small adapter class. rise-eo **duck-types**
 it — no forced base class (the OQ-3 precedent: a documented signature, not an ABC, until a
 real 2nd implementation exists). We ship:
 
@@ -14,7 +14,7 @@ real 2nd implementation exists). We ship:
 - `Output` — what `to_output` returns: a `(bands, H, W)` array + dtype/nodata/band-names.
 
 The feature transform is declared **once** (`feature_sequence`, a `rise_eo.bands.modify` sequence,
-or the `features()` escape hatch) and run by fsd in BOTH training and inference — the F1
+or the `features()` escape hatch) and run by rise-eo in BOTH training and inference — the F1
 anti-skew invariant. See `specs/18-model-adapter.md` and the bundle explainer.
 """
 
@@ -48,16 +48,16 @@ class Output:
 
 @runtime_checkable
 class ModelAdapter(Protocol):
-    """Structural contract fsd expects. Implement it (any framework); fsd duck-types.
+    """Structural contract rise-eo expects. Implement it (any framework); rise-eo duck-types.
 
     Declarations (read at **preflight**, before any heavy work):
         required_bands   : bands the datacube must contain.
-        n_timestamps     : T the model was trained on; fsd asserts it equals the derived T.
+        n_timestamps     : T the model was trained on; rise-eo asserts it equals the derived T.
         output_dtype     : e.g. "uint8".
         output_nodata    : e.g. 255.
         output_band_names: 1 name => categorical map; N => probabilities/regression.
 
-    Feature engineering (F1 — ONE definition, run by fsd at train AND inference):
+    Feature engineering (F1 — ONE definition, run by rise-eo at train AND inference):
         feature_sequence : a `rise_eo.bands.modify` sequence (primary), or None.
         features(...)    : escape hatch when the sequence can't express it.
 
@@ -122,7 +122,7 @@ class BaseModelAdapter:
         """Scattered per-pixel predictions -> `(bands, H, W)` Output.
 
         `raw` is `(H*W,)` (categorical) or `(H*W, k)` (probabilities/regression), already
-        NaN-masked + nodata-filled by fsd. Default reshapes; override for custom encodings.
+        NaN-masked + nodata-filled by rise-eo. Default reshapes; override for custom encodings.
         """
         h, w = hw
         raw = np.asarray(raw)

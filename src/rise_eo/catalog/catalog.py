@@ -14,7 +14,7 @@ declaration when a row has none, 1.0 with no declaration -- spec 58 D5.1, spec 5
 metadata only, never applied to pixels), nodata (the declared nodata value; required -- spec 59
 A3), properties (JSON, the source item's STAC properties
 verbatim -- spec 58 D12; carries facts like `sat:orbit_state` the D9 partition guard
-needs, and nothing fsd interprets directly belongs here instead of a first-class column),
+needs, and nothing rise-eo interprets directly belongs here instead of a first-class column),
 geometry (EPSG:4326).
 
 ⚠️ **No read-time back-compat shim (spec 58 D12, standing policy).** A catalog written
@@ -74,7 +74,7 @@ RESERVED_FILTER_COLUMNS = ("source", "processing_version")
 # them. `scale` is filled from the declaration, not from this table (X4.2).
 #
 # Spec 59 D8: the sources always supply `acquisition_key`, `processing_version`,
-# `processing_datetime` and `source`; a hand-built row (a test, an fsd-agnostic top-up) that
+# `processing_datetime` and `source`; a hand-built row (a test, an rise-eo-agnostic top-up) that
 # does not is its own acquisition (`acquisition_key` = its id, set in `append`) with no
 # version and no source -- the "any other" collection row of D3/D4.
 _APPEND_DEFAULTS = {
@@ -235,7 +235,7 @@ class TileCatalog:
         kwarg is `None`). One catalog file = one collection = one declaration:
         appending a declaration that differs from the one already stamped on an
         existing catalog raises `ValueError`; appending with `declaration=None` to
-        an already-stamped catalog preserves the existing stamp (an fsd-agnostic
+        an already-stamped catalog preserves the existing stamp (an rise-eo-agnostic
         top-up cannot erase it).
 
         Spec 59 A3: every row must carry a non-empty `offset` and `nodata` (an S2 row at

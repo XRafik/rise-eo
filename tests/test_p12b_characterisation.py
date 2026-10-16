@@ -160,8 +160,8 @@ def test_b8_error_messages_in_full():
         "declaration JSON is missing required field 'fsd_declaration_version'."
     )
     assert _from_json_error({"fsd_declaration_version": 3}) == (
-        "declaration JSON was written by a newer fsd (version 3) than this one supports "
-        "(version 2); upgrade fsd before reading this catalog."
+        "declaration JSON was written by a newer rise-eo (version 3) than this one supports "
+        "(version 2); upgrade rise-eo before reading this catalog."
     )
     assert _from_json_error({"fsd_declaration_version": 2, "bogus": 1}) == (
         "declaration JSON (version 2) has unknown field(s) ['bogus']; known fields are "

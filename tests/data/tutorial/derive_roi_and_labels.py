@@ -27,7 +27,8 @@ import os
 import sys
 
 import geopandas as gpd
-from fsd.grid import roi_to_s2_grids
+
+from rise_eo.grid import roi_to_s2_grids
 
 # spec 42 D3 (as revised by amendment A3): the raw multi-class crop label
 # collapses to `n_major + 1` trainable classes -- the `n_major` crops with the

@@ -195,7 +195,7 @@ def test_run_aml_raises_listing_exactly_the_failed_shards(fake_aml_command):
 
     with pytest.raises(RuntimeError, match=r"\[1\]"):
         runners.run_aml(
-            input_csv, cluster="c", environment="fsd-env:1",
+            input_csv, cluster="c", environment="rise-eo-env:1",
             root="memory://run_aml_fail/root", identity_client_id="fake-id",
             n_shards=2, ml_client=ml_client, run_id="failrun",
         )
@@ -208,7 +208,7 @@ def test_run_aml_succeeds_when_all_shards_complete(fake_aml_command):
     ml_client = _FakeMLClient(["Completed", "Completed"])
 
     result = runners.run_aml(
-        input_csv, cluster="c", environment="fsd-env:1",
+        input_csv, cluster="c", environment="rise-eo-env:1",
         root="memory://run_aml_ok/root", identity_client_id="fake-id",
         n_shards=2, ml_client=ml_client, run_id="okrun",
     )
@@ -228,7 +228,7 @@ def test_check_local_seams_accepts_aml_and_lists_valid_values():
 # --- test 5: D4 -- the job spec run_aml builds carries AZURE_CLIENT_ID ------------
 
 def test_run_aml_job_carries_azure_client_id(fake_aml_command):
-    """Nothing in fsd/ reads AZURE_CLIENT_ID -- this test is the only thing that
+    """Nothing in rise_eo/ reads AZURE_CLIENT_ID -- this test is the only thing that
     explains why run_aml sets it (D4: the AML cluster's user-assigned identity is
     never selected implicitly)."""
     input_csv = "memory://run_aml_id/input.csv"
@@ -236,7 +236,7 @@ def test_run_aml_job_carries_azure_client_id(fake_aml_command):
     ml_client = _FakeMLClient(["Completed"])
 
     runners.run_aml(
-        input_csv, cluster="c", environment="fsd-env:1",
+        input_csv, cluster="c", environment="rise-eo-env:1",
         root="memory://run_aml_id/root", identity_client_id="deadbeef-guid",
         n_shards=1, ml_client=ml_client, run_id="idrun",
     )

@@ -26,7 +26,7 @@ DECLARATION = S2_L2A_DECLARATION
 #
 # Plain functions, NOT fields on `CollectionDeclaration`: a declaration may not hold
 # callables (ADR 0031). They are called only where items are discovered -- on the driver
-# for MPC, inside the single CDSE job for CDSE -- so they are ordinary installed fsd code,
+# for MPC, inside the single CDSE job for CDSE -- so they are ordinary installed rise-eo code,
 # never a registry lookup on a node.
 
 PUBLISHES_VERSION = True

@@ -1,4 +1,4 @@
-"""fsd model contract: plug a model into fsd via a small ModelAdapter.
+"""rise-eo model contract: plug a model into rise-eo via a small ModelAdapter.
 
 Spec: specs/18-model-adapter.md
 

@@ -1,15 +1,15 @@
 """Golden files for the two on-disk format versions (spec 102 D11, AC7).
 
-`FSD_DECLARATION_VERSION` (collection declaration, in every catalog's Parquet footer) and
+`RISE_EO_DECLARATION_VERSION` (collection declaration, in every catalog's Parquet footer) and
 `BUNDLE_VERSION` (`bundle.json`) each have `tests/data/formats/<kind>.v<N>.json`.
 
 * **Test A** writes a *fixed synthetic* example with today's code and compares it to the golden
   file for the current version. The example is pinned here, not read from S2 defaults, so a changed
   S2 default is not mistaken for a format change. Nothing in either manifest is volatile (no
-  timestamps, digests, fsd version or paths), so no normalization is needed.
+  timestamps, digests, rise-eo version or paths), so no normalization is needed.
 * **Test B** loads every supported version from its golden file. The bundle's list is
   `SUPPORTED_BUNDLE_VERSIONS`; the declaration has no such list (`from_json` accepts any version
-  <= current), so its equivalent is `range(1, FSD_DECLARATION_VERSION + 1)`.
+  <= current), so its equivalent is `range(1, RISE_EO_DECLARATION_VERSION + 1)`.
 
 A second bundle golden, `bundle.v<N>.minimal.json`, pins the writer's other branches: `code_origin`
 "installed" (saved with `code=False`), a `sequence` feature and no `requirements`.
@@ -89,13 +89,13 @@ _DECLARATION = CollectionDeclaration(
 
 
 def test_declaration_format_matches_golden():
-    version = declaration.FSD_DECLARATION_VERSION
+    version = declaration.RISE_EO_DECLARATION_VERSION
     _assert_matches_golden(
-        "declaration", "FSD_DECLARATION_VERSION", version, declaration.to_json(_DECLARATION)
+        "declaration", "RISE_EO_DECLARATION_VERSION", version, declaration.to_json(_DECLARATION)
     )
 
 
-@pytest.mark.parametrize("version", range(1, declaration.FSD_DECLARATION_VERSION + 1))
+@pytest.mark.parametrize("version", range(1, declaration.RISE_EO_DECLARATION_VERSION + 1))
 def test_declaration_golden_files_still_load(version):
     decl = declaration.from_json(_read_golden("declaration", version))
     if version == 1:

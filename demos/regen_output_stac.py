@@ -27,8 +27,8 @@ def _parse_args(argv=None) -> argparse.Namespace:
     )
     p.add_argument("--input-csv", required=True, help="the run_inference build manifest")
     p.add_argument("--stac-dir", required=True, help="STAC output folder (overwritten)")
-    p.add_argument("--collection-id", default="fsd-inference")
-    p.add_argument("--catalog-id", default="fsd-inference")
+    p.add_argument("--collection-id", default="rise-eo-inference")
+    p.add_argument("--catalog-id", default="rise-eo-inference")
     p.add_argument("--result-json", default=None,
                    help="write the spec-24 _result.json here (default <stac-dir>/../_result.json)")
     return p.parse_args(argv)

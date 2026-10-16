@@ -14,7 +14,7 @@ A user-level file holds what is **durable** — stable for you across runs and m
 projects — outside every project tree, so it can never be committed by accident (spec 54):
 
 ```bash
-fsd init                         # interactive; writes ~/.config/fsd/config.toml
+fsd init                         # interactive; writes ~/.config/rise-eo/config.toml
 fsd init --blank                 # or: write it empty and fill it in yourself (spec 55 D4)
 ```
 
@@ -140,11 +140,11 @@ prefix from run-book 34.
 | `AZ_ML_WORKSPACE` | AML workspace | decode ring | `az ml workspace show -n "$AZ_ML_WORKSPACE" -g "$AZ_RG" --query name -o tsv` |
 | `AZ_CLUSTER` | the d16 compute cluster | decode ring | `az ml compute show -n "$AZ_CLUSTER" -g "$AZ_RG" -w "$AZ_ML_WORKSPACE" --query '{state:provisioningState,max:scaleSettings.maxNodeCount}'` |
 | `AZ_ACR` | container registry backing the environments | decode ring | `az acr show -n "$AZ_ACR" --query loginServer -o tsv` |
-| `AZ_ENV_NAME` | general-purpose environment (download/build/flatten) | fixed: `fsd-aml-env` | — |
-| `AZ_INFER_ENV_NAME` | inference environment — fsd + the adapter's **deps** only (since spec 44 it carries no adapter source; bundles do) | fixed: `fsd-infer-env` | — |
+| `AZ_ENV_NAME` | general-purpose environment (download/build/flatten) | fixed: `rise-eo-aml-env` | — |
+| `AZ_INFER_ENV_NAME` | inference environment — fsd + the adapter's **deps** only (since spec 44 it carries no adapter source; bundles do) | fixed: `rise-eo-infer-env` | — |
 | `AZ_ENV_VERSION` | **query, never guess** | `az ml environment list … --query '[0].version'` | `echo "$AZ_ENV_VERSION"` — a number, not an error string |
 | `AZ_INFER_ENV_VERSION` | same, for the inference env | same | `echo "$AZ_INFER_ENV_VERSION"` |
-| `AZ_INFER_BUILD_CONTEXT` | folder holding the fsd wheel the inference image is built from; pass it as `rise_eo.model.verify_image(build_context=...)` to refuse an image built from a pre-spec-44 wheel | e.g. `notebooks/demo_model` | `ls "$AZ_INFER_BUILD_CONTEXT"/fsd-*.whl` |
+| `AZ_INFER_BUILD_CONTEXT` | folder holding the fsd wheel the inference image is built from; pass it as `rise_eo.model.verify_image(build_context=...)` to refuse an image built from a pre-spec-44 wheel | e.g. `notebooks/demo_model` | `ls "$AZ_INFER_BUILD_CONTEXT"/rise_eo-*.whl` |
 | `AZ_ENV_NAME_VERSION` | `name:version`, read by `demos/e2e_austria_aml.py` | derived | `echo "$AZ_ENV_NAME_VERSION"` |
 
 ⚠️ **Rebuild the environment after any `src/rise_eo/` change**, then re-query the version. A stale

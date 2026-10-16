@@ -53,7 +53,7 @@ BUNDLE_CASES = {
     "relative_from_dot_name": (
         {"main.py": "from .zqrel import y\n", "zqrel.py": ""}, ["main.py"],
     ),
-    "import_fsd": ({"main.py": "import rise_eo\n", "fsd.py": ""}, ["main.py"]),
+    "import_rise_eo": ({"main.py": "import rise_eo\n", "rise_eo.py": ""}, ["main.py"]),
     "stdlib_shadow": ({"main.py": "import json\n", "json.py": ""}, ["main.py"]),
     "installed_shadow": ({"main.py": "import numpy\n", "numpy.py": ""}, ["main.py"]),
     "resolves_nowhere": ({"main.py": "import zqnowhere\n"}, ["main.py"]),
@@ -308,7 +308,7 @@ EXPECTED_BUNDLE = {'direct_sibling': "main.py imports 'zqsib', which resolves to
  'import_dotted': "main.py imports 'zqdot', which resolves to './root/zqdot.py' but is not "
                   'embedded. The node would raise ModuleNotFoundError after a cold start.\n'
                   "Fix: code=['./root/main.py', './root/zqdot.py']",
- 'import_fsd': 'OK',
+ 'import_rise_eo': 'OK',
  'import_in_function_body': "main.py imports 'zqsib', which resolves to './root/zqsib.py' but "
                             'is not embedded. The node would raise ModuleNotFoundError after '
                             'a cold start.\n'

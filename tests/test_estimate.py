@@ -10,7 +10,7 @@ import importlib.util
 import os
 
 _ESTIMATE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "demos", "estimate.py")
-_spec = importlib.util.spec_from_file_location("fsd_demo_estimate", _ESTIMATE)
+_spec = importlib.util.spec_from_file_location("rise_eo_demo_estimate", _ESTIMATE)
 estimate = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(estimate)
 

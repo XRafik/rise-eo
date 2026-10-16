@@ -29,7 +29,7 @@ def _clean_fsspec_conf():
         os.environ["FSSPEC_ABFSS_ANON"] = before_env
 
 DEFN = ImageDefinition(
-    name="fsd-aml-env", fsd="git+https://github.com/nikhilsrajan/fsd@main",
+    name="rise-eo-aml-env", rise_eo="git+https://github.com/nikhilsrajan/fsd@main",
     extras=("azure", "mpc"),
 )
 
@@ -69,7 +69,7 @@ def test_no_registry_entry_builds_and_publishes(tmp_path):
     assert calls["create"] == 1
     assert result.reused is False
     assert result.version == "1"
-    assert result.ref == "fsd-aml-env:1"
+    assert result.ref == "rise-eo-aml-env:1"
 
 
 def test_registry_hit_with_live_asset_builds_nothing(tmp_path):
@@ -96,7 +96,7 @@ def test_registry_hit_with_live_asset_builds_nothing(tmp_path):
 
     assert result.reused is True
     assert result.version == "5"
-    assert result.ref == "fsd-aml-env:5"
+    assert result.ref == "rise-eo-aml-env:5"
 
 
 def test_registry_hit_with_deleted_asset_builds(tmp_path):
@@ -161,7 +161,7 @@ def test_force_rebuilds_even_on_a_hit(tmp_path):
 
 # `:1` rather than `@current`: `ensure_environment` sets no alias by default (spec 102 D12), and
 # every caller below publishes only the unchanged `DEFN`, so v1 is the only version there is.
-def _aml_of(registry_root, ref="fsd-aml-env:1"):
+def _aml_of(registry_root, ref="rise-eo-aml-env:1"):
     from rise_eo.image import registry as ireg
     return ireg.resolve(ref, registry_root).aml
 
@@ -238,8 +238,8 @@ def test_the_aml_sidecar_does_not_disturb_the_content_digest(tmp_path):
         _create_environment=lambda name, ctx, **k: "9",
         _build_link=lambda *a, **k: "https://ml.azure.com/x", **_kwargs(),
     )
-    assert ireg.find_by_digest("fsd-aml-env", registry_root, first.digest) == 1
-    assert ireg.resolve("fsd-aml-env:1", registry_root).digest == first.digest
+    assert ireg.find_by_digest("rise-eo-aml-env", registry_root, first.digest) == 1
+    assert ireg.resolve("rise-eo-aml-env:1", registry_root).digest == first.digest
 
 
 def test_the_aml_version_and_the_registry_version_are_reported_separately(tmp_path):
@@ -255,8 +255,8 @@ def test_the_aml_version_and_the_registry_version_are_reported_separately(tmp_pa
         _create_environment=lambda name, ctx, **k: "5",   # AML says 5; the registry says 1
         _build_link=lambda *a, **k: "https://ml.azure.com/x", **_kwargs(),
     )
-    assert (r.version, r.ref) == ("5", "fsd-aml-env:5")
-    assert (r.registry_version, r.registry_ref) == (1, "fsd-aml-env:1")
+    assert (r.version, r.ref) == ("5", "rise-eo-aml-env:5")
+    assert (r.registry_version, r.registry_ref) == (1, "rise-eo-aml-env:1")
     assert ireg.resolve(r.registry_ref, registry_root).digest == r.digest
 
     reused = ensure_environment(
@@ -319,16 +319,16 @@ def test_an_unsupported_storage_backend_raises(tmp_path, _clean_fsspec_conf):
 # --- spec 102 D12 / AC8: a run moves a pointer only when asked --------------------------
 
 
-CHANGED = ImageDefinition(name=DEFN.name, fsd=DEFN.fsd, extras=("azure", "mpc", "cdse"))
+CHANGED = ImageDefinition(name=DEFN.name, rise_eo=DEFN.rise_eo, extras=("azure", "mpc", "cdse"))
 
 
 def _alias_version(registry_root, alias):
     from rise_eo.image import registry as ireg
-    return ireg.resolve(f"fsd-aml-env@{alias}", registry_root).version
+    return ireg.resolve(f"rise-eo-aml-env@{alias}", registry_root).version
 
 
 def _aliases_file(registry_root):
-    return os.path.join(registry_root, "fsd-aml-env", "_aliases.json")
+    return os.path.join(registry_root, "rise-eo-aml-env", "_aliases.json")
 
 
 def _ensure(registry_root, create_version, defn=DEFN, **extra):

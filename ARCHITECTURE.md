@@ -86,7 +86,7 @@ where they are; the location is an argument, optionally defaulted from user conf
 | `fsd/image/` | an AML node image **declared as data**: `definition.py` (a frozen `ImageDefinition` that renders a Dockerfile but never builds one), `digest.py` (resolve every moving reference to a fixed one, then hash), `registry.py` (the versioned store of resolved definitions). |
 | `fsd/aml/` | `environment.py` — **the only module in fsd that shells out to `az`**. `ensure_environment` builds a declared image if that digest is not already registered, and reuses it otherwise. Azure coordinates are always arguments; fsd hard-codes none. |
 | `fsd/registry/` | `_core.py` — generic version allocation, aliases, and the all-or-nothing completion marker shared by the model and image registries (the model registry keeps its own ref parsing and name checks; the image registry uses `_core`'s). |
-| `fsd/config.py` · `fsd/cli.py` | the user-level config (`~/.config/fsd/config.toml`) and the **`fsd` console script** that writes it — `fsd init`, `fsd config`. Operator-facing: **the library itself never reads the config file**, it takes locations as arguments. |
+| `fsd/config.py` · `fsd/cli.py` | the user-level config (`~/.config/rise-eo/config.toml`) and the **`fsd` console script** that writes it — `fsd init`, `fsd config`. Operator-facing: **the library itself never reads the config file**, it takes locations as arguments. |
 | `fsd/progress.py` | one shared throttled ticker (rate + elapsed + ETA). Every driver-side loop that can run for minutes prints through it rather than growing a second copy. |
 | `fsd/secrets.py` | a thin Key Vault read, authenticated by the same managed identity as blob. |
 | `fsd/storage/` | `fs.py` the fsspec seam every module uses; `azure.py` the `az://` URL form. |
@@ -176,7 +176,7 @@ dict; nodata is 0; cubes over one start/end/`mosaic_days` share an identical `ti
 - **A config file inside the checkout** (`env.example.sh` + `notebooks/_config.py`, retired by spec
   54, #78). Only a checkout could reach it, so a `pip install` consumer could not, and a project-local
   file is where someone eventually commits a live storage URL. Replaced by
-  `~/.config/fsd/config.toml` + `fsd init`.
+  `~/.config/rise-eo/config.toml` + `fsd init`.
 - **A checked-in image build folder** (`notebooks/images/` + `.last_registered.json`, retired by
   spec 56, #79). Same shape: only a checkout could build the image, and nobody else could answer
   "what was this image built from?". Replaced by `rise_eo.image.ImageDefinition`, a digest of the
@@ -216,7 +216,7 @@ graph LR
 Every concrete name, id and URL lives in `AZURE_INFRA_PRIVATE.md` at the **workspace root**, never
 in this repo — it is public MIT. The variables are named and verifiable in
 [`docs/reference/environment.md`](docs/reference/environment.md). Bootstrap with **`fsd init`**,
-which writes `~/.config/fsd/config.toml` (spec 54); `AZ_*` environment variables still override it
+which writes `~/.config/rise-eo/config.toml` (spec 54); `AZ_*` environment variables still override it
 per shell, and `fsd config` shows the resolved value and where each one came from.
 
 ## 8. Contributing

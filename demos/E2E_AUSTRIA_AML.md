@@ -435,9 +435,9 @@ export AZ_UAMI_CLIENT_ID="$(az identity show -g "$AZ_RG" -n '<compute identity n
 
 export AZ_ROOT="abfss://<filesystem>@<storage account>.dfs.core.windows.net/<your-user>/fsd-p40-demo"
 
-export AZ_ENV_NAME='fsd-aml-env'                 # general-purpose: download + build + flatten
+export AZ_ENV_NAME='rise-eo-aml-env'                 # general-purpose: download + build + flatten
 export AZ_ENV_VERSION='<version>'
-export AZ_INFER_ENV_NAME='fsd-infer-env'         # carries the DemoRF adapter package
+export AZ_INFER_ENV_NAME='rise-eo-infer-env'         # carries the DemoRF adapter package
 export AZ_INFER_ENV_VERSION='<version>'
 
 # No CDSE credentials. `2_download` sources from MPC (spec 40 D13 amendment A1, matching
@@ -453,7 +453,7 @@ export AZ_INFER_ENV_VERSION='<version>'
 python demos/e2e_austria_aml.py --fresh --dry-run
 
 # 2. The real run, under tmux/nohup so it survives a dropped SSH session (D7).
-tmux new -s fsd-demo
+tmux new -s rise-eo-demo
 python demos/e2e_austria_aml.py --fresh --confirm-spend
 # ^C / SIGTERM both exit cleanly, printing the resume line rather than a traceback
 # (D7). Every step that already FINISHED keeps its numbers (D3, each wrote its own

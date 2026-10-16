@@ -162,7 +162,7 @@ after it, and each answers a question the others cannot:
    from rise_eo.model import verify_image
 
    report = verify_image(
-       bundle_dir, environment="fsd-infer-sklearn:3",
+       bundle_dir, environment="rise-eo-infer-sklearn:3",
        runner_kwargs={"cluster": ..., "root": ..., "identity_client_id": ...},
    )
    assert report["pass"], report["error"]

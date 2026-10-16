@@ -218,7 +218,7 @@ def test_run_aml_inference_stages_bundle_shards_cells_and_carries_identity(
     ml_client = _FakeMLClient({"smoke": "Completed", "0": "Completed", "1": "Completed"})
 
     result = runners.run_aml_inference(
-        input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+        input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
         root="memory://run2/root", identity_client_id="deadbeef-guid", n_shards=2,
         ml_client=ml_client, run_id="infrun",
     )
@@ -244,7 +244,7 @@ def test_run_aml_inference_shard_count_is_non_vacuous_across_cell_counts(tmp_pat
     _write_input_csv(input_csv, n_units=1)
 
     result = runners.run_aml_inference(
-        input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+        input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
         root="memory://run2c/root", identity_client_id="x", n_shards=4,
         ml_client=ml_client, run_id="degraderun", skip_smoke=True,
     )
@@ -258,7 +258,7 @@ def test_run_aml_inference_skip_smoke_submits_no_smoke_job(tmp_path, fake_aml_co
     _write_input_csv(input_csv, n_units=1)
 
     runners.run_aml_inference(
-        input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+        input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
         root="memory://run2d/root", identity_client_id="x", n_shards=1,
         ml_client=ml_client, run_id="noSmokeRun", skip_smoke=True,
     )
@@ -277,7 +277,7 @@ def test_run_aml_inference_prints_stage_and_aml_progress(tmp_path, fake_aml_comm
     ml_client = _FakeMLClient({"smoke": "Completed", "0": "Completed", "1": "Completed"})
 
     runners.run_aml_inference(
-        input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+        input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
         root="memory://run5/root", identity_client_id="x", n_shards=2,
         ml_client=ml_client, run_id="progrun",
     )
@@ -323,7 +323,7 @@ def test_run_aml_inference_raises_on_failed_job(tmp_path, fake_aml_command):
 
     with pytest.raises(RuntimeError, match=r"\[1\]"):
         runners.run_aml_inference(
-            input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+            input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
             root="memory://run4/root", identity_client_id="x", n_shards=2,
             ml_client=ml_client, run_id="failrun",
         )
@@ -342,7 +342,7 @@ def test_run_aml_inference_raises_when_status_not_ok_even_if_aml_completed(
 
     with pytest.raises(RuntimeError, match=r"\[0\]"):
         runners.run_aml_inference(
-            input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+            input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
             root="memory://run4b/root", identity_client_id="x", n_shards=1,
             ml_client=ml_client, run_id="badrun",
         )
@@ -823,7 +823,7 @@ def test_run_aml_download_mpc_merges_per_shard_catalogs_into_the_canonical(
     runners.run_aml_download(
         "memory://roi.geojson", "2018-06-01", "2018-06-11", ["B04"],
         "memory://aml_dl_d8/data", canonical,
-        source="mpc", cluster="c", environment="fsd-env:1", root=root,
+        source="mpc", cluster="c", environment="rise-eo-env:1", root=root,
         identity_client_id="x", max_tiles=10, ml_client=ml_client, run_id=run_id,
     )
 
@@ -936,7 +936,7 @@ def test_run_aml_inference_raises_on_duplicate_export_folderpaths(tmp_path, fake
 
     with pytest.raises(ValueError, match="duplicate unit dispatch"):
         runners.run_aml_inference(
-            input_csv, bundle_dir, cluster="c", environment="fsd-infer-env:1",
+            input_csv, bundle_dir, cluster="c", environment="rise-eo-infer-env:1",
             root="memory://run13/root", identity_client_id="x", n_shards=1,
             ml_client=ml_client, run_id="duprun",
         )

@@ -237,7 +237,7 @@ def q4_vsi_comparison(dst_prefix: str) -> dict:
                 "reason": (
                     f"fsd not importable in this venv ({exc}) -- expected: the spike charter "
                     "keeps .venv-rslearn separate from .venv. Run-book Step 3 records the "
-                    "rslearn-side numbers; the fsd-side baseline comes from its own runs."
+                    "rslearn-side numbers; the rise-eo-side baseline comes from its own runs."
                 ),
             }
         )
@@ -270,7 +270,7 @@ def main() -> int:
     q3 = q3_tile_store_roundtrip(args.dst_prefix, args.keep)
     q4 = q4_vsi_comparison(args.dst_prefix)
 
-    questions = {"q1_upath": q1, "q2_raster_format": q2, "q3_tile_store": q3, "q4_vs_fsd": q4}
+    questions = {"q1_upath": q1, "q2_raster_format": q2, "q3_tile_store": q3, "q4_vs_rise_eo": q4}
     blocking = {k: v["error"] for k, v in questions.items() if v.get("ok") is False}
 
     metrics = {

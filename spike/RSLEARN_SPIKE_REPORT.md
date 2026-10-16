@@ -248,7 +248,7 @@ training = rise_eo.create_training_data(
     startdate=startdate, enddate=enddate, mosaic_days=20,
     bands=["B04", "B08", "SCL"],
     id_col="fid", label_col="label",
-    export_folderpath="/tmp/fsd_tutorial/training",
+    export_folderpath="/tmp/rise_eo_tutorial/training",
 )
 data, labels = training.load()["data"], training.load()["labels"]
 ```
@@ -657,7 +657,7 @@ Four synthetic cases, zero satellite bytes. **Every prediction held exactly:**
 | `two_empty_periods` (180 d, 2 periods with no scene) | 9 | **7** | 7 | ✅ A — empty periods dropped |
 | `default_reverse_time_order` | 9 | 9, **reverse-chronological** + `FutureWarning` | same | ✅ C |
 
-`T_matches_fsd_on_dense_window: false`. **The source read stands; the recommendation is not
+`T_matches_rise_eo_on_dense_window: false`. **The source read stands; the recommendation is not
 disturbed.**
 
 Two things the probe showed that reading alone had not:

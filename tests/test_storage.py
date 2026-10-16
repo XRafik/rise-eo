@@ -22,9 +22,9 @@ def test_makedirs_and_exists(tmp_path):
 def test_open_write_read_text(tmp_path):
     p = str(tmp_path / "hello.txt")
     with fs.open(p, "w") as f:
-        f.write("hi fsd")
+        f.write("hi rise-eo")
     with fs.open(p, "r") as f:
-        assert f.read() == "hi fsd"
+        assert f.read() == "hi rise-eo"
     assert fs.exists(p)
 
 
@@ -86,7 +86,7 @@ def test_read_parquet_stamps_source_path(tmp_path):
 
 
 def test_write_parquet_strips_source_path_before_writing(tmp_path):
-    """spec 35 §10: fsd:source_path is read-side bookkeeping -- it must never be
+    """spec 35 §10: rise_eo:source_path is read-side bookkeeping -- it must never be
     serialized into a written artifact (it would leak a local absolute path)."""
     gdf = gpd.GeoDataFrame({"id": ["t1"]}, geometry=[sg.Point(0, 0)], crs="EPSG:4326")
     p1 = str(tmp_path / "a.parquet")
@@ -97,7 +97,7 @@ def test_write_parquet_strips_source_path_before_writing(tmp_path):
     p2 = str(tmp_path / "b.parquet")
     fs.write_parquet(p2, read_back)  # write what we just read back
     fresh = fs.read_parquet(p2)
-    # p2's own read stamps fsd:source_path = p2 (not p1, and it must not have
+    # p2's own read stamps rise_eo:source_path = p2 (not p1, and it must not have
     # been serialized as leftover data from read_back.attrs).
     assert fresh.attrs[fs.SOURCE_PATH_ATTRS_KEY] == p2
     assert fs.peek_parquet_attrs(p2) == {}  # nothing else got written to the footer
@@ -138,9 +138,9 @@ def test_stamped_file_is_still_valid_geoparquet(tmp_path):
         metadata = pq.read_metadata(f)
     assert b"geo" in (metadata.metadata or {})
 
-    fsd_back = fs.read_parquet(p)
-    assert fsd_back.crs.to_epsg() == stock_back.crs.to_epsg()
-    assert list(fsd_back.geometry) == list(stock_back.geometry)
+    rise_eo_back = fs.read_parquet(p)
+    assert rise_eo_back.crs.to_epsg() == stock_back.crs.to_epsg()
+    assert list(rise_eo_back.geometry) == list(stock_back.geometry)
 
 
 def test_peek_parquet_attrs_footer_only(tmp_path):
@@ -318,7 +318,7 @@ def test_rename_refuses_to_nest_a_directory_into_an_existing_one(tmp_path):
     """`fs.rename` documents itself as `os.rename` locally, and spec 51 D2 leans on that
     to make a lost publish race *fail* instead of corrupting the winner. fsspec's
     `LocalFileSystem.mv` is `shutil.move`, which would move `src` INSIDE `dst` and report
-    success -- pin that fsd does not inherit that."""
+    success -- pin that rise-eo does not inherit that."""
     import pytest
 
     src = tmp_path / "stage"
@@ -352,7 +352,7 @@ def test_rename_replaces_an_existing_file_atomically(tmp_path):
 
 
 # --- #80: fsspec backends ship in extras, so a missing one must name the extra ------
-# fsspec resolves a backend from the URL scheme and never gets imported by fsd, so
+# fsspec resolves a backend from the URL scheme and never gets imported by rise-eo, so
 # upstream raises "Install s3fs to access S3" -- a package name, not the extra that
 # provides it. `_fs_and_path` is the single resolution point, so the mapping lives there.
 
@@ -365,7 +365,7 @@ def test_missing_backend_names_the_extra_not_the_package(monkeypatch):
     import pytest
 
     monkeypatch.setattr(fs.fsspec.core, "url_to_fs", _raise_import_error)
-    with pytest.raises(ImportError, match=r"fsd\[s3\]"):
+    with pytest.raises(ImportError, match=r"rise-eo\[s3\]"):
         fs._fs_and_path("s3://bucket/key.tif")
 
 
@@ -373,7 +373,7 @@ def test_missing_backend_maps_abfss_to_the_azure_extra(monkeypatch):
     import pytest
 
     monkeypatch.setattr(fs.fsspec.core, "url_to_fs", _raise_import_error)
-    with pytest.raises(ImportError, match=r"fsd\[azure\]"):
+    with pytest.raises(ImportError, match=r"rise-eo\[azure\]"):
         fs._fs_and_path("abfss://c@a.dfs.core.windows.net/x.tif")
 
 

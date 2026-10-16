@@ -62,7 +62,7 @@ Each line is the mean NDVI of one label class across the 2018 mosaic windows. Th
 
 ## Reproduce
 ```bash
-FSD_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py
+RISE_EO_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py
 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_report.py
 ```
 

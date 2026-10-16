@@ -1,7 +1,7 @@
 """The datacube builder's benchmark instrumentation: the phase timer and the `timings.json` /
 `reads.jsonl` sidecars that `build_datacube(write_timings=, write_read_log=)` writes (specs 11
-and 12). Off by default; `workflows.task` turns them on from `FSD_WRITE_TIMINGS` /
-`FSD_WRITE_READ_LOG`."""
+and 12). Off by default; `workflows.task` turns them on from `RISE_EO_WRITE_TIMINGS` /
+`RISE_EO_WRITE_READ_LOG`."""
 
 from __future__ import annotations
 

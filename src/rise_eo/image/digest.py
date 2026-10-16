@@ -1,7 +1,7 @@
 """Resolving and digesting an `ImageDefinition`.
 
 Two functions: `resolve()` turns every moving reference into a fixed one -- a `git+...@main`
-becomes `git+...@<40-char sha>`, a `path:` `fsd` becomes a wheel content digest, an
+becomes `git+...@<40-char sha>`, a `path:` `rise_eo` becomes a wheel content digest, an
 unpinned base tag becomes `@sha256:...` when it can be resolved and stays a tag (recorded
 unresolved) when it can't -- and `digest()` hashes the result. `resolve()`'s output is
 exactly `image.json`'s `definition` field.
@@ -86,11 +86,11 @@ def _git_ls_remote_sha(repo_url: str, ref: str) -> str:
     return result.stdout.split()[0]
 
 
-def _resolve_fsd(
-    fsd: str, resolve_git_ref: Callable[[str, str], str], wheel_dir: str | None = None,
+def _resolve_rise_eo(
+    rise_eo: str, resolve_git_ref: Callable[[str, str], str], wheel_dir: str | None = None,
 ) -> str:
-    if fsd.startswith("path:"):
-        src = fsd[len("path:"):]
+    if rise_eo.startswith("path:"):
+        src = rise_eo[len("path:"):]
         if wheel_dir is not None:
             # Build into the caller's directory so the wheel this digest describes is the
             # SAME file that goes into the build context. Building twice (once here, once in
@@ -101,16 +101,16 @@ def _resolve_fsd(
         with tempfile.TemporaryDirectory() as tmp:
             wheel = _build_wheel(src, tmp)
             return f"wheel:{wheel_digest(wheel)}"
-    if fsd.startswith("git+"):
-        url_part, sep, ref = fsd.partition("@")
+    if rise_eo.startswith("git+"):
+        url_part, sep, ref = rise_eo.partition("@")
         if not sep:
-            raise ValueError(f"fsd={fsd!r}: a git+ reference needs '@<ref>'.")
+            raise ValueError(f"rise_eo={rise_eo!r}: a git+ reference needs '@<ref>'.")
         if _GIT_SHA_RE.match(ref):
-            return fsd
+            return rise_eo
         repo_url = url_part[len("git+"):]
         sha = resolve_git_ref(repo_url, ref)
         return f"git+{repo_url}@{sha}"
-    return fsd  # a plain pip spec (e.g. PyPI), left as declared
+    return rise_eo  # a plain pip spec (e.g. PyPI), left as declared
 
 
 def _default_resolve_base_digest(base: str) -> str | None:
@@ -162,9 +162,9 @@ def resolve(
     `resolve_base_digest`/`resolve_git_ref` default to the real network calls; a test
     injects fakes so nothing here needs a live registry or a live git remote.
 
-    `wheel_dir`, for a `path:` `fsd` only, is where the wheel this digest is computed from is
+    `wheel_dir`, for a `path:` `rise_eo` only, is where the wheel this digest is computed from is
     left, so the caller can hand that exact file to `write_context` instead of building a
-    second one (`ImageDefinition.write_context` reuses an `fsd-*.whl` already sitting there).
+    second one (`ImageDefinition.write_context` reuses an `rise_eo-*.whl` already sitting there).
     """
     resolve_base_digest = resolve_base_digest or _default_resolve_base_digest
     resolve_git_ref = resolve_git_ref or _git_ls_remote_sha
@@ -172,16 +172,16 @@ def resolve(
     if defn.build_context is not None:
         return {"build_context_digest": _digest_directory(defn.build_context)}
 
-    if not defn.fsd:
+    if not defn.rise_eo:
         raise ValueError(
-            "ImageDefinition.fsd must be set to resolve() (or pass build_context=)."
+            "ImageDefinition.rise_eo must be set to resolve() (or pass build_context=)."
         )
 
     payload = {
         k: v for k, v in dataclasses.asdict(defn).items()
         if k not in _DIGEST_EXCLUDE and k != "build_context"
     }
-    payload["fsd"] = _resolve_fsd(defn.fsd, resolve_git_ref, wheel_dir)
+    payload["rise_eo"] = _resolve_rise_eo(defn.rise_eo, resolve_git_ref, wheel_dir)
     base_ref, base_resolved = _resolve_base(defn.base, resolve_base_digest)
     payload["base"] = base_ref
     payload["base_resolved"] = base_resolved

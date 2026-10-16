@@ -1,4 +1,4 @@
-"""Check every kwarg passed to an fsd verb in the notebooks, docs and demos against the live signature.
+"""Check every kwarg passed to a rise-eo verb in the notebooks, docs and demos against the live signature.
 
 Catches call sites left behind when a verb parameter is removed or renamed -- the failure
 pytest cannot see, because prose and notebook cells are never executed. Found four dead

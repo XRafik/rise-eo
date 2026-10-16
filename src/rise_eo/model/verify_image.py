@@ -38,21 +38,21 @@ from rise_eo.storage.azure import configure_storage as _configure_storage
 __all__ = ["verify_image"]
 
 
-def _default_fetch_fsd_source(fsd_ref: str, relpath: str) -> str:
-    """`relpath` of the fsd source tree named by `fsd_ref` (a resolved `git+...@<sha>`).
+def _default_fetch_rise_eo_source(rise_eo_ref: str, relpath: str) -> str:
+    """`relpath` of the rise-eo source tree named by `rise_eo_ref` (a resolved `git+...@<sha>`).
 
-    Read via GitHub's raw-content host, since fsd is public there and this avoids a local
+    Read via GitHub's raw-content host, since rise-eo is public there and this avoids a local
     clone for a one-file check. Raises on anything unexpected; the caller turns that into a
     `pass=False` result rather than a crash -- the gate must keep failing, never become
     unable to report."""
-    url_part, _, sha = fsd_ref.partition("@")
+    url_part, _, sha = rise_eo_ref.partition("@")
     repo_url = url_part[len("git+"):].removesuffix(".git")
     if not repo_url.startswith("https://github.com/"):
         # Said plainly rather than mis-fetched: `removeprefix` on a non-GitHub URL is a no-op,
         # so the raw URL would come out as `raw.githubusercontent.com/https://gitlab.com/...`
         # and 404 -- a confusing pass=False instead of "this gate only reads GitHub".
         raise ValueError(
-            f"verify_image cannot check {fsd_ref!r}: the image_ref= gate reads fsd's source "
+            f"verify_image cannot check {rise_eo_ref!r}: the image_ref= gate reads rise-eo's source "
             "from raw.githubusercontent.com, so it only understands a "
             "'git+https://github.com/...' reference. Pass build_context= instead."
         )
@@ -62,8 +62,8 @@ def _default_fetch_fsd_source(fsd_ref: str, relpath: str) -> str:
         return resp.read().decode()
 
 
-def _image_ref_has_spec44(fsd_ref: str, *, fetch=_default_fetch_fsd_source) -> bool:
-    """The `image_ref=` equivalent of `_wheel_has_spec44`: does the fsd this image was built
+def _image_ref_has_spec44(rise_eo_ref: str, *, fetch=_default_fetch_rise_eo_source) -> bool:
+    """The `image_ref=` equivalent of `_wheel_has_spec44`: does the rise-eo this image was built
     from already carry `manifest_code_files`?
 
     A `wheel:<digest>` reference carries no fetchable source, only its content digest, so it
@@ -71,16 +71,16 @@ def _image_ref_has_spec44(fsd_ref: str, *, fetch=_default_fetch_fsd_source) -> b
     responsibility.
 
     ⚠️ **A non-`git+` reference is likewise trusted, and that is a HOLE in this gate.** A
-    PyPI spec (`fsd==0.2.0`) names a version this function has no cheap way to read
-    `bundle.py` out of, so it passes unchecked. Harmless while fsd is not on PyPI (#82), and
-    the resolved reference is recorded in `metrics["image_ref_fsd"]` either way -- but it
+    PyPI spec (`rise_eo==0.2.0`) names a version this function has no cheap way to read
+    `bundle.py` out of, so it passes unchecked. Harmless while rise-eo is not on PyPI (#82), and
+    the resolved reference is recorded in `metrics["image_ref_rise_eo"]` either way -- but it
     must be closed, by reading the sdist's `bundle.py`, before a PyPI-installed image is
     verified this way."""
-    if fsd_ref.startswith("wheel:"):
+    if rise_eo_ref.startswith("wheel:"):
         return True
-    if not fsd_ref.startswith("git+"):
+    if not rise_eo_ref.startswith("git+"):
         return True
-    src = fetch(fsd_ref, "src/rise_eo/model/bundle.py")
+    src = fetch(rise_eo_ref, "src/rise_eo/model/bundle.py")
     return "def manifest_code_files" in src
 
 
@@ -88,25 +88,25 @@ def _find_wheel(build_context: str) -> str:
     """A caller who passes `build_context` has asserted the folder holds the wheel the image was
     built from. An absent wheel is a statement about the CALL, not the image, so
     this raises rather than returning a verdict -- it must run before `verify_image`'s `try`."""
-    wheels = sorted(glob.glob(os.path.join(build_context, "fsd-*.whl")))
+    wheels = sorted(glob.glob(os.path.join(build_context, "rise_eo-*.whl")))
     if not wheels:
-        raise ValueError(f"build_context={build_context!r} contains no fsd-*.whl.")
+        raise ValueError(f"build_context={build_context!r} contains no rise_eo-*.whl.")
     return wheels[-1]
 
 
 def _wheel_has_spec44(wheel: str) -> bool:
-    """The wheel-staleness gate: does the fsd wheel this image was built from already carry
+    """The wheel-staleness gate: does the rise-eo wheel this image was built from already carry
     `manifest_code_files`?
 
     A wheel too old to know about embedded code never downloads `code/` and never touches
     `sys.path`, so the node raises `ModuleNotFoundError` however good the bundle is -- and it
-    cannot self-diagnose, because an old fsd has none of the code that would report it. That
+    cannot self-diagnose, because an old rise-eo has none of the code that would report it. That
     is why this is checked here, on the driver.
 
     Unlike an absent wheel, a stale one IS a statement about the image, so it stays inside the
     `try` and returns a verdict rather than raising."""
     with zipfile.ZipFile(wheel) as zf:
-        src = zf.read("fsd/model/bundle.py").decode()
+        src = zf.read("rise_eo/model/bundle.py").decode()
     return "def manifest_code_files" in src
 
 
@@ -120,14 +120,14 @@ def verify_image(
     image_ref: str | None = None,
     registry: str | None = None,
     storage=None,
-    _fetch_fsd_source=_default_fetch_fsd_source,
+    _fetch_rise_eo_source=_default_fetch_rise_eo_source,
 ) -> dict:
     """Does `environment` actually run `bundle_path`? Submits one real node and reports.
 
     `bundle_path` is a local bundle folder or an already-staged URL -- `storage="azure"`
     authenticates adlfs for that read (#86), the same `storage=` kwarg
     `run_inference`/`verify_adapter`/`deploy` take. `environment` is the inference
-    Environment reference to verify (e.g. `"fsd-infer-sklearn:3"`).
+    Environment reference to verify (e.g. `"rise-eo-infer-sklearn:3"`).
 
     `runner` must be `"aml"` -- `runner="local"` **raises** rather than returning a pass,
     because "verified locally" is the exact false positive this helper exists to prevent: the
@@ -141,11 +141,11 @@ def verify_image(
     (an opaque tag under `root` that namespaces the staged bundle + status file for this call --
     defaults to a fresh uuid; pass one explicitly to make the status URL predictable).
 
-    `build_context`, if given, is the folder holding the fsd wheel the image was built from --
+    `build_context`, if given, is the folder holding the rise-eo wheel the image was built from --
     enables the wheel-staleness gate (see `_wheel_has_spec44`). `image_ref`/`registry`
     are the alternative: an image built by `rise_eo.aml.ensure_environment` names no
-    checkout folder, so instead `image_ref` (e.g. `"fsd-infer-sklearn:4"`) is resolved through
-    the image `registry` and its resolved `fsd` reference is checked the same way a wheel is.
+    checkout folder, so instead `image_ref` (e.g. `"rise-eo-infer-sklearn:4"`) is resolved through
+    the image `registry` and its resolved `rise-eo` reference is checked the same way a wheel is.
     `build_context` wins if both are given; neither is required.
 
     Returns a `_result.json`-shaped dict: `{"step", "status", "pass", "metrics",
@@ -178,11 +178,11 @@ def verify_image(
     # build_context wins if both are given, so the checkout path behaves unchanged. A caller
     # who passes image_ref without registry, or a ref the registry cannot resolve, is misuse
     # -- same treatment as an absent wheel.
-    image_ref_fsd = None
+    image_ref_rise_eo = None
     if image_ref and not build_context:
         if not registry:
             raise ValueError("verify_image(image_ref=...) requires registry=.")
-        image_ref_fsd = _image_registry.resolve(image_ref, registry).definition.get("fsd")
+        image_ref_rise_eo = _image_registry.resolve(image_ref, registry).definition.get("rise_eo")
 
     result: dict = {
         "step": "verify_image",
@@ -238,17 +238,17 @@ def verify_image(
                     "verify_image."
                 )
 
-        if image_ref_fsd is not None:
-            fresh = _image_ref_has_spec44(image_ref_fsd, fetch=_fetch_fsd_source)
+        if image_ref_rise_eo is not None:
+            fresh = _image_ref_has_spec44(image_ref_rise_eo, fetch=_fetch_rise_eo_source)
             result["metrics"]["image_ref"] = image_ref
-            result["metrics"]["image_ref_fsd"] = image_ref_fsd
+            result["metrics"]["image_ref_rise_eo"] = image_ref_rise_eo
             result["metrics"]["image_ref_has_spec44"] = fresh
             if not fresh:
                 raise ValueError(
-                    f"{image_ref} was built from {image_ref_fsd!r}, which predates spec 44 -- "
+                    f"{image_ref} was built from {image_ref_rise_eo!r}, which predates spec 44 -- "
                     "it has no `manifest_code_files`, so the image's fetch_bundle_to_scratch "
                     "will not download code/ and bundle.load will not put it on sys.path. "
-                    "Rebuild the image from a current fsd, then re-run verify_image."
+                    "Rebuild the image from a current rise-eo, then re-run verify_image."
                 )
 
         # --- stage + submit ----------------------------------------------------------------
@@ -291,8 +291,8 @@ def verify_image(
             environment=environment,
             compute=kwargs["cluster"],
             environment_variables={"AZURE_CLIENT_ID": kwargs["identity_client_id"]},
-            display_name=f"fsd-verify-image-{run_tag}",
-            experiment_name="fsd-verify-image",
+            display_name=f"rise-eo-verify-image-{run_tag}",
+            experiment_name="rise-eo-verify-image",
         )
         result["metrics"]["status_url"] = status_url
         submit_error = None
@@ -310,13 +310,13 @@ def verify_image(
             result["metrics"]["smoke_status"] = smoke.get("status")
             result["metrics"]["smoke_error"] = smoke.get("error")
         else:
-            # No status file => the job died BEFORE the entrypoint ran (bad image, fsd not
+            # No status file => the job died BEFORE the entrypoint ran (bad image, rise-eo not
             # installed, blob auth). adapter_smoke always writes its status before exiting, so
             # its absence is itself the diagnosis.
             result["metrics"]["smoke_status"] = "no status file written"
             result["metrics"]["smoke_error"] = (
                 "the job failed before `python -m rise_eo.workflows.adapter_smoke` could write its "
-                "status. That points at the IMAGE or node auth, not the adapter: fsd not "
+                "status. That points at the IMAGE or node auth, not the adapter: rise-eo not "
                 "installed in the environment, a broken entrypoint, or the node failing to reach "
                 "blob (check the compute identity's RBAC)."
             )

@@ -125,7 +125,7 @@ def to_cog(
             raise
         nbytes = os.path.getsize(dst_path)
     else:
-        fd, scratch = tempfile.mkstemp(suffix=".tif", prefix=f"fsd-cog-{uuid.uuid4().hex}-")
+        fd, scratch = tempfile.mkstemp(suffix=".tif", prefix=f"rise-eo-cog-{uuid.uuid4().hex}-")
         os.close(fd)
         os.remove(scratch)  # GDAL's COG driver must create the file itself
         try:

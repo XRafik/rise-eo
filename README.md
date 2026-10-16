@@ -99,7 +99,7 @@ ref = rise_eo.deploy(
     "my_bundle/",                    # must be SAVED (rise_eo.save_bundle), not a live adapter
     name="crop-rf",
     registry="abfss://.../models",
-    environment="fsd-infer-sklearn:3",
+    environment="rise-eo-infer-sklearn:3",
 )                                    # -> "crop-rf:1"
 
 rise_eo.run_inference(ref, registry="abfss://.../models")   # + the ROI arguments from step 3
@@ -117,7 +117,7 @@ steps, 97 jobs, 213 MPC granules → 300 output COGs + STAC + a merged map).
 Cloud work reads its settings from a user-level config file, written once:
 
 ```bash
-fsd init      # -> ~/.config/fsd/config.toml
+fsd init      # -> ~/.config/rise-eo/config.toml
 fsd config    # print the resolved config and where each value came from
 ```
 

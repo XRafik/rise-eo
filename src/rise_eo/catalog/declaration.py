@@ -33,7 +33,7 @@ __all__ = [
     "MaskSpec",
     "CollectionDeclaration",
     "ARTIFACT_FACT_FIELDS",
-    "FSD_DECLARATION_VERSION",
+    "RISE_EO_DECLARATION_VERSION",
     "ATTRS_KEY",
     "to_json",
     "from_json",
@@ -47,9 +47,9 @@ __all__ = [
 # which would not survive the round-trip. `rise_eo.storage.fs` serializes that whole `.attrs`
 # dict to the Parquet footer's `PANDAS_ATTRS` key.
 #
-# The version is bumped when fields are added: without it, an older fsd reading a newer
-# footer would report "unknown field" instead of "written by a newer fsd -- upgrade".
-FSD_DECLARATION_VERSION = 2
+# The version is bumped when fields are added: without it, an older rise-eo reading a newer
+# footer would report "unknown field" instead of "written by a newer rise-eo -- upgrade".
+RISE_EO_DECLARATION_VERSION = 2
 ATTRS_KEY = "fsd:declaration"
 
 _DECLARATION_FIELDS = (
@@ -130,7 +130,7 @@ class CollectionDeclaration:
     tuple names exactly which (mask/QA bands never do). See `is_radiometry_band`.
 
     `band_aliases` — canonical STAC EO `common_name` (`"red"`, `"nir"`, `"nir08"`, ...) ->
-    this collection's native asset key (S2 L2A `"nir08"` -> `"B8A"`). fsd declares the
+    this collection's native asset key (S2 L2A `"nir08"` -> `"B8A"`). rise-eo declares the
     mapping itself rather than trusting a provider's `common_name` (MPC's HLS assignments
     are inconsistent).
 
@@ -276,7 +276,7 @@ def to_json(decl: CollectionDeclaration) -> dict:
     dataclass frozen/hashable.
     """
     return {
-        "fsd_declaration_version": FSD_DECLARATION_VERSION,
+        "fsd_declaration_version": RISE_EO_DECLARATION_VERSION,
         "reference_band": decl.reference_band,
         "native_grid": decl.native_grid,
         "mask_spec": _mask_spec_to_json(decl.mask_spec),
@@ -296,7 +296,7 @@ def to_json(decl: CollectionDeclaration) -> dict:
 
 
 def from_json(raw: dict) -> CollectionDeclaration:
-    """Inverse of `to_json`. Raises on a version newer than this fsd supports, an
+    """Inverse of `to_json`. Raises on a version newer than this rise-eo supports, an
     unknown field at a known version, or a `mask_spec` object missing `band`
     -- fail loudly rather than half-understand a declaration. A missing *optional* field
     takes the dataclass default, which is what keeps a v1 footer (or a future v3)
@@ -310,10 +310,10 @@ def from_json(raw: dict) -> CollectionDeclaration:
         raise ValueError(
             "declaration JSON is missing required field 'fsd_declaration_version'."
         )
-    if version > FSD_DECLARATION_VERSION:
+    if version > RISE_EO_DECLARATION_VERSION:
         raise ValueError(
-            f"declaration JSON was written by a newer fsd (version {version}) than "
-            f"this one supports (version {FSD_DECLARATION_VERSION}); upgrade fsd "
+            f"declaration JSON was written by a newer rise-eo (version {version}) than "
+            f"this one supports (version {RISE_EO_DECLARATION_VERSION}); upgrade rise-eo "
             "before reading this catalog."
         )
     unknown = set(raw) - {"fsd_declaration_version", *_DECLARATION_FIELDS}

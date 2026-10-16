@@ -61,9 +61,9 @@ def _find_workspace() -> pathlib.Path:
     `parents[2]` is `fsd/` from the normal checkout but `fsd/.claude/worktrees/<name>/`
     from a worktree, which silently resolves every ROI path to a file that does not
     exist. Walking up finds the real workspace from either. Override with
-    `FSD_WORKSPACE=/path/to/fetch_satdata_claude` if you keep the checkout elsewhere.
+    `RISE_EO_WORKSPACE=/path/to/fetch_satdata_claude` if you keep the checkout elsewhere.
     """
-    override = os.environ.get("FSD_WORKSPACE")
+    override = os.environ.get("RISE_EO_WORKSPACE")
     if override:
         return pathlib.Path(override).resolve()
     here = pathlib.Path(__file__).resolve()
@@ -72,21 +72,21 @@ def _find_workspace() -> pathlib.Path:
             return candidate
     raise SystemExit(
         f"could not locate the workspace root above {here}: looked for an ancestor "
-        "containing both 'shapefiles/AT_ROI.geojson' and 'fsd/'. Set FSD_WORKSPACE."
+        "containing both 'shapefiles/AT_ROI.geojson' and 'fsd/'. Set RISE_EO_WORKSPACE."
     )
 
 
 WORKSPACE = _find_workspace()
 # Always the real checkout, never a worktree copy -- the archive and its `tests/outputs/`
 # live there and are gitignored, so a worktree has neither.
-FSD_ROOT = WORKSPACE / "fsd"
+RISE_EO_ROOT = WORKSPACE / "fsd"
 
 ROI_PATH = WORKSPACE / "shapefiles" / "AT_ROI.geojson"
 CELL_PATH = WORKSPACE / "shapefiles" / "s2grid=476da24.geojson"   # 100% inside T33UWP
 
 # In place, exactly where `demos/e2e_austria.py` and `CLAUDE.md`'s real-data note point.
-DATA_DIR = FSD_ROOT / "tests" / "outputs" / "demo_e2e" / "imagery"
-OUT = FSD_ROOT / "tests" / "outputs" / "p58_redownload"
+DATA_DIR = RISE_EO_ROOT / "tests" / "outputs" / "demo_e2e" / "imagery"
+OUT = RISE_EO_ROOT / "tests" / "outputs" / "p58_redownload"
 
 # The archive's own parameters, copied from `demos/e2e_austria.py` so the re-download
 # reproduces the same window/bands rather than a new archive that happens to be nearby.
@@ -187,31 +187,31 @@ def step_reclaim(confirmed: bool) -> int:
     """
     result = _result("reclaim", {"reclaimed_gb": "> 0", "candidates_removed": True})
     try:
-        sizes = {c: _dir_gb(FSD_ROOT / c) for c in RECLAIM_CANDIDATES}
+        sizes = {c: _dir_gb(RISE_EO_ROOT / c) for c in RECLAIM_CANDIDATES}
         total = sum(sizes.values())
         if not confirmed:
             result["status"] = "fail"
             result["metrics"] = {"would_reclaim_gb": round(total, 1),
                                  "per_path_gb": {k: round(v, 2) for k, v in sizes.items()},
-                                 "free_gb_now": round(_free_gb(FSD_ROOT), 1)}
+                                 "free_gb_now": round(_free_gb(RISE_EO_ROOT), 1)}
             result["error"] = ("dry run: pass --yes-delete to actually remove these. "
                                "Nothing was deleted.")
             return _write(result)
 
-        free_before = _free_gb(FSD_ROOT)
+        free_before = _free_gb(RISE_EO_ROOT)
         for c in RECLAIM_CANDIDATES:
-            target = FSD_ROOT / c
+            target = RISE_EO_ROOT / c
             if target.is_dir():
                 shutil.rmtree(target)
             elif target.exists():
                 target.unlink()
-        free_after = _free_gb(FSD_ROOT)
+        free_after = _free_gb(RISE_EO_ROOT)
         result["metrics"] = {
             "reclaimed_gb": round(total, 1),
             "per_path_gb": {k: round(v, 2) for k, v in sizes.items()},
             "free_gb_before": round(free_before, 1),
             "free_gb_after": round(free_after, 1),
-            "all_removed": not any((FSD_ROOT / c).exists() for c in RECLAIM_CANDIDATES),
+            "all_removed": not any((RISE_EO_ROOT / c).exists() for c in RECLAIM_CANDIDATES),
         }
         result["pass"] = result["metrics"]["all_removed"]
         if not result["pass"]:
@@ -256,7 +256,7 @@ def step_discover(bands: list[str], max_cloudcover: float) -> int:
         n = len(gdf)
         est_gb = n * gb_per_granule
         current_gb = _dir_gb(DATA_DIR)
-        free_now = _free_gb(FSD_ROOT)
+        free_now = _free_gb(RISE_EO_ROOT)
         free_after_delete = free_now + current_gb
 
         result["metrics"] = {
@@ -340,7 +340,7 @@ def step_free_disk(confirmed: bool) -> int:
     })
     try:
         before_gb = _dir_gb(DATA_DIR)
-        free_before = _free_gb(FSD_ROOT)
+        free_before = _free_gb(RISE_EO_ROOT)
         if not confirmed:
             result["status"] = "fail"
             result["error"] = (
@@ -358,7 +358,7 @@ def step_free_disk(confirmed: bool) -> int:
         else:
             print(f"[58] {DATA_DIR} already absent -- nothing to delete", flush=True)
 
-        free_after = _free_gb(FSD_ROOT)
+        free_after = _free_gb(RISE_EO_ROOT)
         result["metrics"] = {
             "deleted_gb": round(before_gb, 1),
             "free_gb_before": round(free_before, 1),
@@ -445,7 +445,7 @@ def step_download(bands: list[str], max_cloudcover: float, max_concurrent: int) 
             "files_on_disk": sum(1 for _ in DATA_DIR.rglob("*.tif")),
             "archive_gb": round(_dir_gb(DATA_DIR), 1),
             "elapsed_s": round(elapsed, 1),
-            "free_gb_after": round(_free_gb(FSD_ROOT), 1),
+            "free_gb_after": round(_free_gb(RISE_EO_ROOT), 1),
         }
         # Re-run the SAME command to resume: `mpc.download` skips what is already on disk,
         # so a partial run costs only the missing files next time.

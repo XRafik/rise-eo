@@ -36,7 +36,7 @@ def _parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--stac-dir", required=True, help="folder holding catalog.json")
     p.add_argument("--outputs-dir", required=True,
                    help="the host folder bind-mounted to /data in the raster container "
-                        "(compose's FSD_OUTPUTS_DIR — MUST match)")
+                        "(compose's RISE_EO_OUTPUTS_DIR — MUST match)")
     p.add_argument("--dsn", default=DEFAULT_DSN, help="pgSTAC DSN (default: the compose db)")
     p.add_argument("--ndjson-dir", default=".",
                    help="where to write collections.ndjson / items.ndjson (default: cwd)")

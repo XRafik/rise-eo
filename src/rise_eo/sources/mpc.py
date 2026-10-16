@@ -60,7 +60,7 @@ SOURCE = "mpc"
 
 # The collections this source serves (spec 58 D15). MPC also hosts hls2-s30/hls2-l30
 # (see specs/58 D17/P3), but P1/P2 register no declaration for them yet, so this
-# source-x-collection guard names only what fsd can actually build against today --
+# source-x-collection guard names only what rise-eo can actually build against today --
 # extended in P3 once that collection's declaration ships. sentinel-1-rtc joins here in
 # P2 (D17): MPC serves it anonymously, same as S2 L2A (D10, retracted).
 SERVED_COLLECTIONS = (config.SATELLITE_S2L2A, "sentinel-1-rtc")
@@ -94,7 +94,7 @@ def _import_pc():
     """Import `planetary_computer`, naming the extra rather than the package.
 
     Both MPC entry points reach the package lazily, so without this a user who installed
-    fsd without `[mpc]` gets a bare `ModuleNotFoundError: planetary_computer` -- a package
+    rise-eo without `[mpc]` gets a bare `ModuleNotFoundError: planetary_computer` -- a package
     name they never typed, from a call they made as `source="mpc"`. Same shape as
     `grid.roi_to_s2_grids` -> `[grid]` and `runners._require_snakemake` -> `[local]` (#80).
     """
@@ -102,7 +102,7 @@ def _import_pc():
         import planetary_computer as pc
     except ImportError as exc:  # pragma: no cover - env-dependent
         raise ImportError(
-            "source='mpc' needs the optional '[mpc]' extra: pip install 'fsd[mpc]' "
+            "source='mpc' needs the optional '[mpc]' extra: pip install 'rise-eo[mpc]' "
             "(brings planetary-computer, which signs MPC asset hrefs). "
             "On an AML node this means the node IMAGE was built without it."
         ) from exc
@@ -359,7 +359,7 @@ def _transfer_and_stamp_one(
     # and reusing the suffix would give `B04.tif.part.part` mid-copy (spec 59 D10).
     scratch = dst_path + ".stage"
     if not local:
-        scratch_dir = tempfile.mkdtemp(prefix="fsd_mpc_")
+        scratch_dir = tempfile.mkdtemp(prefix="rise_eo_mpc_")
         scratch = os.path.join(scratch_dir, os.path.basename(dst_path))
 
     is_reflectance = declaration.is_radiometry_band(band)
@@ -682,7 +682,7 @@ def download_shard(
     uses (`_transfer_and_stamp_one`); `download()` itself is untouched.
 
     Raises `ValueError`, before any work, if a row lacks a key `discover_shard_rows`
-    writes (spec 37 A1): most likely a driver on a different fsd version wrote it.
+    writes (spec 37 A1): most likely a driver on a different rise-eo version wrote it.
     """
     import concurrent.futures
     import time
@@ -691,9 +691,9 @@ def download_shard(
     if missing:
         raise ValueError(
             f"shard row(s) lack key(s) {missing}. `discover_shard_rows` writes them, so "
-            "the shard CSV was most likely written by a driver running a different fsd "
-            "version than this node's image. Run both from one fsd version: update the "
-            "driver's fsd, or rebuild the AML environment image "
+            "the shard CSV was most likely written by a driver running a different rise-eo "
+            "version than this node's image. Run both from one rise-eo version: update the "
+            "driver's rise-eo, or rebuild the AML environment image "
             "(docs/howto/build-the-images.md)."
         )
 

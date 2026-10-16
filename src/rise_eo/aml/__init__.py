@@ -54,9 +54,9 @@ def _provenance(resolved: dict) -> dict:
     """`image.json`'s OCI-annotation-named fields, derived from the resolved
     definition rather than invented."""
     prov: dict = {"org.opencontainers.image.created": datetime.now(timezone.utc).isoformat()}
-    fsd_ref = resolved.get("fsd")
-    if fsd_ref and fsd_ref.startswith("git+"):
-        url_part, sep, rev = fsd_ref.partition("@")
+    rise_eo_ref = resolved.get("rise_eo")
+    if rise_eo_ref and rise_eo_ref.startswith("git+"):
+        url_part, sep, rev = rise_eo_ref.partition("@")
         prov["org.opencontainers.image.source"] = url_part[len("git+"):]
         if sep:
             prov["org.opencontainers.image.revision"] = rev
@@ -115,9 +115,9 @@ def ensure_environment(
     """
     # Before the first storage access -- `_find_by_digest` below.
     _configure_storage(storage)
-    # One temp directory spans resolve AND build on purpose: for `fsd="path:..."` the digest
+    # One temp directory spans resolve AND build on purpose: for `rise_eo="path:..."` the digest
     # is of a wheel this function builds, and the image must be built from THAT wheel, not a
-    # second one built moments later. For every other `fsd` form
+    # second one built moments later. For every other `rise-eo` form
     # nothing is written here until the build branch runs.
     with tempfile.TemporaryDirectory() as tmp:
         return _ensure(

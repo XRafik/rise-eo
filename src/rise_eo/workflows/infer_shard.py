@@ -108,9 +108,9 @@ def run_infer_shard(
     with fs.open(shard_csv_url, "r") as f:
         shard_df = pd.read_csv(f)
 
-    fd, local_csv = tempfile.mkstemp(suffix=".csv", prefix="fsd-infer-shard-")
+    fd, local_csv = tempfile.mkstemp(suffix=".csv", prefix="rise-eo-infer-shard-")
     os.close(fd)
-    scratch_dir = tempfile.mkdtemp(prefix="fsd-infer-bundle-")
+    scratch_dir = tempfile.mkdtemp(prefix="rise-eo-infer-bundle-")
     try:
         shard_df.to_csv(local_csv, index=False)
         local_bundle = fetch_bundle_to_scratch(bundle_url, os.path.join(scratch_dir, "bundle"))

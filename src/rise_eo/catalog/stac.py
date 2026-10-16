@@ -36,7 +36,7 @@ from rise_eo.catalog.declaration import CollectionDeclaration
 from rise_eo.storage import fs
 
 # A fixed default, deliberately NOT `cores`: `cores` means the node's inference parallelism
-# everywhere else in fsd, so overloading it here would mislead. Tuned for latency-bound
+# everywhere else in rise-eo, so overloading it here would mislead. Tuned for latency-bound
 # round-trips -- a blob header read or a small blob write, ~1 s each over VPN -- not for core
 # count. No public knob until a real run asks for one, because an unused knob is a knob that
 # gets set wrong; the [collect]/[stac] segment lines are what a future retune reads.
@@ -304,7 +304,7 @@ def tile_catalog_to_items(
 def _output_item_id(fp) -> str:
     """STAC item id for an inference-output COG.
 
-    fsd writes every output as ``<cube_id>/output.tif`` (the per-cell/-cube folder *is* the id),
+    rise-eo writes every output as ``<cube_id>/output.tif`` (the per-cell/-cube folder *is* the id),
     so the id is the **parent directory** name — not the constant ``output`` filename stem, which
     would collide across all outputs. Falls back to the filename stem when there is no parent dir.
     """
@@ -393,7 +393,7 @@ def _check_unique_ids(items) -> None:
     """Raise if two output Items share an id."""
     # STAC item ids must be unique: write_stac_catalog's normalize_hrefs maps id -> <id>/<id>.json,
     # so a collision silently overwrites all-but-one item on disk AND duplicates the collection link
-    # (the spec-26 bug). fsd writes every output as <cube_id>/output.tif, so ids come from the parent
+    # (the spec-26 bug). rise-eo writes every output as <cube_id>/output.tif, so ids come from the parent
     # dir and are unique by construction; guard loudly if a layout ever breaks that invariant.
     ids = [it.id for it in items]
     if len(set(ids)) != len(ids):
@@ -404,7 +404,7 @@ def _check_unique_ids(items) -> None:
         )
 
 
-def cog_outputs_to_items(cog_filepaths, *, geometries=None, collection_id="fsd-inference",
+def cog_outputs_to_items(cog_filepaths, *, geometries=None, collection_id="rise-eo-inference",
                          band_names=None, dt=None) -> list[pystac.Item]:
     """Map inference-output COGs to STAC Items; used by `run_inference`.
 
@@ -615,9 +615,9 @@ def write_stac_catalog(
     items: list[pystac.Item],
     dst_folderpath: str,
     *,
-    catalog_id: str = "fsd",
+    catalog_id: str = "rise-eo",
     collection_id: str | None = None,
-    description: str = "fsd tile catalog (STAC export).",
+    description: str = "rise-eo tile catalog (STAC export).",
     declaration: CollectionDeclaration | None = None,
 ) -> str:
     """Write a static, self-contained STAC catalog (catalog.json + collection + item JSONs).

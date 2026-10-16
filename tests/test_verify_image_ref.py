@@ -95,11 +95,11 @@ def _status_url(root: str, run_id: str) -> str:
     return f"{root}/_verify_image/{run_id}/_status/smoke.json"
 
 
-def _publish_definition(tmp_path, name, fsd_ref):
+def _publish_definition(tmp_path, name, rise_eo_ref):
     registry_root = str(tmp_path / "image_registry")
     resolved = {
         "base": "mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04@sha256:" + "a" * 64,
-        "fsd": fsd_ref, "extras": ["azure"], "extra_pip": [], "base_resolved": True,
+        "rise_eo": rise_eo_ref, "extras": ["azure"], "extra_pip": [], "base_resolved": True,
     }
     from rise_eo.image import digest as digest_mod
     d = digest_mod.digest(resolved)
@@ -107,7 +107,7 @@ def _publish_definition(tmp_path, name, fsd_ref):
     return registry_root
 
 
-def test_verify_image_ref_current_fsd_passes(tmp_path, importable, fake_aml_command):
+def test_verify_image_ref_current_rise_eo_passes(tmp_path, importable, fake_aml_command):
     importable("vref_mod.py")
     import vref_mod
     try:
@@ -115,31 +115,31 @@ def test_verify_image_ref_current_fsd_passes(tmp_path, importable, fake_aml_comm
     finally:
         _purge("vref_mod")
 
-    fsd_ref = "git+https://github.com/nikhilsrajan/fsd@" + "c" * 40
-    registry_root = _publish_definition(tmp_path, "fsd-infer-sklearn", fsd_ref)
+    rise_eo_ref = "git+https://github.com/nikhilsrajan/fsd@" + "c" * 40
+    registry_root = _publish_definition(tmp_path, "rise-eo-infer-sklearn", rise_eo_ref)
 
     root = "memory://vimgref_ok/root"
     ml_client = _FakeMLClient({"smoke": "Completed"})
     with fs.open(_status_url(root, "runok"), "w") as f:
         json.dump({"status": "ok", "error": None}, f)
 
-    def _fetch(fsd_ref_arg, relpath):
-        assert fsd_ref_arg == fsd_ref
+    def _fetch(rise_eo_ref_arg, relpath):
+        assert rise_eo_ref_arg == rise_eo_ref
         return "def manifest_code_files(): pass\n"
 
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:1", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
         runner_kwargs=dict(cluster="c", root=root, identity_client_id="x",
                            ml_client=ml_client, run_id="runok"),
-        image_ref="fsd-infer-sklearn:1", registry=registry_root,
-        _fetch_fsd_source=_fetch,
+        image_ref="rise-eo-infer-sklearn:1", registry=registry_root,
+        _fetch_rise_eo_source=_fetch,
     )
 
     assert result["pass"] is True
     assert result["metrics"]["image_ref_has_spec44"] is True
 
 
-def test_verify_image_ref_stale_fsd_refuses_before_submission(tmp_path, importable, fake_aml_command):
+def test_verify_image_ref_stale_rise_eo_refuses_before_submission(tmp_path, importable, fake_aml_command):
     importable("vrefstale_mod.py")
     import vrefstale_mod
     try:
@@ -147,20 +147,20 @@ def test_verify_image_ref_stale_fsd_refuses_before_submission(tmp_path, importab
     finally:
         _purge("vrefstale_mod")
 
-    fsd_ref = "git+https://github.com/nikhilsrajan/fsd@" + "d" * 40
-    registry_root = _publish_definition(tmp_path, "fsd-infer-sklearn", fsd_ref)
+    rise_eo_ref = "git+https://github.com/nikhilsrajan/fsd@" + "d" * 40
+    registry_root = _publish_definition(tmp_path, "rise-eo-infer-sklearn", rise_eo_ref)
 
     ml_client = _FakeMLClient({"smoke": "Completed"})
 
-    def _fetch(fsd_ref_arg, relpath):
+    def _fetch(rise_eo_ref_arg, relpath):
         return "# a pre-spec-44 bundle.py, no manifest_code_files\n"
 
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:1", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
         runner_kwargs=dict(cluster="c", root="memory://vimgref_stale/root",
                            identity_client_id="x", ml_client=ml_client),
-        image_ref="fsd-infer-sklearn:1", registry=registry_root,
-        _fetch_fsd_source=_fetch,
+        image_ref="rise-eo-infer-sklearn:1", registry=registry_root,
+        _fetch_rise_eo_source=_fetch,
     )
 
     assert result["pass"] is False
@@ -179,10 +179,10 @@ def test_verify_image_ref_without_registry_raises(tmp_path, importable, fake_aml
     ml_client = _FakeMLClient({"smoke": "Completed"})
     with pytest.raises(ValueError, match="requires registry="):
         verify_image(
-            bdir, environment="fsd-infer-sklearn:1", runner="aml",
+            bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
             runner_kwargs=dict(cluster="c", root="memory://vimgref_noreg/root",
                                identity_client_id="x", ml_client=ml_client),
-            image_ref="fsd-infer-sklearn:1",
+            image_ref="rise-eo-infer-sklearn:1",
         )
     assert ml_client.submitted == []
 
@@ -200,11 +200,11 @@ def test_build_context_wins_over_image_ref(tmp_path, importable, fake_aml_comman
 
     build_ctx = tmp_path / "ctx"
     build_ctx.mkdir()
-    wheel = build_ctx / "fsd-0.1.0-py3-none-any.whl"
+    wheel = build_ctx / "rise_eo-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel, "w") as zf:
-        zf.writestr("fsd/model/bundle.py", "def manifest_code_files(): pass\n")
+        zf.writestr("rise_eo/model/bundle.py", "def manifest_code_files(): pass\n")
 
-    def _explode(fsd_ref_arg, relpath):
+    def _explode(rise_eo_ref_arg, relpath):
         raise AssertionError("image_ref must not be consulted when build_context is given")
 
     ml_client = _FakeMLClient({"smoke": "Completed"})
@@ -213,12 +213,12 @@ def test_build_context_wins_over_image_ref(tmp_path, importable, fake_aml_comman
         json.dump({"status": "ok", "error": None}, f)
 
     result = verify_image(
-        bdir, environment="fsd-infer-sklearn:1", runner="aml",
+        bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
         runner_kwargs=dict(cluster="c", root=root, identity_client_id="x",
                            ml_client=ml_client, run_id="runboth"),
         build_context=str(build_ctx),
-        image_ref="fsd-infer-sklearn:1", registry="memory://unused-registry",
-        _fetch_fsd_source=_explode,
+        image_ref="rise-eo-infer-sklearn:1", registry="memory://unused-registry",
+        _fetch_rise_eo_source=_explode,
     )
 
     assert result["pass"] is True

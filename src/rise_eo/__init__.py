@@ -1,8 +1,8 @@
-"""fsd — download satellite imagery (CDSE, MPC) and build datacubes. See specs/ for the design.
+"""rise-eo — download satellite imagery (CDSE, MPC) and build datacubes. See specs/ for the design.
 
 High-level API (specs/16): `rise_eo.download`, `rise_eo.create_training_data`,
 `rise_eo.flatten_training_data`, `rise_eo.run_inference`, `rise_eo.verify_adapter` and `rise_eo.deploy`.
-These are the verbs users call; the modules under fsd.* are the internals.
+These are the verbs users call; the modules under rise-eo.* are the internals.
 """
 
 import importlib.metadata

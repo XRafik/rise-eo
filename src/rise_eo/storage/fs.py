@@ -1,7 +1,7 @@
 """fsspec-based storage seam + first-class S3-compatible transport.
 
 **Rule: a path that comes from a caller, a CLI flag or config may be a URL, so no other
-module in fsd opens it directly.** Catalog, granules, datacubes and training arrays all read and
+module in rise-eo opens it directly.** Catalog, granules, datacubes and training arrays all read and
 write through here, which is what makes local -> Azure Blob / S3 a config change rather
 than a code change. Exceptions (ADR 0034): raster pixel reads, which go through
 rasterio/GDAL VSI, and paths that are local by construction (scratch directories, the user
@@ -73,13 +73,13 @@ PANDAS_ATTRS_FOOTER_KEY = b"PANDAS_ATTRS"
 # Stamped onto `.attrs` by `read_parquet` so downstream code can tell "read from a file"
 # from "hand-built in this process". Bookkeeping, not data -- `write_parquet` always
 # strips it, so it never leaks an absolute local path into a written artifact.
-SOURCE_PATH_ATTRS_KEY = "fsd:source_path"
+SOURCE_PATH_ATTRS_KEY = "rise_eo:source_path"
 
 
 # --- internal helpers --------------------------------------------------------
 
 
-# Which extra ships each fsspec backend. A backend is never imported by fsd -- fsspec
+# Which extra ships each fsspec backend. A backend is never imported by rise-eo -- fsspec
 # resolves it from the URL scheme -- so a missing one surfaces deep inside fsspec as
 # "Install s3fs to access S3", naming a package rather than the extra that provides it.
 _PROTOCOL_EXTRA = {
@@ -102,7 +102,7 @@ def _fs_and_path(url: str, storage_options: dict | None = None):
             raise
         raise ImportError(
             f"reading {url!r} needs the optional '[{extra}]' extra: "
-            f"pip install 'fsd[{extra}]'."
+            f"pip install 'rise-eo[{extra}]'."
         ) from exc
 
 

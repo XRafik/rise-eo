@@ -739,7 +739,7 @@ def download(
     remote_root = None
     if not _is_local_path(root_folderpath):
         remote_root = root_folderpath
-        root_folderpath = tempfile.mkdtemp(prefix="fsd_cdse_")
+        root_folderpath = tempfile.mkdtemp(prefix="rise_eo_cdse_")
 
     # Ensure the local output root exists: the disk-usage probe in _default_max_staged
     # (and, for a first run, the per-file writes) assume it is already there. Leaf dirs
@@ -1142,7 +1142,7 @@ def probe_throughput(
         return (0.0, 0, 0.0)
     src = item.assets[keys[0]].href
     s3opts = creds.s3_storage_options()
-    tmp = os.path.join(tempfile.gettempdir(), f"fsd_probe_{item.id}_{band}.jp2")
+    tmp = os.path.join(tempfile.gettempdir(), f"rise_eo_probe_{item.id}_{band}.jp2")
     try:
         t0 = time.time()
         fs.transfer(src, tmp, src_options=s3opts)

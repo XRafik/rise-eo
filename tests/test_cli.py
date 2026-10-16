@@ -1,5 +1,5 @@
 """Tests for `rise_eo.cli` (spec 54 D5). `main()` is called with an argv list, never shelled
-out to -- the `fsd` console script itself is exercised manually (AC 1/2), not here.
+out to -- the `rise-eo` console script itself is exercised manually (AC 1/2), not here.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from rise_eo.cli import main
 
 @pytest.fixture
 def isolated_config_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("FSD_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("RISE_EO_CONFIG_DIR", str(tmp_path))
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     for env_name in config._KEY_TO_ENV.values():
         monkeypatch.delenv(env_name, raising=False)
@@ -122,7 +122,7 @@ def test_init_interactive_prompts_and_keeps_existing_on_empty_input(
 
 
 def test_init_never_prints_a_pre_existing_value(isolated_config_dir, capsys):
-    """`fsd init` prints only the path written, never a value -- D5's rule against echoing
+    """`rise-eo init` prints only the path written, never a value -- D5's rule against echoing
     a value it did not just receive from the user."""
     main(["init", "--set", "image_registry=abfss://secret-looking-value"])
     capsys.readouterr()

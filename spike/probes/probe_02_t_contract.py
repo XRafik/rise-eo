@@ -66,7 +66,7 @@ PROJECTION = Projection(CRS.from_epsg(32633), 10, -10)
 BOX = shapely.box(0, 0, 1000, 1000)
 
 
-def fsd_n_timestamps(start: datetime, end: datetime, mosaic_days: int) -> int:
+def rise_eo_n_timestamps(start: datetime, end: datetime, mosaic_days: int) -> int:
     """fsd's `T`, reimplemented so the probe needs no fsd import.
 
     Mirrors `src/rise_eo/api.py:69-80` exactly: ceil of the span in days over mosaic_days.
@@ -136,7 +136,7 @@ def run_case(
     query = QueryConfig(
         space_mode=SpaceMode.MOSAIC,
         period_duration=timedelta(days=mosaic_days),
-        max_matches=fsd_n_timestamps(start, end, mosaic_days),
+        max_matches=rise_eo_n_timestamps(start, end, mosaic_days),
         per_period_mosaic_reverse_time_order=reverse_time_order,
     )
 
@@ -153,7 +153,7 @@ def run_case(
     return {
         "case": name,
         "n_items": len(items),
-        "fsd_T": fsd_n_timestamps(start, end, mosaic_days),
+        "rise_eo_T": rise_eo_n_timestamps(start, end, mosaic_days),
         "rslearn_n_groups": len(groups),
         "group_time_ranges": group_ranges,
         "group_item_counts": [len(getattr(g, "items", []) or []) for g in groups],
@@ -260,15 +260,15 @@ def main() -> int:
         # and cubes from different cells cannot be stacked.
         "A_empty_periods_dropped": cmp(n(holes), n(exact), lambda x, y: x < y),
         # B: trailing partial period dropped -> floor rather than fsd's ceil.
-        "B_partial_period_dropped": cmp(n(dense), dense.get("fsd_T"), lambda x, y: x < y),
+        "B_partial_period_dropped": cmp(n(dense), dense.get("rise_eo_T"), lambda x, y: x < y),
         # C: default ordering is reverse-chronological and warns.
         "C_reverse_order_by_default": (
             None
             if "rslearn_n_groups" not in rev
             else (not rev["chronological_order"]) or bool(rev["future_warnings"])
         ),
-        "T_matches_fsd_on_dense_window": cmp(
-            n(dense), dense.get("fsd_T"), lambda x, y: x == y
+        "T_matches_rise_eo_on_dense_window": cmp(
+            n(dense), dense.get("rise_eo_T"), lambda x, y: x == y
         ),
     }
 
@@ -282,11 +282,11 @@ def main() -> int:
         "pass": all(isinstance(c.get("rslearn_n_groups"), int) for c in cases),
         "metrics": {"cases": cases, "findings": findings},
         "expected": {
-            "dense_tutorial_window": {"fsd_T": 10, "rslearn_n_groups_predicted": 9},
-            "two_empty_periods": {"fsd_T": 9, "rslearn_n_groups_predicted": 7},
+            "dense_tutorial_window": {"rise_eo_T": 10, "rslearn_n_groups_predicted": 9},
+            "two_empty_periods": {"rise_eo_T": 9, "rslearn_n_groups_predicted": 7},
             "note": (
                 "Predictions come from reading rslearn/data_sources/utils.py:434-485 "
-                "(RSLEARN_READ_2026-07-31.md section 4.2). If T_matches_fsd_on_dense_window "
+                "(RSLEARN_READ_2026-07-31.md section 4.2). If T_matches_rise_eo_on_dense_window "
                 "is true, that read is WRONG and must be re-derived before the spike continues."
             ),
         },

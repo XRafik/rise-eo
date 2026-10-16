@@ -1,4 +1,4 @@
-"""Inference engine: fsd owns the predict loop and output writing.
+"""Inference engine: rise-eo owns the predict loop and output writing.
 
 Spec: specs/18-model-adapter.md
 
@@ -30,7 +30,7 @@ __all__ = ["infer_datacube", "infer_datacube_to_cog", "run_local"]
 
 
 def _chunked_predict(adapter, X: np.ndarray, predict_batch_size: int | None) -> np.ndarray:
-    """Call `adapter.predict` over `X` in chunks; fsd owns this loop (F2)."""
+    """Call `adapter.predict` over `X` in chunks; rise-eo owns this loop (F2)."""
     n = X.shape[0]
     if n == 0:
         return np.empty((0,), dtype=float)
@@ -92,7 +92,7 @@ def _write_output_cog(out: Output, transform, crs, dst_path: str) -> None:
             os.makedirs(parent, exist_ok=True)
         raw_tif = f"{dst_path}.raw.tif"
     else:
-        fd, raw_tif = tempfile.mkstemp(suffix=".raw.tif", prefix="fsd-out-")
+        fd, raw_tif = tempfile.mkstemp(suffix=".raw.tif", prefix="rise-eo-out-")
         os.close(fd)
     try:
         with rasterio.open(raw_tif, "w", **profile) as dst:
@@ -142,7 +142,7 @@ def run_local(model, pairs: list[tuple[str, str]], *,
 
     `model` is a live adapter **or** a bundle path (str). This is the `cores=1` / test / debug /
     small-run path; `api.run_inference` routes `cores>1` through the Snakemake **infer-only** runner
-    instead — fsd has **no in-process process pool**. Existing outputs are **skipped** unless
+    instead — rise-eo has **no in-process process pool**. Existing outputs are **skipped** unless
     `overwrite`. Returns every output path.
     """
     is_bundle = isinstance(model, str)

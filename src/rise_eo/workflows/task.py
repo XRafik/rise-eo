@@ -64,7 +64,7 @@ def run_task(
 
     `write_timings` asks the builder to drop a `timings.json` sidecar (benchmark
     seam); `write_read_log` asks for a `reads.jsonl` per-read log.
-    `main()` sets both from the `FSD_WRITE_TIMINGS` / `FSD_WRITE_READ_LOG` env vars so
+    `main()` sets both from the `RISE_EO_WRITE_TIMINGS` / `RISE_EO_WRITE_READ_LOG` env vars so
     the harness can enable them without any runner/Snakefile plumbing.
 
     A task whose final artifact (`datacube.npy`) already exists at `export_folderpath`
@@ -143,8 +143,8 @@ def main(argv=None) -> None:
         if_missing_files=None if args.if_missing_files == "none" else args.if_missing_files,
         njobs=args.njobs,
         njobs_load_images=args.njobs_load_images,
-        write_timings=os.environ.get("FSD_WRITE_TIMINGS") == "1",
-        write_read_log=os.environ.get("FSD_WRITE_READ_LOG") == "1",
+        write_timings=os.environ.get("RISE_EO_WRITE_TIMINGS") == "1",
+        write_read_log=os.environ.get("RISE_EO_WRITE_READ_LOG") == "1",
     )
 
 

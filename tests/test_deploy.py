@@ -104,8 +104,8 @@ def test_deploy_publishes_v1_and_run_inference_accepts_the_ref(tmp_path, importa
     registry_root = str(tmp_path / "registry")
 
     ref = api.deploy(
-        bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:6",
-        verified=_matching_verified(bpath, "fsd-infer-sklearn:6"),
+        bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:6",
+        verified=_matching_verified(bpath, "rise-eo-infer-sklearn:6"),
     )
 
     assert ref == "crop-rf:1"
@@ -138,8 +138,8 @@ def test_deploy_set_alias_resolve_run_inference_against_a_url_registry(tmp_path,
     registry_root = "memory://ac8-registry"
 
     ref = api.deploy(
-        bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:6",
-        alias="champion", verified=_matching_verified(bpath, "fsd-infer-sklearn:6"),
+        bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:6",
+        alias="champion", verified=_matching_verified(bpath, "rise-eo-infer-sklearn:6"),
     )
     assert ref == "crop-rf:1"
 
@@ -274,7 +274,7 @@ def test_deploy_runs_verify_image_and_publishes_on_pass(tmp_path, importable, fa
         json.dump({"status": "ok", "error": None}, f)
 
     ref = api.deploy(
-        bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:3",
+        bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:3",
         runner_kwargs=dict(cluster="c", root=aml_root, identity_client_id="x",
                            ml_client=ml_client, run_id="runok"),
     )
@@ -303,7 +303,7 @@ def test_deploy_refuses_on_verify_image_failure_and_creates_no_version(
     # says "error: None" and tells the operator nothing about why their model failed.
     with pytest.raises(api.PreflightError, match=r"has not been proven.*predict\(\) raised"):
         api.deploy(
-            bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:3",
+            bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:3",
             runner_kwargs=dict(cluster="c", root=aml_root, identity_client_id="x",
                                ml_client=ml_client, run_id="runfail"),
         )
@@ -619,10 +619,10 @@ class TinyAdapter(BaseModelAdapter):
 def test_deploy_writes_the_deploy_record(tmp_path, importable):
     bpath = _deployable_bundle(tmp_path, importable, modname="tdmod12")
     registry_root = str(tmp_path / "registry")
-    verified = _matching_verified(bpath, "fsd-infer-sklearn:6")
+    verified = _matching_verified(bpath, "rise-eo-infer-sklearn:6")
 
     ref = api.deploy(bpath, name="crop-rf", registry=registry_root,
-                     environment="fsd-infer-sklearn:6", verified=verified)
+                     environment="rise-eo-infer-sklearn:6", verified=verified)
 
     v1_path = registry.version_path(registry_root, "crop-rf", 1)
     with fs.open(os.path.join(v1_path, registry.DEPLOY_FILE), "r") as f:
@@ -631,7 +631,7 @@ def test_deploy_writes_the_deploy_record(tmp_path, importable):
     assert record["name"] == "crop-rf"
     assert record["version"] == 1
     assert record["digest"] == registry.content_digest(bpath)
-    assert record["environment"] == "fsd-infer-sklearn:6"
+    assert record["environment"] == "rise-eo-infer-sklearn:6"
     assert record["verified"] == verified
     assert "deployed_at" in record and "fsd_version" in record
     assert ref == "crop-rf:1"

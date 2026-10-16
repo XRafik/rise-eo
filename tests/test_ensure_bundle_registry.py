@@ -189,7 +189,7 @@ def test_run_inference_prints_the_model_line_exactly_once_with_environment(
     v1 = registry.publish(src, "crop-rf", registry_root, alias="champion")
     registry.write_deploy_record(
         "crop-rf", v1,
-        {"name": "crop-rf", "version": v1, "environment": "fsd-infer-sklearn:6"},
+        {"name": "crop-rf", "version": v1, "environment": "rise-eo-infer-sklearn:6"},
         registry_root,
     )
 
@@ -223,7 +223,7 @@ def test_run_inference_prints_the_model_line_exactly_once_with_environment(
     assert seen == [registry.version_path(registry_root, "crop-rf", 1)]
 
     out = capsys.readouterr().out
-    line = "[model] crop-rf@champion -> v1 (verified against fsd-infer-sklearn:6)"
+    line = "[model] crop-rf@champion -> v1 (verified against rise-eo-infer-sklearn:6)"
     assert out.count(line) == 1
     assert out.count("[model]") == 1
 

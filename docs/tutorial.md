@@ -107,7 +107,7 @@ training = rise_eo.create_training_data(
     startdate=startdate, enddate=enddate, mosaic_days=20,
     bands=["B04", "B08", "SCL"],
     id_col="fid", label_col="label",
-    export_folderpath="/tmp/fsd_tutorial/training",
+    export_folderpath="/tmp/rise_eo_tutorial/training",
 )
 
 loaded = training.load()
@@ -157,11 +157,11 @@ the hood:
 ```python
 from rise_eo.workflows import create_datacube
 
-csv_filepath = "/tmp/fsd_tutorial/infer_build/input.csv"
+csv_filepath = "/tmp/rise_eo_tutorial/infer_build/input.csv"
 create_datacube.run_create_datacube(
     catalog_filepath="tests/data/tutorial/sentinel-2-l2a/catalog.parquet", timestamp_col="timestamp",
     shapefilepath="tests/data/tutorial/roi.geojson", id_col="id",
-    run_folderpath="/tmp/fsd_tutorial/infer_build",
+    run_folderpath="/tmp/rise_eo_tutorial/infer_build",
     startdate=startdate, enddate=enddate, bands=["B04", "B08", "SCL"],
     mosaic_days=20, csv_filepath=csv_filepath, label_col=None, cores=1,
 )
@@ -206,7 +206,7 @@ class TutorialClassifier(BaseModelAdapter):
         return np.array([self.classes.index(p) for p in pred], dtype="uint8")
 
 adapter = TutorialClassifier(clf, classes)
-result = rise_eo.run_inference(adapter, csv_filepath, "/tmp/fsd_tutorial/out", progress=False)
+result = rise_eo.run_inference(adapter, csv_filepath, "/tmp/rise_eo_tutorial/out", progress=False)
 print(result.output_filepaths)
 print(result.stac_catalog_filepath)
 ```

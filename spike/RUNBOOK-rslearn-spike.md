@@ -192,7 +192,7 @@ between rslearn's `period_duration` and fsd's `T = ceil(span / mosaic_days)`.
 
 - **PASS if:** `_result_probe02.json` has `"status": "ok"` and all four cases returned an integer
   group count. **A pass does not mean rslearn matched fsd** — read `metrics.findings`.
-- **The result that matters:** `metrics.findings.T_matches_fsd_on_dense_window`.
+- **The result that matters:** `metrics.findings.T_matches_rise_eo_on_dense_window`.
   - **`false`** (predicted) → rslearn's `T` is data-dependent. Plan C then **requires a
     re-alignment shim in fsd** (map groups back onto their period index, fill gaps) before
     preflight or cross-cell flatten can work at all — i.e. adoption *adds* fsd code rather than
@@ -283,7 +283,7 @@ python spike/probes/probe_03_azure.py --out tests/outputs/rslearn_spike --keep \
 
 # 2. read it back through fsd's VSI route, in fsd's OWN venv
 deactivate && source .venv/bin/activate
-python spike/probes/probe_03b_fsd_vsi_baseline.py --out tests/outputs/rslearn_spike \
+python spike/probes/probe_03b_rise_eo_vsi_baseline.py --out tests/outputs/rslearn_spike \
     --url "$AZ_ROOT/$AZ_SCRATCH_PREFIX/rslearn_spike/raster_format/geotiff.tif"
 
 # 3. clean up
@@ -336,7 +336,7 @@ adapter that exists, and not evidence for a decision about whether to build one.
 load-bearing and nobody has asked:
 
 > Take one source fsd lacks and genuinely wants (**ERA5-Land** is the best candidate — issue #11
-> names it, and rslearn has three variants). Time-box an afternoon. Get it into an fsd-shaped
+> names it, and rslearn has three variants). Time-box an afternoon. Get it into an rise-eo-shaped
 > array two ways: through rslearn, and by writing it directly against fsd's `Source` seam.
 > Compare the LOC, the dependency cost, and how much of rslearn's model you had to learn.
 

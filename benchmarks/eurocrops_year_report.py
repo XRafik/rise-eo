@@ -212,7 +212,7 @@ def main() -> None:
              "`eurocrops_year_figures/coverage.png`.\n")
 
     L.append("## Reproduce\n```bash\n"
-             "FSD_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py\n"
+             "RISE_EO_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py\n"
              "fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_report.py\n```\n")
     L.append("Cubes + flattened arrays under `tests/outputs/datacube_year/` (gitignored); "
              "this report + figures are committed.\n")

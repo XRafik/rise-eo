@@ -4,8 +4,8 @@ Spec: specs/56-image-definitions-and-registry.md
 
 **The only module under `rise_eo.aml` that touches Azure** -- `az ml environment ...` and
 `az ml workspace show`, via `subprocess`. Every function takes its Azure coordinates
-explicitly (`resource_group`, `workspace`); fsd hard-codes nothing (§7 Q2). Tests stub these
-three functions rather than calling `az` -- `ensure_environment` (`fsd/aml/__init__.py`)
+explicitly (`resource_group`, `workspace`); rise-eo hard-codes nothing (§7 Q2). Tests stub these
+three functions rather than calling `az` -- `ensure_environment` (`rise_eo/aml/__init__.py`)
 takes them as injectable keyword arguments for exactly that reason.
 """
 
@@ -47,7 +47,7 @@ def create_environment(
     didn't already leave one (the `build_context=` escape hatch may).
 
     Guarded on purpose: `az` can print something other than a version without failing
-    (a broken `az` once silently produced `built fsd-aml-env:No module named 'rpds.rpds'`),
+    (a broken `az` once silently produced `built rise-eo-aml-env:No module named 'rpds.rpds'`),
     so a non-numeric version raises, loudly.
     """
     env_yml = os.path.join(context_dir, "environment.yml")

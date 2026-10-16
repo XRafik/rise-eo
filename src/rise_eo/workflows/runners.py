@@ -68,7 +68,7 @@ def _require_snakemake() -> None:
     if importlib.util.find_spec("snakemake") is None:
         raise RuntimeError(
             "the Snakemake runner needs the optional '[local]' extra: "
-            "pip install 'fsd[local]' (#80). "
+            "pip install 'rise-eo[local]' (#80). "
             "On an AML node this means the node IMAGE was built without it -- add 'local' "
             "to ImageDefinition(extras=...); the in-job entrypoint runs the same runner."
         )
@@ -360,7 +360,7 @@ def _derive_timing(
 
 def _import_aml_command():
     """Lazy handle to `azure.ai.ml.command` -- imported inside a function, like every
-    `azure.ai.ml` import in `fsd/` (here and in `model/verify_image.py`), so `import rise_eo`
+    `azure.ai.ml` import in `rise_eo/` (here and in `model/verify_image.py`), so `import rise_eo`
     never needs the `[aml]` extra.
 
     Indirected through a helper so the AML job-builder sits on `run_aml`'s injection
@@ -438,7 +438,7 @@ def _aml_preflight_common(ml_client, *, cluster: str, environment: str, root: st
         errs.append(f"environment {environment!r} does not resolve: {exc}")
     try:
         fs.makedirs(root)
-        probe = f"{root.rstrip('/')}/.fsd_preflight_{uuid.uuid4().hex}"
+        probe = f"{root.rstrip('/')}/.rise_eo_preflight_{uuid.uuid4().hex}"
         with fs.open(probe, "w") as f:
             f.write("preflight")
         fs.rm(probe)
@@ -677,8 +677,8 @@ def run_aml(
 
     `identity_client_id` is set as the job's `AZURE_CLIENT_ID` env var -- the AML
     cluster carries only a user-assigned managed identity, which is never selected
-    implicitly, so `fsd/storage/azure.py`'s bare `DefaultAzureCredential()` needs this
-    to authenticate on the node. **fsd never hardcodes it** (a concrete `rise` identity
+    implicitly, so `rise_eo/storage/azure.py`'s bare `DefaultAzureCredential()` needs this
+    to authenticate on the node. **rise-eo never hardcodes it** (a concrete `rise` identity
     id has no business in a public repo) -- the caller resolves it (e.g. via
     `az identity show --query clientId`) and passes it in.
 
@@ -726,8 +726,8 @@ def run_aml(
             environment=environment,
             compute=cluster,
             environment_variables={"AZURE_CLIENT_ID": identity_client_id},
-            display_name=f"fsd-shard-{run_id}-{k}",
-            experiment_name=f"fsd-{run_id}",
+            display_name=f"rise-eo-shard-{run_id}-{k}",
+            experiment_name=f"rise-eo-{run_id}",
         )
 
     result = _aml_submit_and_wait(ml_client, jobs, run_root, run_id,
@@ -788,8 +788,8 @@ def run_aml_flatten(
     """AML flatten dispatcher: flatten concatenates ALL cubes into ONE array, so
     the cluster form is exactly **one** command job (`python -m rise_eo.workflows.flatten ...`) --
     no `shard_units`, no fan-out. Submits via the shared `_aml_submit_and_wait` and
-    reuses `_aml_preflight_common`. Runs on the **general-purpose** fsd Environment --
-    flatten is pure `fsd`, no adapter, so it needs no new image.
+    reuses `_aml_preflight_common`. Runs on the **general-purpose** rise-eo Environment --
+    flatten is pure `rise-eo`, no adapter, so it needs no new image.
 
     `input_csv` is a blob url of `id`/[`label`]/`datacube_filepath` rows.
     `export_folderpath` is the **blob** prefix the reduce writes its raw output to
@@ -826,7 +826,7 @@ def run_aml_flatten(
     jobs = {0: aml_command(
         command=command, environment=environment, compute=cluster,
         environment_variables={"AZURE_CLIENT_ID": identity_client_id},
-        display_name=f"fsd-flatten-{run_id}", experiment_name=f"fsd-flatten-{run_id}",
+        display_name=f"rise-eo-flatten-{run_id}", experiment_name=f"rise-eo-flatten-{run_id}",
     )}
 
     result = _aml_submit_and_wait(ml_client, jobs, run_root, run_id,
@@ -978,7 +978,7 @@ def run_aml_inference(
             ),
             environment=environment, compute=cluster,
             environment_variables={"AZURE_CLIENT_ID": identity_client_id},
-            display_name=f"fsd-infer-smoke-{run_id}", experiment_name=f"fsd-infer-{run_id}",
+            display_name=f"rise-eo-infer-smoke-{run_id}", experiment_name=f"rise-eo-infer-{run_id}",
         )
         _aml_submit_and_wait(ml_client, {"smoke": smoke_job}, run_root, f"{run_id}-smoke",
                              poll_interval_seconds=poll_interval_seconds)
@@ -1012,8 +1012,8 @@ def run_aml_inference(
             environment=environment,
             compute=cluster,
             environment_variables={"AZURE_CLIENT_ID": identity_client_id},
-            display_name=f"fsd-infer-{run_id}-{k}",
-            experiment_name=f"fsd-infer-{run_id}",
+            display_name=f"rise-eo-infer-{run_id}-{k}",
+            experiment_name=f"rise-eo-infer-{run_id}",
         )
 
     result = _aml_submit_and_wait(ml_client, jobs, run_root, run_id,
@@ -1116,7 +1116,7 @@ def run_aml_download(
 
     `vault_url`/`secret_name` (CDSE only) are Key Vault coordinates and `creds_url` (CDSE
     only) is a blob JSON location -- **exactly one** of the two is required; preflight errs
-    on neither and on both. Both are caller-supplied; fsd hardcodes no concrete identifier.
+    on neither and on both. Both are caller-supplied; rise-eo hardcodes no concrete identifier.
 
     ⚠️ Secrets never ride in the job spec. Only these non-secret names and locations go into
     the command args, and the node reads the value itself at run time -- via
@@ -1189,7 +1189,7 @@ def run_aml_download(
         jobs = {0: aml_command(
             command=command, environment=environment, compute=cluster,
             environment_variables={"AZURE_CLIENT_ID": identity_client_id},
-            display_name=f"fsd-download-cdse-{run_id}", experiment_name=f"fsd-download-{run_id}",
+            display_name=f"rise-eo-download-cdse-{run_id}", experiment_name=f"rise-eo-download-{run_id}",
             limits=limits_cls(timeout=timeout),
         )}
     else:
@@ -1258,8 +1258,8 @@ def run_aml_download(
                 ),
                 environment=environment, compute=cluster,
                 environment_variables={"AZURE_CLIENT_ID": identity_client_id},
-                display_name=f"fsd-download-mpc-{run_id}-{k}",
-                experiment_name=f"fsd-download-{run_id}",
+                display_name=f"rise-eo-download-mpc-{run_id}-{k}",
+                experiment_name=f"rise-eo-download-{run_id}",
                 limits=limits_cls(timeout=timeout),
             )
 

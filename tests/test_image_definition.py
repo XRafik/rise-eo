@@ -9,22 +9,22 @@ from rise_eo.image import ImageDefinition
 
 def test_derive_overrides_only_the_given_fields():
     base = ImageDefinition(
-        name="fsd-aml-env", fsd="git+https://github.com/nikhilsrajan/fsd@9a00f2b",
+        name="rise-eo-aml-env", rise_eo="git+https://github.com/nikhilsrajan/fsd@9a00f2b",
         extras=("azure", "mpc"),
     )
-    infer = base.derive(name="fsd-infer-sklearn", extra_pip=("scikit-learn", "joblib"))
+    infer = base.derive(name="rise-eo-infer-sklearn", extra_pip=("scikit-learn", "joblib"))
 
-    assert infer.name == "fsd-infer-sklearn"
+    assert infer.name == "rise-eo-infer-sklearn"
     assert infer.extra_pip == ("scikit-learn", "joblib")
-    assert infer.fsd == base.fsd
+    assert infer.rise_eo == base.rise_eo
     assert infer.extras == base.extras
     assert infer.base == base.base
 
 
 def test_definition_is_hashable_and_comparable():
-    a = ImageDefinition(name="x", fsd="git+https://example.com/fsd@main")
-    b = ImageDefinition(name="x", fsd="git+https://example.com/fsd@main")
-    c = ImageDefinition(name="y", fsd="git+https://example.com/fsd@main")
+    a = ImageDefinition(name="x", rise_eo="git+https://example.com/rise-eo@main")
+    b = ImageDefinition(name="x", rise_eo="git+https://example.com/rise-eo@main")
+    c = ImageDefinition(name="y", rise_eo="git+https://example.com/rise-eo@main")
 
     assert a == b
     assert hash(a) == hash(b)
@@ -33,27 +33,27 @@ def test_definition_is_hashable_and_comparable():
 
 def test_render_dockerfile_git_ref_has_no_wheel_copy():
     defn = ImageDefinition(
-        name="fsd-aml-env", fsd="git+https://github.com/nikhilsrajan/fsd@9a00f2b",
+        name="rise-eo-aml-env", rise_eo="git+https://github.com/nikhilsrajan/fsd@9a00f2b",
         extras=("azure", "mpc"),
     )
     text = defn.render_dockerfile()
 
     assert "FROM mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest" in text
-    assert "COPY fsd-*.whl" not in text
-    assert 'fsd[azure,mpc] @ git+https://github.com/nikhilsrajan/fsd@9a00f2b' in text
+    assert "COPY rise_eo-*.whl" not in text
+    assert 'rise-eo[azure,mpc] @ git+https://github.com/nikhilsrajan/fsd@9a00f2b' in text
 
 
-def test_render_dockerfile_path_fsd_copies_a_wheel():
-    defn = ImageDefinition(name="dev", fsd="path:/some/checkout", extras=("azure",))
+def test_render_dockerfile_path_rise_eo_copies_a_wheel():
+    defn = ImageDefinition(name="dev", rise_eo="path:/some/checkout", extras=("azure",))
     text = defn.render_dockerfile()
 
-    assert "COPY fsd-*.whl /tmp/" in text
-    assert "$(ls /tmp/fsd-*.whl)[azure]" in text
+    assert "COPY rise_eo-*.whl /tmp/" in text
+    assert "$(ls /tmp/rise_eo-*.whl)[azure]" in text
 
 
 def test_render_dockerfile_includes_extra_pip():
     defn = ImageDefinition(
-        name="fsd-infer-sklearn", fsd="git+https://example.com/fsd@main",
+        name="rise-eo-infer-sklearn", rise_eo="git+https://example.com/rise-eo@main",
         extras=("azure", "mpc"), extra_pip=("scikit-learn", "joblib"),
     )
     text = defn.render_dockerfile()
@@ -71,7 +71,7 @@ def test_render_dockerfile_raises_when_build_context_is_set():
 
 
 def test_write_context_writes_a_dockerfile(tmp_path):
-    defn = ImageDefinition(name="x", fsd="git+https://example.com/fsd@main")
+    defn = ImageDefinition(name="x", rise_eo="git+https://example.com/rise-eo@main")
     out = defn.write_context(str(tmp_path / "ctx"))
 
     assert out == str(tmp_path / "ctx")

@@ -1,6 +1,6 @@
 ---
 name: pr-reviewer
-description: Gate-3 reviewer for an fsd pull request. Spawn it after pushing a branch and opening the PR, with the PR number. It starts with a fresh context on a stronger model, reviews the PR against its spec and the repo's standards, and posts its own review as a PR comment. Spawned again on the same PR, it checks only the fixes. It never edits code.
+description: Gate-3 reviewer for a rise-eo pull request. Spawn it after pushing a branch and opening the PR, with the PR number. It starts with a fresh context on a stronger model, reviews the PR against its spec and the repo's standards, and posts its own review as a PR comment. Spawned again on the same PR, it checks only the fixes. It never edits code.
 model: opus
 effort: high
 disallowedTools: Edit, Write, NotebookEdit, Agent

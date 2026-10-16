@@ -93,7 +93,7 @@ def write_new_version(
     what actually landed and confirm it equals the caller's digest -- publishing is only
     complete once the bytes are provably the caller's, the same proof
     `rise_eo.model.registry.migrate` uses to accept a copy; (3) write `v<N>/_complete.json`
-    **last**, carrying that digest. A single-object write is atomic on every backend fsd
+    **last**, carrying that digest. A single-object write is atomic on every backend rise-eo
     targets, so step 3 is the all-or-nothing moment a directory rename would otherwise
     provide.
 
@@ -177,13 +177,13 @@ _REF_RE = re.compile(r"^(?P<name>[^:@]+)(?P<sep>[:@])(?P<value>.+)$")
 
 
 def parse_ref(ref: str) -> tuple[str, str, str]:
-    """`'fsd-aml-env:7'` -> `('fsd-aml-env', ':', '7')`; `'fsd-aml-env@current'` ->
-    `('fsd-aml-env', '@', 'current')` (mirrors `rise_eo.model.registry.parse_ref`)."""
+    """`'rise-eo-aml-env:7'` -> `('rise-eo-aml-env', ':', '7')`; `'rise-eo-aml-env@current'` ->
+    `('rise-eo-aml-env', '@', 'current')` (mirrors `rise_eo.model.registry.parse_ref`)."""
     m = _REF_RE.match(ref)
     if not m:
         raise ValueError(
-            f"ref {ref!r} is ambiguous: use 'name:version' (e.g. 'fsd-aml-env:7') or "
-            "'name@alias' (e.g. 'fsd-aml-env@current')."
+            f"ref {ref!r} is ambiguous: use 'name:version' (e.g. 'rise-eo-aml-env:7') or "
+            "'name@alias' (e.g. 'rise-eo-aml-env@current')."
         )
     return m.group("name"), m.group("sep"), m.group("value")
 

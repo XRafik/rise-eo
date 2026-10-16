@@ -455,7 +455,7 @@ def test_unstamped_file_read_catalog_raises_at_flatten(tmp_path):
 
 def test_hand_built_gdf_keeps_s2_default_no_raise():
     """spec 35 §5a: a hand-built GeoDataFrame (never through fs.read_parquet, so
-    no fsd:source_path) keeps the S2 default -- an explicit in-process call is
+    no rise_eo:source_path) keeps the S2 default -- an explicit in-process call is
     an explicit choice, and this preserves synthetic-test/notebook ergonomics."""
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": "/tmp", "timestamp": 0,

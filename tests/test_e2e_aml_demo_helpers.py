@@ -3,7 +3,7 @@
 The demo run itself is not unit-testable by design (spec 40 §6) -- it needs a cluster.
 Its *helpers* are, and three of them are the ones a real run bets 80 GB on:
 
-- `_list_run_ids`/`_new_dispatch_timings`: how a step learns which run(s) its `fsd.*`
+- `_list_run_ids`/`_new_dispatch_timings`: how a step learns which run(s) its `rise-eo.*`
   call dispatched under, since no verb returns a run id (ADR 0021). Exercised here
   against a real fsspec backend (`memory://`), because the bug it has to survive --
   `fs.glob` returning the filesystem's own scheme-less path form -- only shows up
@@ -58,7 +58,7 @@ def test_list_run_ids_is_empty_when_nothing_has_dispatched():
 
 
 def test_new_dispatch_timings_returns_only_runs_created_after_the_snapshot():
-    """The before/after diff each dispatching step wraps its `fsd.*` call in."""
+    """The before/after diff each dispatching step wraps its `rise-eo.*` call in."""
     root = "memory://disc_diff"
     _write_timing(root, "run-old")
     before = demo._list_run_ids(root)
@@ -368,7 +368,7 @@ def _dispatch(with_stamps: bool, n=3):
 def test_dispatch_telemetry_gate_fails_on_an_image_that_predates_the_stamps():
     """The 2026-07-29 run: green end to end, 97 jobs, four dispatches, and
     `job_admission_seconds: null` on every one -- because the four stamps are written by
-    the `fsd` inside the AML image, not by the driver's checkout. Nothing failed, which
+    the `rise-eo` inside the AML image, not by the driver's checkout. Nothing failed, which
     is precisely the problem."""
     with pytest.raises(demo.PreflightFailure, match="in-job stamps"):
         demo._assert_dispatch_telemetry_complete([_dispatch(with_stamps=False)],
@@ -458,7 +458,7 @@ def test_preflight_deps_cover_what_the_steps_actually_import():
     stdlib_or_local = {
         "__future__", "os", "sys", "json", "time", "re", "signal", "datetime", "contextlib",
         "argparse", "importlib", "ast", "statistics", "rise_eo", "adapters",
-        "numpy", "pandas", "geopandas", "shapely", "rasterio",  # fsd CORE deps
+        "numpy", "pandas", "geopandas", "shapely", "rasterio",  # rise-eo CORE deps
     }
 
     missed = set()

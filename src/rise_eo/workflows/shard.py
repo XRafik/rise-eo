@@ -14,7 +14,7 @@ from __future__ import annotations
 import datetime as _dt
 
 # Stamped before any heavy import, so it reflects process start, not "after
-# argparse/pandas/fsd loaded".
+# argparse/pandas/rise_eo loaded".
 _PROCESS_START_AT = _dt.datetime.now(_dt.timezone.utc).isoformat()
 
 import argparse  # noqa: E402
@@ -52,7 +52,7 @@ def run_shard(shard_csv_url: str, *, cores: int) -> dict:
     with fs.open(shard_csv_url, "r") as f:
         shard_df = pd.read_csv(f)
 
-    fd, local_csv = tempfile.mkstemp(suffix=".csv", prefix="fsd-shard-")
+    fd, local_csv = tempfile.mkstemp(suffix=".csv", prefix="rise-eo-shard-")
     os.close(fd)
     try:
         shard_df.to_csv(local_csv, index=False)

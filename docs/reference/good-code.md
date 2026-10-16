@@ -147,7 +147,7 @@ rather than with a feeling.
   code and interfaces. Ousterhout's warning about entangled methods applies: if you must read both to
   understand one, they should be one. fsd leans toward Ousterhout: no speculative abstractions, and few
   layers.
-- **DRY vs Metz.** Spec 102 A7 cites DRY for "reuse an fsd helper before you write". Metz warns that merging
+- **DRY vs Metz.** Spec 102 A7 cites DRY for "reuse a rise-eo helper before you write". Metz warns that merging
   look-alike code into the wrong abstraction costs more than the copies. fsd's rules lean DRY for new code
   and say nothing about merging old code. In the audit, merge only when the copies change for the same reason.
 - **"Few comments" vs Ousterhout's pro-comment stance.** `code-comments.md` sets a default of none, but keeps

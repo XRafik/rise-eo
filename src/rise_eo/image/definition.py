@@ -42,9 +42,9 @@ __all__ = ["ImageDefinition"]
 @dataclasses.dataclass(frozen=True)
 class ImageDefinition:
     """`name` never affects the digest -- it is where the image is registered, not
-    what it contains. `fsd` is a pip-installable reference: `"git+https://...@<ref>"`, a
-    PyPI spec, or `"path:/local/checkout"` for an fsd developer's own tree (the one case
-    `resolve()` builds a wheel for). `extras`/`extra_pip` are fsd's own extras
+    what it contains. `rise_eo` is a pip-installable reference: `"git+https://...@<ref>"`, a
+    PyPI spec, or `"path:/local/checkout"` for a rise-eo developer's own tree (the one case
+    `resolve()` builds a wheel for). `extras`/`extra_pip` are rise-eo's own extras
     (`azure`, `mpc`, ...) and any additional plain pip packages (an inference image's
     `scikit-learn`, `joblib`). `build_context`, when set, is the escape hatch above and
     makes every other field except it purely informational.
@@ -52,7 +52,7 @@ class ImageDefinition:
 
     name: str
     base: str = DEFAULT_BASE
-    fsd: str | None = None
+    rise_eo: str | None = None
     extras: tuple[str, ...] = ()
     extra_pip: tuple[str, ...] = ()
     build_context: str | None = None
@@ -60,35 +60,35 @@ class ImageDefinition:
     def derive(self, **overrides) -> "ImageDefinition":
         """A new definition sharing every field not overridden -- `BASE.derive(name=...,
         extra_pip=...)` is how an inference image is built from a general-purpose one
-        without repeating `base`/`fsd`/`extras`."""
+        without repeating `base`/`rise_eo`/`extras`."""
         return dataclasses.replace(self, **overrides)
 
     def render_dockerfile(self) -> str:
         """The two Dockerfiles in `notebooks/images/` collapse to this: a `FROM` line and
         one `RUN pip install` line. Raises if `build_context` is set -- that mode's
-        Dockerfile is the caller's, not fsd's to render."""
+        Dockerfile is the caller's, not rise-eo's to render."""
         if self.build_context is not None:
             raise ValueError(
                 "render_dockerfile() does not apply when build_context= is set -- the "
-                "caller's directory already holds the Dockerfile fsd will build."
+                "caller's directory already holds the Dockerfile rise-eo will build."
             )
-        if not self.fsd:
+        if not self.rise_eo:
             raise ValueError(
-                "ImageDefinition.fsd must be set to render a Dockerfile (or pass "
+                "ImageDefinition.rise_eo must be set to render a Dockerfile (or pass "
                 "build_context= for a caller-owned context)."
             )
         extras_suffix = f"[{','.join(self.extras)}]" if self.extras else ""
         extra_pip_suffix = f" {' '.join(self.extra_pip)}" if self.extra_pip else ""
         lines = [f"FROM {self.base}", ""]
-        if self.fsd.startswith("path:"):
+        if self.rise_eo.startswith("path:"):
             lines += [
-                "COPY fsd-*.whl /tmp/",
+                "COPY rise_eo-*.whl /tmp/",
                 "",
-                f'RUN python -m pip install --no-cache-dir "$(ls /tmp/fsd-*.whl){extras_suffix}"'
+                f'RUN python -m pip install --no-cache-dir "$(ls /tmp/rise_eo-*.whl){extras_suffix}"'
                 f"{extra_pip_suffix} \\\n && python -m pip cache purge || true",
             ]
         else:
-            spec = f"fsd{extras_suffix} @ {self.fsd}"
+            spec = f"rise-eo{extras_suffix} @ {self.rise_eo}"
             lines += [
                 f'RUN python -m pip install --no-cache-dir "{spec}"{extra_pip_suffix} \\\n'
                 " && python -m pip cache purge || true",
@@ -97,8 +97,8 @@ class ImageDefinition:
 
     def write_context(self, dir: str) -> str:
         """Materialize a build context at the local directory `dir`: the rendered
-        Dockerfile, plus a built wheel for a `path:` `fsd` reference -- the one slow path;
-        everything else installs straight from the pip-installable `fsd` reference inside the
+        Dockerfile, plus a built wheel for a `path:` `rise_eo` reference -- the one slow path;
+        everything else installs straight from the pip-installable `rise_eo` reference inside the
         image, with no local build. Returns `dir`. Not used when
         `build_context` is set -- point the builder at that directory directly."""
         if self.build_context is not None:
@@ -109,22 +109,22 @@ class ImageDefinition:
         os.makedirs(dir, exist_ok=True)
         with open(os.path.join(dir, "Dockerfile"), "w") as f:
             f.write(self.render_dockerfile())
-        if self.fsd and self.fsd.startswith("path:"):
+        if self.rise_eo and self.rise_eo.startswith("path:"):
             # A wheel already here is the one `digest.resolve(..., wheel_dir=dir)` just built
             # and hashed; rebuilding would put a DIFFERENT file in the image than the one the
             # registry records.
-            if not glob.glob(os.path.join(dir, "fsd-*.whl")):
-                _build_wheel(self.fsd[len("path:"):], dir)
+            if not glob.glob(os.path.join(dir, "rise_eo-*.whl")):
+                _build_wheel(self.rise_eo[len("path:"):], dir)
         return dir
 
 
 def _build_wheel(src_dir: str, dest_dir: str) -> str:
     """`pip wheel {src_dir} --no-deps -w {dest_dir}` -- the same call
-    `build_images.ipynb` made, now library code. `--no-deps`: the fsd wheel alone; the
+    `build_images.ipynb` made, now library code. `--no-deps`: the rise-eo wheel alone; the
     rendered Dockerfile's `pip install` resolves its dependencies inside the image.
 
     `--no-build-isolation` first, then a retry without it. With it, the build backend has to
-    already be importable here -- true in an fsd dev venv on 3.11, and the only way
+    already be importable here -- true in a rise-eo dev venv on 3.11, and the only way
     `tests/test_image_digest.py` builds a wheel without reaching the network. Without it, pip
     downloads `setuptools` into an isolated env, which is what a 3.12+ venv (no bundled
     setuptools) needs. Trying the offline form first keeps the network-free path fast and
@@ -141,7 +141,7 @@ def _build_wheel(src_dir: str, dest_dir: str) -> str:
         result = _run([])
     if result.returncode != 0:
         raise RuntimeError(f"pip wheel {src_dir!r} failed: {result.stderr[-2000:]}")
-    wheels = sorted(glob.glob(os.path.join(dest_dir, "fsd-*.whl")))
+    wheels = sorted(glob.glob(os.path.join(dest_dir, "rise_eo-*.whl")))
     if not wheels:
-        raise RuntimeError(f"pip wheel {src_dir!r} produced no fsd-*.whl in {dest_dir!r}")
+        raise RuntimeError(f"pip wheel {src_dir!r} produced no rise_eo-*.whl in {dest_dir!r}")
     return wheels[-1]

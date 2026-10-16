@@ -226,7 +226,7 @@ is a real design point for the spec.
 
 ### 4.3 Container image → ACR
 
-- Build an fsd Docker image (the fsd package + its deps + GDAL/rasterio) and **push to the
+- Build a rise-eo Docker image (the fsd package + its deps + GDAL/rasterio) and **push to the
   project ACR `acr<proj>`** (compute identity has AcrPush; a human/CI does the push).
 - The pool pulls it via the compute identity (AcrPull). Optionally list it in the pool's
   `container_image_names` for a **warm cache** on scale-up (avoids first-task pull latency)

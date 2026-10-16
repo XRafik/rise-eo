@@ -46,7 +46,7 @@ njobs = int(config.get("njobs", 1))
 njobs_load_images = int(config.get("njobs_load_images", 1))
 jitter_span = int(config.get("jitter_span", 1))
 # Node-local scratch root for sentinels only -- never the artifact destination.
-scratch_dir = config.get("scratch_dir") or os.path.join(tempfile.gettempdir(), "fsd-snakemake-scratch")
+scratch_dir = config.get("scratch_dir") or os.path.join(tempfile.gettempdir(), "rise-eo-snakemake-scratch")
 
 n = len(pd.read_csv(input_csv))
 

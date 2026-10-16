@@ -1,8 +1,8 @@
 """Tests for `rise_eo.config`'s user-level config loader (spec 54, §4 criteria 3-8).
 
 Every test that touches disk goes through `isolated_config_dir`, which points
-`FSD_CONFIG_DIR` at `tmp_path` -- spec 37 §7's rule, generalised: no test may reach the
-developer's real `~/.config/fsd`.
+`RISE_EO_CONFIG_DIR` at `tmp_path` -- spec 37 §7's rule, generalised: no test may reach the
+developer's real `~/.config/rise-eo`.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import rise_eo.config as config
 
 @pytest.fixture
 def isolated_config_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("FSD_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("RISE_EO_CONFIG_DIR", str(tmp_path))
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     for env_name in config._KEY_TO_ENV.values():
         monkeypatch.delenv(env_name, raising=False)
@@ -70,45 +70,45 @@ def test_precedence_empty_string_falls_through(isolated_config_dir, monkeypatch)
 # --- AC 5: location resolution, all five D1 branches -----------------------------------
 
 
-def test_config_dir_prefers_fsd_config_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("FSD_CONFIG_DIR", str(tmp_path / "fsd-dir"))
+def test_config_dir_prefers_rise_eo_config_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("RISE_EO_CONFIG_DIR", str(tmp_path / "rise-eo-dir"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    assert config.config_dir() == tmp_path / "fsd-dir"
+    assert config.config_dir() == tmp_path / "rise-eo-dir"
 
 
 def test_config_dir_falls_back_to_xdg(tmp_path, monkeypatch):
-    monkeypatch.delenv("FSD_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("RISE_EO_CONFIG_DIR", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    assert config.config_dir() == tmp_path / "xdg" / "fsd"
+    assert config.config_dir() == tmp_path / "xdg" / "rise-eo"
 
 
 def test_config_dir_falls_back_to_posix_default(tmp_path, monkeypatch):
-    monkeypatch.delenv("FSD_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("RISE_EO_CONFIG_DIR", raising=False)
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setattr(os, "name", "posix")
     monkeypatch.setattr(config.Path, "home", classmethod(lambda cls: tmp_path))
-    assert config.config_dir() == tmp_path / ".config" / "fsd"
+    assert config.config_dir() == tmp_path / ".config" / "rise-eo"
 
 
-# D1's fifth branch -- `%APPDATA%\\fsd` when `os.name == "nt"` -- has no test on purpose:
+# D1's fifth branch -- `%APPDATA%\\rise-eo` when `os.name == "nt"` -- has no test on purpose:
 # `pathlib.Path()` consults `os.name` at construction, so forcing it to "nt" on POSIX makes
 # every `Path(...)` raise `NotImplementedError: cannot instantiate 'WindowsPath'`, including
 # pytest's own. Testing it would mean a Path shim in `config_dir()` that exists only for the
 # test. Verified by reading, not by assertion.
 
 
-def test_config_dir_relative_fsd_config_dir_is_ignored(tmp_path, monkeypatch):
-    monkeypatch.setenv("FSD_CONFIG_DIR", "relative/path")
+def test_config_dir_relative_rise_eo_config_dir_is_ignored(tmp_path, monkeypatch):
+    monkeypatch.setenv("RISE_EO_CONFIG_DIR", "relative/path")
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setattr(config.Path, "home", classmethod(lambda cls: tmp_path))
-    assert config.config_dir() == tmp_path / ".config" / "fsd"
+    assert config.config_dir() == tmp_path / ".config" / "rise-eo"
 
 
 def test_config_dir_relative_xdg_config_home_is_ignored(tmp_path, monkeypatch):
-    monkeypatch.delenv("FSD_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("RISE_EO_CONFIG_DIR", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", "relative/xdg")
     monkeypatch.setattr(config.Path, "home", classmethod(lambda cls: tmp_path))
-    assert config.config_dir() == tmp_path / ".config" / "fsd"
+    assert config.config_dir() == tmp_path / ".config" / "rise-eo"
 
 
 # --- AC 6: TOML round-trips -------------------------------------------------------------
@@ -134,7 +134,7 @@ def test_toml_round_trips_adversarial_values(isolated_config_dir):
     assert parsed == {k: values[k] for k in config.KEYS}
 
 
-# --- AC 7: MissingConfig names every missing key and mentions `fsd init` ---------------
+# --- AC 7: MissingConfig names every missing key and mentions `rise-eo init` ---------------
 
 
 def test_missing_config_lists_every_missing_key(isolated_config_dir):
@@ -145,7 +145,7 @@ def test_missing_config_lists_every_missing_key(isolated_config_dir):
     for key in ("resource_group", "workspace", "cluster", "uami_client_id"):
         assert key in msg
     assert "subscription_id" not in exc.value.missing
-    assert "fsd init" in msg
+    assert "rise-eo init" in msg
 
 
 def test_missing_config_is_a_key_error(isolated_config_dir):
@@ -177,11 +177,11 @@ def test_write_config_does_not_mutate_environ(isolated_config_dir):
     assert dict(os.environ) == before
 
 
-# --- AC 8: no test reaches the real ~/.config/fsd ---------------------------------------
+# --- AC 8: no test reaches the real ~/.config/rise-eo ---------------------------------------
 
 
 def test_isolated_config_dir_is_not_the_real_one(isolated_config_dir):
-    assert config.config_dir() != config.Path.home() / ".config" / "fsd"
+    assert config.config_dir() != config.Path.home() / ".config" / "rise-eo"
 
 
 # --- parse_env_file (moved verbatim from notebooks/_config.py) --------------------------
@@ -283,3 +283,35 @@ def test_write_blank_config_writes_every_key_empty(isolated_config_dir):
     assert config._read_file_values() == {k: "" for k in config.KEYS}
     with pytest.raises(config.MissingConfig):
         config.load()
+
+
+# --- spec 102 A11.5: the config folder is `rise-eo`; the old `fsd` folder is not read --------
+
+
+def _only_old_config(tmp_path, monkeypatch):
+    monkeypatch.delenv("RISE_EO_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    for env_name in config._KEY_TO_ENV.values():
+        monkeypatch.delenv(env_name, raising=False)
+    old = tmp_path / "xdg" / "fsd"
+    old.mkdir(parents=True)
+    (old / "config.toml").write_text('subscription_id = "from-the-old-folder"\n')
+    return old / "config.toml"
+
+
+def test_old_fsd_config_is_not_read_and_the_error_prints_the_move_command(tmp_path, monkeypatch):
+    old = _only_old_config(tmp_path, monkeypatch)
+    with pytest.raises(config.MissingConfig) as exc:
+        config.load()
+    msg = str(exc.value)
+    assert "subscription_id" in exc.value.missing        # the old value was not picked up
+    new = tmp_path / "xdg" / "rise-eo" / "config.toml"
+    assert f"mv '{old}' '{new}'" in msg
+
+
+def test_no_move_hint_when_there_is_no_old_config(tmp_path, monkeypatch):
+    old = _only_old_config(tmp_path, monkeypatch)
+    old.unlink()
+    with pytest.raises(config.MissingConfig) as exc:
+        config.load()
+    assert "mv " not in str(exc.value)

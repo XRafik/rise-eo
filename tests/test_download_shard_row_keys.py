@@ -68,7 +68,7 @@ def test_t1_missing_keys_raise_before_any_work(recorders, tmp_path):
     msg = str(exc.value)
     assert "['properties', 'scale']" in msg
     assert "discover_shard_rows" in msg
-    assert "different fsd version" in msg
+    assert "different rise-eo version" in msg
     assert sign_calls == []
     assert transfer_calls == []
     assert catalog.appended == []
@@ -106,7 +106,7 @@ def test_t3_run_shard_fails_without_writing_status(recorders):
         msg = str(exc.value)
         assert "scale" in msg
         assert "discover_shard_rows" in msg
-        assert "different fsd version" in msg
+        assert "different rise-eo version" in msg
         assert not fs.exists(status_url)
     finally:
         mem = fsspec.filesystem("memory")

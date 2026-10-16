@@ -1,6 +1,6 @@
 """Tests for ROI → S2-grid tiling (spec 19). Synthetic, no network.
 
-Skips when the optional `[grid]` extra (`s2`/`s2cell`) isn't installed — e.g. in fsd's lean
+Skips when the optional `[grid]` extra (`s2`/`s2cell`) isn't installed — e.g. in rise-eo's lean
 `.venv`; run these from the `.venv-modeldeploy` that has `.[grid]`.
 """
 

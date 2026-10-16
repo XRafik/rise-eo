@@ -34,8 +34,8 @@ Run as (see E2E_AUSTRIA_AML.md for the full env-var contract):
     export AZ_RG=... AZ_ML_WORKSPACE=... AZ_SUBSCRIPTION_ID=... AZ_CLUSTER=...
     export AZ_UAMI_CLIENT_ID=...
     export AZ_ROOT=abfss://<fs>@<account>.dfs.core.windows.net/<prefix>
-    export AZ_ENV_NAME=fsd-aml-env AZ_ENV_VERSION=...
-    export AZ_INFER_ENV_NAME=fsd-infer-env AZ_INFER_ENV_VERSION=...
+    export AZ_ENV_NAME=rise-eo-aml-env AZ_ENV_VERSION=...
+    export AZ_INFER_ENV_NAME=rise-eo-infer-env AZ_INFER_ENV_VERSION=...
     # no CDSE credentials: MPC is anonymous (D13 as amended), and `run_aml_download`
     # refuses creds for an MPC run rather than staging a secret on blob for nothing.
     python demos/e2e_austria_aml.py --fresh --dry-run
@@ -261,7 +261,7 @@ def _measure_clock_skew(root: str) -> dict:
 
     Returns `{"seconds": None, ...}` when the backend records no mtime at all, so the
     bound reads as *unmeasured* rather than as a confident zero."""
-    probe_url = f"{root.rstrip('/')}/.fsd_clock_skew_probe"
+    probe_url = f"{root.rstrip('/')}/.rise_eo_clock_skew_probe"
     before = pd.Timestamp.now(tz="UTC")
     with fs.open(probe_url, "w") as f:
         f.write("skew-probe")
@@ -370,7 +370,7 @@ def step_preflight(ml_client, root: str) -> dict:
                     f"the VM a managed identity (E2E_AUSTRIA_AML.md §8.1 step 2): {exc}")
 
     try:
-        probe = f"{root.rstrip('/')}/.fsd_preflight_probe"
+        probe = f"{root.rstrip('/')}/.rise_eo_preflight_probe"
         with _timed_check("blob read+write", check_seconds):
             with fs.open(probe, "w") as f:
                 f.write("preflight")

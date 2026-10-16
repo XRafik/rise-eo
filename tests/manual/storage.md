@@ -40,7 +40,7 @@ import geopandas as gpd
 import shapely.geometry as sg
 from rise_eo.storage import fs
 
-WORK = tempfile.mkdtemp(prefix="fsd_storage_")
+WORK = tempfile.mkdtemp(prefix="rise_eo_storage_")
 print("WORK =", WORK)
 ```
 
@@ -179,7 +179,7 @@ with any small public object you know; AWS Open Data buckets work with `anon`.)
 import os, tempfile
 from rise_eo.storage import fs
 
-WORK = tempfile.mkdtemp(prefix="fsd_s3_")
+WORK = tempfile.mkdtemp(prefix="rise_eo_s3_")
 opts = {"anon": True}
 
 # list a public prefix (example shape; swap in a real public bucket/prefix)
@@ -205,7 +205,7 @@ import os, tempfile
 from rise_eo import config
 from rise_eo.storage import fs
 
-WORK = tempfile.mkdtemp(prefix="fsd_cdse_")
+WORK = tempfile.mkdtemp(prefix="rise_eo_cdse_")
 src_opts = {
     "key": "YOUR_S3_ACCESS_KEY",
     "secret": "YOUR_S3_SECRET_KEY",

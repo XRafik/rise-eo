@@ -617,7 +617,7 @@ def test_download_cog_accepts_remote_root_via_local_scratch(monkeypatch, tmp_pat
 
     roi = gpd.GeoDataFrame(geometry=[sg.box(36.0, 11.0, 37.0, 12.0)], crs="EPSG:4326")
     cat = TileCatalog(str(tmp_path / "c.parquet"))
-    remote_root = "memory://fsd-cdse-test/imagery"
+    remote_root = "memory://rise-eo-cdse-test/imagery"
     result = cdse.download(
         roi, datetime.datetime(2018, 1, 1), datetime.datetime(2018, 2, 1),
         ["B04"], remote_root, cat, CdseCredentials(**DUMMY_FIELDS),
@@ -628,7 +628,7 @@ def test_download_cog_accepts_remote_root_via_local_scratch(monkeypatch, tmp_pat
     import fsspec
 
     memfs = fsspec.filesystem("memory")
-    assert memfs.exists("fsd-cdse-test/imagery/tile/B04.tif")
+    assert memfs.exists("rise-eo-cdse-test/imagery/tile/B04.tif")
     gdf = cat.read()
     assert gdf["local_folderpath"].iloc[0].startswith(remote_root)
 

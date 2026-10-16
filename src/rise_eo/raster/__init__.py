@@ -19,7 +19,7 @@ from rise_eo.storage.azure import account_from_url, storage_token, to_vsi
 __all__ = ["rio_open", "rio_env"]
 
 # Without these, every remote VSI open costs more than one HTTP request: GDAL lists the
-# containing directory looking for sidecars (.aux.xml/.ovr/.msk). fsd writes no sidecars,
+# containing directory looking for sidecars (.aux.xml/.ovr/.msk). rise-eo writes no sidecars,
 # so nothing in-repo depends on one.
 # Source: gdal.org/en/stable/user/configoptions.html.
 #
@@ -28,7 +28,7 @@ __all__ = ["rio_open", "rio_env"]
 # `_REMOTE_OPEN_CONFIG` in, so it holds for both.
 #
 # ⚠️ CPL_VSIL_CURL_ALLOWED_EXTENSIONS is a WHITELIST: a remote file whose extension is not
-# listed reads as NOT EXISTING. It must cover every extension fsd opens remotely (`.tif`
+# listed reads as NOT EXISTING. It must cover every extension rise-eo opens remotely (`.tif`
 # outputs, `.jp2` bands from `cog=False` downloads, `.tiff` foreign COGs) and match
 # `datacube.builder._RASTER_EXTS`.
 _REMOTE_OPEN_CONFIG = {
@@ -106,7 +106,7 @@ def rio_open(path: str, mode: str = "r", **kwargs):
     except BaseException:
         env.__exit__(None, None, None)
         raise
-    src._fsd_vsi_env = env  # keep the Env alive for the dataset's lifetime; released on close()
+    src._rise_eo_vsi_env = env  # keep the Env alive for the dataset's lifetime; released on close()
     _wrap_close(src, env)
     return src
 

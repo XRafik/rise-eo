@@ -56,14 +56,15 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio.windows
-from fsd import config
-from fsd.catalog.catalog import COLUMNS as CATALOG_COLUMNS
-from fsd.catalog.declaration import S2_L2A_DECLARATION, to_attrs
-from fsd.raster import rio_open
-from fsd.raster.cog import to_cog
-from fsd.raster.images import crop_tif, save_geotiff
-from fsd.storage import fs
 from shapely.ops import unary_union
+
+from rise_eo import config
+from rise_eo.catalog.catalog import COLUMNS as CATALOG_COLUMNS
+from rise_eo.catalog.declaration import S2_L2A_DECLARATION, to_attrs
+from rise_eo.raster import rio_open
+from rise_eo.raster.cog import to_cog
+from rise_eo.raster.images import crop_tif, save_geotiff
+from rise_eo.storage import fs
 
 __all__ = [
     "select_granules", "check_archive", "estimate_bytes", "clip_granule",
@@ -71,7 +72,7 @@ __all__ = [
     "mgrs_tile_of", "subsample_timestamps", "redact_argv", "main",
 ]
 
-# MGRS tile in an S2 product id, e.g. "..._T33UWP_..." (mirrors fsd.catalog.stac,
+# MGRS tile in an S2 product id, e.g. "..._T33UWP_..." (mirrors rise_eo.catalog.stac,
 # duplicated rather than imported -- this generator is a standalone tool, not
 # part of the wheel, D4).
 _MGRS_TILE_RE = re.compile(r"_T(\d{2}[C-X][A-Z]{2})_")
@@ -329,7 +330,7 @@ def clip_granule(row, bands: list[str], roi_gdf: gpd.GeoDataFrame, dst_root: str
             cell = _buffered_cell(roi_gdf, src.crs)
         data, profile = crop_tif(src_fp, cell, nodata=config.NODATA, all_touched=True)
 
-        tmp_dir = tempfile.mkdtemp(prefix="fsd-tutorial-fixture-")
+        tmp_dir = tempfile.mkdtemp(prefix="rise-eo-tutorial-fixture-")
         try:
             tmp_tif = os.path.join(tmp_dir, f"{band}.tif")
             save_geotiff(tmp_tif, data, profile)
@@ -493,7 +494,7 @@ def _place_beside(src_path: str, dst_path: str) -> None:
     from the workspace root. So: same path -> do nothing; different path ->
     `storage.transfer`, which is atomic (.part + rename), copies bytes verbatim
     (no CRS/precision round-trip through GeoPandas) and works when `--out` is an
-    `abfss://` url (A1 D4: all generator I/O through `fsd.storage`, ADR 0003).
+    `abfss://` url (A1 D4: all generator I/O through `rise_eo.storage`, ADR 0003).
     """
     if not fs.exists(src_path):
         raise FileNotFoundError(f"{src_path!r} does not exist (run-book 43 Step 0 writes it).")

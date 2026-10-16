@@ -143,7 +143,7 @@ def test_run_aml_flatten_submits_exactly_one_job_non_vacuous(fake_aml_command, n
 
     result = runners.run_aml_flatten(
         input_csv, f"memory://flatten_aml_{n_rows}/out",
-        id_col="id", label_col="label", cluster="c", environment="fsd-env:1",
+        id_col="id", label_col="label", cluster="c", environment="rise-eo-env:1",
         root=f"memory://flatten_aml_{n_rows}/root", identity_client_id="deadbeef",
         ml_client=ml_client, run_id="r1",
     )
@@ -396,7 +396,7 @@ def test_create_training_data_aml_features_written_locally_after_land_local(
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=bands,
         id_col="fid", label_col="crop", export_folderpath=str(export),
         runner="aml", runner_kwargs={
-            "cluster": "c", "environment": "fsd-env:1", "root": "memory://features_aml/root",
+            "cluster": "c", "environment": "rise-eo-env:1", "root": "memory://features_aml/root",
             "identity_client_id": "id",
         },
         adapter=_FakeAdapter(),
@@ -526,7 +526,7 @@ def test_run_aml_flatten_one_job_assertion_is_non_vacuous(fake_aml_command):
 
     runners.run_aml_flatten(
         input_csv, "memory://flatten_vacuous/out", id_col="id", label_col="label",
-        cluster="c", environment="fsd-env:1", root="memory://flatten_vacuous/root",
+        cluster="c", environment="rise-eo-env:1", root="memory://flatten_vacuous/root",
         identity_client_id="id", ml_client=ml_client, run_id="r1",
     )
     with pytest.raises(AssertionError):

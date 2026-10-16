@@ -145,12 +145,12 @@ STAGING_ITEM_GB = 0.2          # rough disk per in-flight band file (the JP2 + i
 REQUIRED_KEYS = ("subscription_id", "resource_group", "workspace", "cluster", "uami_client_id")
 
 # OPTIONAL: where the registries live. `load()` returns None rather than raising --
-# a user who never touches a registry must not be blocked by one. fsd's own signatures still take
+# a user who never touches a registry must not be blocked by one. rise-eo's own signatures still take
 # `registry=` as an argument ALWAYS; these keys exist so an operator has somewhere to keep the
 # value, notably the two tracked notebooks, which are leak-guarded and may not hold a literal URL.
 OPTIONAL_KEYS = ("model_registry", "image_registry")
 
-# Order here is the order keys are written to config.toml and reported in `fsd config`.
+# Order here is the order keys are written to config.toml and reported in `rise-eo config`.
 KEYS = REQUIRED_KEYS + OPTIONAL_KEYS
 
 _KEY_TO_ENV = {
@@ -179,7 +179,8 @@ class MissingConfig(KeyError):
         env_names = ", ".join(_KEY_TO_ENV[k] for k in missing)
         self._message = (
             f"{names} — not set.\n\n"
-            f"  Run `fsd init` to fill them in (writes {config_path()}),\n"
+            f"{_legacy_config_hint()}"
+            f"  Run `rise-eo init` to fill them in (writes {config_path()}),\n"
             f"  or set {env_names} in your environment.\n\n"
             "  These are addresses, not secrets — your credential is `az login`.\n"
             "  Concrete values come from your platform admin. See docs/reference/environment.md."
@@ -191,28 +192,50 @@ class MissingConfig(KeyError):
         return self._message
 
 
-def config_dir() -> Path:
-    """The config directory, in resolution order.
-
-    1. `$FSD_CONFIG_DIR`, if set and absolute.
-    2. `$XDG_CONFIG_HOME/fsd`, if `XDG_CONFIG_HOME` is set and absolute.
-    3. POSIX: `~/.config/fsd`. Windows: `%APPDATA%\\fsd`.
-
-    A relative path in either override variable is ignored, not resolved -- the XDG spec's
-    own rule, which stops a stray `FSD_CONFIG_DIR=.` from silently writing into whatever
-    directory a notebook kernel happened to start in.
-    """
-    fsd_dir = os.environ.get("FSD_CONFIG_DIR")
-    if fsd_dir and Path(fsd_dir).is_absolute():
-        return Path(fsd_dir)
+def _config_dir_named(folder: str) -> Path:
+    """The folder `config_dir()` resolves to, were its name `folder`. Ignores `RISE_EO_CONFIG_DIR`."""
     xdg_dir = os.environ.get("XDG_CONFIG_HOME")
     if xdg_dir and Path(xdg_dir).is_absolute():
-        return Path(xdg_dir) / "fsd"
+        return Path(xdg_dir) / folder
     if os.name == "nt":
         appdata = os.environ.get("APPDATA")
         if appdata:
-            return Path(appdata) / "fsd"
-    return Path.home() / ".config" / "fsd"
+            return Path(appdata) / folder
+    return Path.home() / ".config" / folder
+
+
+def _legacy_config_hint() -> str:
+    """When the pre-rename config (`.../fsd/config.toml`, fsd <= v0.2) exists and the new one
+    does not, the command that moves it. Empty otherwise. The old folder is never read."""
+    old = _config_dir_named("fsd") / "config.toml"
+    new = config_path()
+    if not old.is_file() or new.exists():
+        return ""
+    if os.name == "nt":
+        move = f'mkdir "{new.parent}" & move "{old}" "{new}"'
+    else:
+        move = f"mkdir -p '{new.parent}' && mv '{old}' '{new}'"
+    return (
+        f"  A config from fsd <= v0.2 is at {old}; rise-eo no longer reads it. Move it:\n"
+        f"    {move}\n\n"
+    )
+
+
+def config_dir() -> Path:
+    """The config directory, in resolution order.
+
+    1. `$RISE_EO_CONFIG_DIR`, if set and absolute.
+    2. `$XDG_CONFIG_HOME/rise-eo`, if `XDG_CONFIG_HOME` is set and absolute.
+    3. POSIX: `~/.config/rise-eo`. Windows: `%APPDATA%\\rise-eo`.
+
+    A relative path in either override variable is ignored, not resolved -- the XDG spec's
+    own rule, which stops a stray `RISE_EO_CONFIG_DIR=.` from silently writing into whatever
+    directory a notebook kernel happened to start in.
+    """
+    rise_eo_dir = os.environ.get("RISE_EO_CONFIG_DIR")
+    if rise_eo_dir and Path(rise_eo_dir).is_absolute():
+        return Path(rise_eo_dir)
+    return _config_dir_named("rise-eo")
 
 
 def config_path() -> Path:
@@ -248,7 +271,7 @@ def _emit_toml(values: dict[str, str]) -> str:
     """
     width = max(len(k) for k in KEYS)
     lines = [
-        "# ~/.config/fsd/config.toml — written by `fsd init`.",
+        "# ~/.config/rise-eo/config.toml — written by `rise-eo init`.",
         "# These are addresses, not secrets. Your credential is `az login`.",
         "[azure]",
     ]
@@ -271,7 +294,7 @@ def _read_file_values() -> dict[str, str]:
 def write_config(updates: dict[str, str]) -> Path:
     """Read-modify-write `config.toml`: merge `updates` over whatever is already there.
 
-    Used by every `fsd init` form -- interactive, `--from-env-file`, and `--set` all
+    Used by every `rise-eo init` form -- interactive, `--from-env-file`, and `--set` all
     reduce to "here are some keys, keep the rest." Creates `config_dir()` if needed.
     """
     values = _read_file_values()

@@ -2,10 +2,10 @@
 
 Spec: specs/18-model-adapter.md
 
-A bundle is a folder carrying the things fsd needs to run a model anywhere: the **code** (an
+A bundle is a folder carrying the things rise-eo needs to run a model anywhere: the **code** (an
 adapter class, referenced by a `module:attribute` import string, and usually *carried inside
 the bundle*), the **artifact(s)** (weights, referenced by paths relative to the bundle), and
-the **spec** (required bands, T, output dtype/nodata/names) — mirrored as plain text so fsd
+the **spec** (required bands, T, output dtype/nodata/names) — mirrored as plain text so rise-eo
 can validate a run *without* importing the code or loading the model (model-free preflight).
 
     bundle/
@@ -21,7 +21,7 @@ a class, instantiates it, injects absolute artifact paths, and calls `.load()`.
 **Code moves into the bundle; dependencies stay in the image.** The inference image differs
 only by *dependency family* (sklearn vs torch), never by model, so an adapter never needs its
 own Docker image. Dependencies are **declared** (`requirements`) and checked by the one-node
-smoke job — fsd never installs anything at run time.
+smoke job — rise-eo never installs anything at run time.
 """
 
 from __future__ import annotations
@@ -145,7 +145,7 @@ def classify_adapter_source(adapter) -> tuple[str, str | None]:
             f"{cls.__qualname__}`), then bundle it."
         )
     if module_name.split(".")[0] == "rise_eo":
-        # fsd itself is always in the image; never drag src/rise_eo/ into a bundle.
+        # rise-eo itself is always in the image; never drag src/rise_eo/ into a bundle.
         return "installed", None
 
     try:
@@ -200,7 +200,7 @@ def adapter_code_files(adapter) -> tuple[str, list[str]] | None:
     """Auto-detection: `(root_dir, [paths relative to root_dir])`, or `None` if not embeddable.
 
     For a plain module the set is one `.py`; for a package it is the **whole package tree with its
-    layout preserved** -- which is the bug fsd fixes relative to MLflow's `code_paths`, whose
+    layout preserved** -- which is the bug rise-eo fixes relative to MLflow's `code_paths`, whose
     flattening forces users to rewrite their imports.
 
     Raises `ValueError` for the `unresolvable` origin and for a set over `MAX_CODE_FILES` /
@@ -333,7 +333,7 @@ def _check_no_unembedded_siblings(root: str, rels: list[str]) -> None:
     Parses each embedded file with `ast` (never imports it -- the module may need
     dependencies the driver lacks). For every `import X` / `from X import ...`
     anywhere in the file (by its first dotted name, so `import a.b` is `a`): skip
-    stdlib/an installed distribution/`fsd` itself (a dependency, declared
+    stdlib/an installed distribution/`rise-eo` itself (a dependency, declared
     via `requirements=`, never embedded); if `X` resolves to a file under `root` that
     is not in `rels`, refuse, naming the file and the one-line fix. Scanning is
     transitive over embedded files (a sibling that imports a sibling), bounded by the
@@ -547,7 +547,7 @@ def save(
     * `False` -- never embed; the adapter is a pip dependency of the inference image.
 
     `requirements` is an optional list of PEP 508 strings recorded for the smoke job to check.
-    fsd never installs them.
+    rise-eo never installs them.
 
     Before anything is copied, two checks turn a bundle that would save fine and
     die on a cluster node into a `save`-time `ValueError` naming the fix: the adapter's own module
@@ -621,7 +621,7 @@ def _guard_module_collision(module_name: str, code_root: str) -> None:
     The failure this prevents is a silent wrong answer, not a crash: `sys.modules` caches by name,
     so a second bundle whose module has the same name would quietly get the **first** bundle's
     class and predict with the wrong model (reported against MLflow as mlflow#12377, which cannot
-    detect it -- fsd can, because fsd knows the exact file it means to provide).
+    detect it -- rise-eo can, because rise-eo knows the exact file it means to provide).
 
     Amendment A1: compare **content**, not path. Save-then-load in one process is a normal flow
     (`api._ensure_bundle` does it), and there the imported module and the bundle's copy always sit
@@ -663,6 +663,40 @@ def _guard_module_collision(module_name: str, code_root: str) -> None:
             )
 
 
+def _legacy_fsd_imports(bundle_path: str, manifest: dict) -> list[str]:
+    """Paths (relative to the bundle) of embedded `code/` files that import the old package name.
+
+    A bundle saved with fsd <= v0.2 carries an adapter that does `import fsd` or `from fsd... import`;
+    the package is now `rise_eo` (spec 102 A11), so that adapter can no longer be imported. Found
+    statically, because the import may sit inside a method and only fail at predict time.
+    """
+    if not manifest.get("code"):
+        return []
+    code_root = os.path.join(bundle_path, manifest["code"].get("root", CODE_DIR))
+    found = []
+    for dirpath, _dirs, filenames in os.walk(code_root):
+        for fname in sorted(filenames):
+            if not fname.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, fname)
+            try:
+                with open(path, "rb") as f:
+                    tree = ast.parse(f.read())
+            except (SyntaxError, ValueError, OSError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [a.name for a in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                    names = [node.module or ""]
+                else:
+                    continue
+                if any(n.split(".")[0] == "fsd" for n in names):
+                    found.append(os.path.relpath(path, bundle_path))
+                    break
+    return sorted(found)
+
+
 def _activate_bundle_code(bundle_path: str, manifest: dict) -> None:
     """Prepend `<bundle>/code` to `sys.path` so the bundle's adapter wins.
 
@@ -696,8 +730,17 @@ def load(bundle_path: str, *, validate: bool = True):
     version = manifest.get("fsd_bundle_version")
     if version not in SUPPORTED_BUNDLE_VERSIONS:
         raise ValueError(
-            f"unsupported fsd_bundle_version={version!r} (this fsd reads "
-            f"{list(SUPPORTED_BUNDLE_VERSIONS)}). Re-save the bundle with this version of fsd."
+            f"unsupported fsd_bundle_version={version!r} (this rise-eo reads "
+            f"{list(SUPPORTED_BUNDLE_VERSIONS)}). Re-save the bundle with this version of rise-eo."
+        )
+
+    legacy = _legacy_fsd_imports(bundle_path, manifest)
+    if legacy:
+        raise ValueError(
+            "this bundle was saved with fsd <= v0.2, and its embedded adapter imports `fsd`, which "
+            "is now `rise_eo`. In " + ", ".join(legacy) + " change `fsd` to `rise_eo` (for example "
+            "`import fsd` to `import rise_eo`, `from fsd.model import X` to "
+            "`from rise_eo.model import X`), then save the bundle again."
         )
 
     # A version-1 bundle has no `code` block, which is indistinguishable from a version-2

@@ -136,7 +136,7 @@ def set_alias(
 
 
 def resolve(ref: str, registry: str, *, storage_options: dict | None = None) -> Resolved:
-    """Turn `'fsd-aml-env:7'` or `'fsd-aml-env@current'` into its published record.
+    """Turn `'rise-eo-aml-env:7'` or `'rise-eo-aml-env@current'` into its published record.
 
     `.aml` is the **current** AML asset for this definition: `_aml.json` if one is there,
     otherwise the `aml` block frozen into `image.json` when the version was first published.
