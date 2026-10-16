@@ -1,4 +1,4 @@
-"""Tests for fsd.catalog.declaration's serialization (spec 35 §2a/§3).
+"""Tests for rise_eo.catalog.declaration's serialization (spec 35 §2a/§3).
 
 Pure functions, no I/O: `to_json`/`from_json` (dataclass <-> JSON dict) and
 `to_attrs`/`from_attrs` (JSON dict <-> `GeoDataFrame.attrs`).
@@ -11,8 +11,8 @@ import geopandas as gpd
 import pytest
 import shapely
 
-from fsd.catalog import declaration as declaration_module
-from fsd.catalog.declaration import (
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.catalog.declaration import (
     S2_L2A_DECLARATION,
     CollectionDeclaration,
     MaskSpec,
@@ -73,8 +73,8 @@ def test_from_json_missing_version_raises():
 
 def test_from_json_newer_version_raises():
     raw = declaration_module.to_json(S2_L2A_DECLARATION)
-    raw["fsd_declaration_version"] = declaration_module.FSD_DECLARATION_VERSION + 1
-    with pytest.raises(ValueError, match="newer fsd"):
+    raw["fsd_declaration_version"] = declaration_module.RISE_EO_DECLARATION_VERSION + 1
+    with pytest.raises(ValueError, match="newer rise-eo"):
         declaration_module.from_json(raw)
 
 
@@ -118,7 +118,7 @@ def test_from_attrs_no_stamp_returns_none():
 
 def test_to_attrs_never_puts_the_dataclass_in_attrs():
     """spec 35 §2a's future-geopandas guard: the on-attrs value is a dict, and
-    it (and everything fsd puts in .attrs) must be JSON-able."""
+    it (and everything rise-eo puts in .attrs) must be JSON-able."""
     gdf = gpd.GeoDataFrame({"id": ["a"]}, geometry=[shapely.box(0, 0, 1, 1)], crs="EPSG:4326")
     declaration_module.to_attrs(gdf, S2_L2A_DECLARATION)
     assert not isinstance(gdf.attrs[declaration_module.ATTRS_KEY], CollectionDeclaration)
@@ -128,7 +128,7 @@ def test_to_attrs_never_puts_the_dataclass_in_attrs():
 
 # --- spec 58 AC10: the v1 <-> v2 footer contract ---------------------------------------
 
-# A verbatim v1 footer, as a pre-spec-58 fsd wrote it: version 1, only the six v1 fields,
+# A verbatim v1 footer, as a pre-spec-58 rise-eo wrote it: version 1, only the six v1 fields,
 # and a `mask_spec` with no `bits`. Frozen as a literal on purpose -- deriving it from
 # today's `to_json` would silently track any future field change and stop being the v1
 # shape it exists to pin.
@@ -148,7 +148,7 @@ _V1_FIELDS = ("reference_band", "native_grid", "mask_spec", "mask_keep", "nodata
 
 
 def test_from_json_parses_a_v1_footer():
-    """Spec 58 AC10 (first half): a catalog stamped by a pre-spec-58 fsd still reads.
+    """Spec 58 AC10 (first half): a catalog stamped by a pre-spec-58 rise-eo still reads.
     Every v2-only field takes its dataclass default, which for S2 is exactly what the
     v1-era code meant -- `scale=1.0`, `radiometry_bands=None`, no aliases."""
     decl = declaration_module.from_json(_V1_FOOTER)
@@ -162,14 +162,14 @@ def test_from_json_parses_a_v1_footer():
 
 def test_v2_footer_read_by_v1_era_code_raises_version_mismatch_not_unknown_field():
     """Spec 58 AC10 (second half): the version check must run BEFORE the unknown-field
-    check, or a v1-era fsd meeting a v2 footer reports "unknown field ['scale', ...]" --
-    which reads as a corrupt catalog -- instead of "upgrade fsd" (spec 35 §5a).
+    check, or a v1-era rise-eo meeting a v2 footer reports "unknown field ['scale', ...]" --
+    which reads as a corrupt catalog -- instead of "upgrade rise-eo" (spec 35 §5a).
     Simulated by shrinking this module's known-version/known-field sets back to v1's."""
     v2_footer = declaration_module.to_json(S2_L2A_DECLARATION)
     assert v2_footer["fsd_declaration_version"] == 2
 
-    with mock.patch.object(declaration_module, "FSD_DECLARATION_VERSION", 1):
+    with mock.patch.object(declaration_module, "RISE_EO_DECLARATION_VERSION", 1):
         with mock.patch.object(declaration_module, "_DECLARATION_FIELDS", _V1_FIELDS):
-            with pytest.raises(ValueError, match="newer fsd") as exc:
+            with pytest.raises(ValueError, match="newer rise-eo") as exc:
                 declaration_module.from_json(v2_footer)
     assert "unknown field" not in str(exc.value)

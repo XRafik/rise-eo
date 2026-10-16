@@ -38,8 +38,8 @@ import geopandas as gpd
 import rasterio
 import rasterio.windows
 
-from fsd.raster.cog import to_cog
-from fsd.storage import fs
+from rise_eo.raster.cog import to_cog
+from rise_eo.storage import fs
 
 ROOT = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 CATALOG = f"{ROOT}/satellite_benchmark/sentinel-2-l2a/catalog.parquet"

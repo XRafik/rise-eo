@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import pytest
 
-from fsd import api
-from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-from fsd.datacube import builder
-from fsd.sources import cdse, mpc
+from rise_eo import api
+from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
+from rise_eo.datacube import builder
+from rise_eo.sources import cdse, mpc
 
 # --- AC6: a requested band absent from an item raises, naming the band + collection ---
 
@@ -82,7 +82,7 @@ def test_ac8_unserved_source_collection_pair_raises_naming_served_collections():
 def test_max_cloudcover_against_a_no_cloudcover_collection_raises():
     import dataclasses
 
-    from fsd import collections as _collections
+    from rise_eo import collections as _collections
 
     no_cc_id = "spec58-p1-test-no-cloudcover"
     base = _collections.get("sentinel-2-l2a")
@@ -112,7 +112,7 @@ def test_served_collections_are_disjoint_from_unknown_names():
 def test_build_variant_with_differing_artifact_fact_raises():
     import geopandas as gpd
 
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     stamped = declaration_module.S2_L2A_DECLARATION
     variant = CollectionDeclaration(
@@ -128,7 +128,7 @@ def test_build_variant_with_differing_artifact_fact_raises():
 def test_build_variant_with_only_policy_difference_is_accepted():
     import geopandas as gpd
 
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     stamped = declaration_module.S2_L2A_DECLARATION
     variant = CollectionDeclaration(
@@ -161,7 +161,7 @@ def test_download_forwards_max_concurrent_to_both_sources(monkeypatch, tmp_path)
     Pinned for BOTH sources, because a parameter wired for one and silently ignored for the
     other is worse than one that does not exist.
     """
-    from fsd import api as _api
+    from rise_eo import api as _api
 
     seen = {}
 

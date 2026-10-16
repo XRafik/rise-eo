@@ -1,12 +1,12 @@
 # mini-MPC — a local pgSTAC + titiler-pgstac harness
 
-A **local, throwaway** stack that loads an fsd STAC catalog into a stock pgSTAC +
+A **local, throwaway** stack that loads a rise-eo STAC catalog into a stock pgSTAC +
 stac-fastapi-pgstac + titiler-pgstac and serves it through the same **register → searchId → XYZ**
 flow Microsoft Planetary Computer (MPC) uses — the path STACNotator treats as a first-class fast
 path (`../../STACNOTATOR_DIGEST.md §3`, workspace root, not part of this repo).
 
-**Dataset-agnostic.** It was built for spec 30 (Tier-2 serving validation of fsd's crop-map
-**inference outputs**), but nothing in the stack is specific to that dataset — any fsd static STAC
+**Dataset-agnostic.** It was built for spec 30 (Tier-2 serving validation of rise-eo's crop-map
+**inference outputs**), but nothing in the stack is specific to that dataset — any rise-eo static STAC
 catalog loads and serves the same way. Two datasets are used in the repo:
 
 | Dataset | STAC catalog | What it serves | Run-book |
@@ -46,23 +46,23 @@ Pins are cross-checked: `stac-fastapi.pgstac` and `titiler.pgstac` both require
 ## The `/data` mount — the one non-obvious wiring step
 
 The `raster` container reads COG pixels from a host folder bind-mounted to `/data`, set by
-**`FSD_OUTPUTS_DIR`** in `.env` (relative to *this* `demos/mini_mpc/` dir). `load_pgstac.py`
-rewrites every asset href to `/data/<path-under-outputs-dir>`, so **`FSD_OUTPUTS_DIR` and
+**`RISE_EO_OUTPUTS_DIR`** in `.env` (relative to *this* `demos/mini_mpc/` dir). `load_pgstac.py`
+rewrites every asset href to `/data/<path-under-outputs-dir>`, so **`RISE_EO_OUTPUTS_DIR` and
 `load_pgstac.py --outputs-dir` must resolve to the same physical folder**, or every tile 404s with
-`/data/<...>: No such file or directory`. Changing `FSD_OUTPUTS_DIR` requires **recreating** the
+`/data/<...>: No such file or directory`. Changing `RISE_EO_OUTPUTS_DIR` requires **recreating** the
 container (`docker compose up -d --force-recreate raster`) — editing `.env` alone does nothing to a
 running container. Verify the live mount:
 
 ```bash
-docker inspect fsd-mini-mpc-raster --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+docker inspect rise-eo-mini-mpc-raster --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
 ```
 
 ## Scripts
 
-- `load_pgstac.py` — reads an fsd static STAC catalog (`--stac-dir`, a `catalog.json` tree),
+- `load_pgstac.py` — reads a rise-eo static STAC catalog (`--stac-dir`, a `catalog.json` tree),
   rewrites each COG's asset href to `/data/...` (relative to `--outputs-dir`), emits
   `collections.ndjson` + `items.ndjson`, and `pypgstac load`s both into `database`. Dataset-agnostic.
-- `register_and_url.py` — a **crop-map-specific** helper: registers a `collections=["fsd-inference"]`
+- `register_and_url.py` — a **crop-map-specific** helper: registers a `collections=["rise-eo-inference"]`
   search and prints an XYZ URL baked with the discrete **class colormap** (`assets=output`,
   `nodata=255`). Use it **only** for the inference-output dataset. For **RGB / reflectance imagery**
   it does not apply — build the tile URL by hand (see the cookbook below); `--unscale`/`--rescale`/
@@ -74,26 +74,26 @@ docker inspect fsd-mini-mpc-raster --format '{{range .Mounts}}{{.Source}} -> {{.
 
 ## Bring-up (general)
 
-`load_pgstac.py`/`register_and_url.py` import `fsd`, so run them from a venv with fsd installed
+`load_pgstac.py`/`register_and_url.py` import `rise-eo`, so run them from a venv with rise-eo installed
 (the core `.venv` is enough for `load_pgstac.py`; `register_and_url.py` also needs `requests`).
 
 ```bash
 cd demos/mini_mpc
-cp .env.example .env                          # then set FSD_OUTPUTS_DIR (see the mount note above)
+cp .env.example .env                          # then set RISE_EO_OUTPUTS_DIR (see the mount note above)
 docker compose up --build -d                  # first run builds the two app images
 docker compose ps -a                          # all 3 up; db healthy; raster shows :8082
 
 cd ../..                                       # run scripts from repo root so fsd/demos import
 .venv/bin/python demos/mini_mpc/load_pgstac.py \
     --stac-dir <your STAC catalog dir> \
-    --outputs-dir <the folder FSD_OUTPUTS_DIR points at>
+    --outputs-dir <the folder RISE_EO_OUTPUTS_DIR points at>
 ```
 
-**Worked example A — inference outputs (spec 30):** `FSD_OUTPUTS_DIR=../../tests/outputs/demo_e2e/model_outputs/cells`,
+**Worked example A — inference outputs (spec 30):** `RISE_EO_OUTPUTS_DIR=../../tests/outputs/demo_e2e/model_outputs/cells`,
 `--stac-dir tests/outputs/demo_e2e/model_outputs/stac`, `--outputs-dir tests/outputs/demo_e2e/model_outputs/cells`,
 then `register_and_url.py` for the crop-map XYZ URL.
 
-**Worked example B — raw imagery (spec 34b):** `FSD_OUTPUTS_DIR=../../tests/outputs/spec34_mixed_baseline`,
+**Worked example B — raw imagery (spec 34b):** `RISE_EO_OUTPUTS_DIR=../../tests/outputs/spec34_mixed_baseline`,
 `--stac-dir tests/outputs/spec34_mixed_baseline/stac`, `--outputs-dir tests/outputs/spec34_mixed_baseline`,
 then build an RGB `unscale` URL by hand (cookbook below). Full walk-through: run-book 34-mini-mpc-cross-baseline, at tag `docs-archive-2026`.
 
@@ -107,7 +107,7 @@ All `curl`s assume the default local ports. `RASTER=http://localhost:8082`, `STA
 
 ```bash
 # 1. point the mount at the new folder (demos/mini_mpc/.env, relative to this dir)
-#    FSD_OUTPUTS_DIR=../../tests/outputs/<your-dataset>
+#    RISE_EO_OUTPUTS_DIR=../../tests/outputs/<your-dataset>
 # 2. recreate the raster container so it re-mounts
 cd demos/mini_mpc && docker compose up -d --force-recreate raster && cd ../..
 # 3. load the new catalog (see Bring-up). Loading is additive — old collections remain

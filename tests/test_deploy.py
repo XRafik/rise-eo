@@ -1,4 +1,4 @@
-"""Spec 51 §9 step 2 — `fsd.deploy` (D5/D6/D7).
+"""Spec 51 §9 step 2 — `rise_eo.deploy` (D5/D6/D7).
 
 One test group per acceptance criterion this step owns (handoff-spec51-step2-deploy.md):
 AC1, AC2, AC3, AC5, AC7, AC8, AC9, AC10 (the record half), AC13. D6's live-adapter refusal
@@ -25,13 +25,13 @@ import types
 
 import pytest
 
-from fsd import api
-from fsd.model import bundle, registry
-from fsd.storage import fs
-from fsd.workflows import runners
+from rise_eo import api
+from rise_eo.model import bundle, registry
+from rise_eo.storage import fs
+from rise_eo.workflows import runners
 
 ADAPTER_SRC = '''
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 class TinyAdapter(BaseModelAdapter):
@@ -104,8 +104,8 @@ def test_deploy_publishes_v1_and_run_inference_accepts_the_ref(tmp_path, importa
     registry_root = str(tmp_path / "registry")
 
     ref = api.deploy(
-        bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:6",
-        verified=_matching_verified(bpath, "fsd-infer-sklearn:6"),
+        bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:6",
+        verified=_matching_verified(bpath, "rise-eo-infer-sklearn:6"),
     )
 
     assert ref == "crop-rf:1"
@@ -138,8 +138,8 @@ def test_deploy_set_alias_resolve_run_inference_against_a_url_registry(tmp_path,
     registry_root = "memory://ac8-registry"
 
     ref = api.deploy(
-        bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:6",
-        alias="champion", verified=_matching_verified(bpath, "fsd-infer-sklearn:6"),
+        bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:6",
+        alias="champion", verified=_matching_verified(bpath, "rise-eo-infer-sklearn:6"),
     )
     assert ref == "crop-rf:1"
 
@@ -274,7 +274,7 @@ def test_deploy_runs_verify_image_and_publishes_on_pass(tmp_path, importable, fa
         json.dump({"status": "ok", "error": None}, f)
 
     ref = api.deploy(
-        bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:3",
+        bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:3",
         runner_kwargs=dict(cluster="c", root=aml_root, identity_client_id="x",
                            ml_client=ml_client, run_id="runok"),
     )
@@ -303,7 +303,7 @@ def test_deploy_refuses_on_verify_image_failure_and_creates_no_version(
     # says "error: None" and tells the operator nothing about why their model failed.
     with pytest.raises(api.PreflightError, match=r"has not been proven.*predict\(\) raised"):
         api.deploy(
-            bpath, name="crop-rf", registry=registry_root, environment="fsd-infer-sklearn:3",
+            bpath, name="crop-rf", registry=registry_root, environment="rise-eo-infer-sklearn:3",
             runner_kwargs=dict(cluster="c", root=aml_root, identity_client_id="x",
                                ml_client=ml_client, run_id="runfail"),
         )
@@ -484,7 +484,7 @@ def test_deploy_refuses_a_name_a_ref_cannot_carry(tmp_path, importable, name, mo
     monkeypatch.setattr(api, "_verify_image", _forbidden)
     registry_root = str(tmp_path / "registry")
 
-    with pytest.raises(api.PreflightError, match="fsd.deploy"):
+    with pytest.raises(api.PreflightError, match="rise_eo.deploy"):
         api.deploy(bpath, name=name, registry=registry_root, environment="env:1")
     assert not fs.exists(registry_root)
 
@@ -499,14 +499,14 @@ def test_a_deployed_ref_is_ref_shaped_so_run_inference_resolves_it(tmp_path, imp
     assert registry.parse_ref(ref)[0] == "crop_rf-2026"
 
 
-# --- D6: a live adapter is refused, naming fsd.model.bundle.save ------------------------
+# --- D6: a live adapter is refused, naming rise_eo.model.bundle.save ------------------------
 
 
 def test_deploy_refuses_a_live_adapter(tmp_path, importable):
     importable("tdlivemod.py")
     import tdlivemod
     try:
-        with pytest.raises(api.PreflightError, match="fsd.model.bundle.save"):
+        with pytest.raises(api.PreflightError, match="rise_eo.model.bundle.save"):
             api.deploy(tdlivemod.TinyAdapter(), name="crop-rf", registry=str(tmp_path / "registry"),
                       environment="env:1")
     finally:
@@ -526,14 +526,14 @@ def test_deploy_refuses_verify_adapters_real_auto_saved_bundle(tmp_path, importa
     import pandas as pd
     import shapely.geometry
 
-    import fsd
-    import fsd.grid as grid_mod
-    from fsd.workflows import create_datacube as _create_datacube
-    from fsd.workflows import infer_only_task as _infer_only_task
+    import rise_eo
+    import rise_eo.grid as grid_mod
+    from rise_eo.workflows import create_datacube as _create_datacube
+    from rise_eo.workflows import infer_only_task as _infer_only_task
 
     modname = "tdac14adapter"
     importable(f"{modname}.py", src="""
-from fsd.model.adapter import BaseModelAdapter
+from rise_eo.model.adapter import BaseModelAdapter
 
 
 class TinyAdapter(BaseModelAdapter):
@@ -595,7 +595,7 @@ class TinyAdapter(BaseModelAdapter):
 
     export = str(tmp_path / "export")
     try:
-        result = fsd.verify_adapter(
+        result = rise_eo.verify_adapter(
             mod.TinyAdapter(), roi=roi, catalog_filepath=cat,
             startdate="2018-01-01", enddate="2018-03-02", mosaic_days=20,
             bands=["B04", "B08"], export_folderpath=export, cell="cell_a",
@@ -619,10 +619,10 @@ class TinyAdapter(BaseModelAdapter):
 def test_deploy_writes_the_deploy_record(tmp_path, importable):
     bpath = _deployable_bundle(tmp_path, importable, modname="tdmod12")
     registry_root = str(tmp_path / "registry")
-    verified = _matching_verified(bpath, "fsd-infer-sklearn:6")
+    verified = _matching_verified(bpath, "rise-eo-infer-sklearn:6")
 
     ref = api.deploy(bpath, name="crop-rf", registry=registry_root,
-                     environment="fsd-infer-sklearn:6", verified=verified)
+                     environment="rise-eo-infer-sklearn:6", verified=verified)
 
     v1_path = registry.version_path(registry_root, "crop-rf", 1)
     with fs.open(os.path.join(v1_path, registry.DEPLOY_FILE), "r") as f:
@@ -631,7 +631,7 @@ def test_deploy_writes_the_deploy_record(tmp_path, importable):
     assert record["name"] == "crop-rf"
     assert record["version"] == 1
     assert record["digest"] == registry.content_digest(bpath)
-    assert record["environment"] == "fsd-infer-sklearn:6"
+    assert record["environment"] == "rise-eo-infer-sklearn:6"
     assert record["verified"] == verified
     assert "deployed_at" in record and "fsd_version" in record
     assert ref == "crop-rf:1"

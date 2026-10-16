@@ -16,8 +16,8 @@ import os
 
 import pytest
 
-from fsd.model import bundle
-from fsd.sources import cdse, download_cli
+from rise_eo.model import bundle
+from rise_eo.sources import cdse, download_cli
 
 # --- bundle: _check_no_unembedded_siblings -------------------------------------------------
 
@@ -53,7 +53,7 @@ BUNDLE_CASES = {
     "relative_from_dot_name": (
         {"main.py": "from .zqrel import y\n", "zqrel.py": ""}, ["main.py"],
     ),
-    "import_fsd": ({"main.py": "import fsd\n", "fsd.py": ""}, ["main.py"]),
+    "import_rise_eo": ({"main.py": "import rise_eo\n", "rise_eo.py": ""}, ["main.py"]),
     "stdlib_shadow": ({"main.py": "import json\n", "json.py": ""}, ["main.py"]),
     "installed_shadow": ({"main.py": "import numpy\n", "numpy.py": ""}, ["main.py"]),
     "resolves_nowhere": ({"main.py": "import zqnowhere\n"}, ["main.py"]),
@@ -308,7 +308,7 @@ EXPECTED_BUNDLE = {'direct_sibling': "main.py imports 'zqsib', which resolves to
  'import_dotted': "main.py imports 'zqdot', which resolves to './root/zqdot.py' but is not "
                   'embedded. The node would raise ModuleNotFoundError after a cold start.\n'
                   "Fix: code=['./root/main.py', './root/zqdot.py']",
- 'import_fsd': 'OK',
+ 'import_rise_eo': 'OK',
  'import_in_function_body': "main.py imports 'zqsib', which resolves to './root/zqsib.py' but "
                             'is not embedded. The node would raise ModuleNotFoundError after '
                             'a cold start.\n'
@@ -373,9 +373,9 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                '  "error": "RuntimeError(\'boom\')"\n'
                                '}',
                 'stderr': '',
-                'stdout': '[fsd.download_cli] probing throughput (downloads 1 band file)…\n'
-                          '[fsd.download_cli] probe: 12.3 MB/s\n'
-                          '[fsd.download_cli] discovering + planning download…\n'},
+                'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band file)…\n'
+                          '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                          '[rise_eo.download_cli] discovering + planning download…\n'},
  'dry_run': {'raised': None,
              'rc': 0,
              'result_text': '{\n'
@@ -393,7 +393,7 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
              'stderr': '',
              'stdout': 'imagery for this run is not (fully) present in the catalog.\n'
                        '  needed: 7 granules | present: 2 | missing: 5\n'
-                       '  run fsd.download(\n'
+                       '  run rise_eo.download(\n'
                        '      roi=\'roi.geojson\', startdate="2018-04-01", '
                        'enddate="2018-06-01",\n'
                        '      bands=["B04"], max_tiles=7, max_cloudcover=None, '
@@ -419,7 +419,7 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                            'stdout': 'imagery for this run is not (fully) present in the '
                                      'catalog.\n'
                                      '  needed: 7 granules | present: 2 | missing: 5\n'
-                                     '  run fsd.download(\n'
+                                     '  run rise_eo.download(\n'
                                      '      roi=\'roi.geojson\', startdate="2018-04-01", '
                                      'enddate="2018-06-01",\n'
                                      '      bands=["B04"], max_tiles=7, max_cloudcover=None, '
@@ -456,11 +456,11 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                   '  "error": null\n'
                                   '}',
                    'stderr': '',
-                   'stdout': '[fsd.download_cli] probing throughput (downloads 1 band file)…\n'
-                             '[fsd.download_cli] probe: 12.3 MB/s\n'
-                             '[fsd.download_cli] discovering + planning download…\n'
+                   'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band file)…\n'
+                             '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                             '[rise_eo.download_cli] discovering + planning download…\n'
                              '\n'
-                             '[fsd.download_cli] stopped: successful=0 failed=0 (total across '
+                             '[rise_eo.download_cli] stopped: successful=0 failed=0 (total across '
                              'passes 0) skipped=0 (0.00 GB) | transfer=0.0s convert=0.0s | '
                              'probe=12.3 MB/s per-stream=0.0 wall=0.0 MB/s | stopped=True '
                              'circuit_tripped=False pool_broken=False\n'},
@@ -495,17 +495,17 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                                    '  },\n'
                                                    '  "error": null\n'
                                                    '}',
-                                    'stderr': '[fsd.download_cli] warning: stop-file '
+                                    'stderr': '[rise_eo.download_cli] warning: stop-file '
                                               '<tmp>/stop already exists — this run will stop '
                                               'immediately without downloading. rm it first '
                                               'to actually download.\n',
-                                    'stdout': '[fsd.download_cli] probing throughput '
+                                    'stdout': '[rise_eo.download_cli] probing throughput '
                                               '(downloads 1 band file)…\n'
-                                              '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                              '[fsd.download_cli] discovering + planning '
+                                              '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                              '[rise_eo.download_cli] discovering + planning '
                                               'download…\n'
                                               '\n'
-                                              '[fsd.download_cli] stopped: successful=0 '
+                                              '[rise_eo.download_cli] stopped: successful=0 '
                                               'failed=0 (total across passes 0) skipped=0 '
                                               '(0.00 GB) | transfer=0.0s convert=0.0s | '
                                               'probe=12.3 MB/s per-stream=0.0 wall=0.0 MB/s | '
@@ -545,12 +545,12 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                      'unresolved failures"\n'
                                      '}',
                       'stderr': '',
-                      'stdout': '[fsd.download_cli] probing throughput (downloads 1 band '
+                      'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band '
                                 'file)…\n'
-                                '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                '[fsd.download_cli] discovering + planning download…\n'
+                                '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                '[rise_eo.download_cli] discovering + planning download…\n'
                                 '\n'
-                                '[fsd.download_cli] failed: successful=5 failed=4 (total '
+                                '[rise_eo.download_cli] failed: successful=5 failed=4 (total '
                                 'across passes 4) skipped=1 (2.35 GB) | transfer=40.0s '
                                 'convert=3.3s | probe=12.3 MB/s per-stream=58.6 wall=234.5 '
                                 'MB/s | stopped=False circuit_tripped=True '
@@ -587,13 +587,13 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                                   '  "error": null\n'
                                                   '}',
                                    'stderr': '',
-                                   'stdout': '[fsd.download_cli] probing throughput '
+                                   'stdout': '[rise_eo.download_cli] probing throughput '
                                              '(downloads 1 band file)…\n'
-                                             '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                             '[fsd.download_cli] discovering + planning '
+                                             '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                             '[rise_eo.download_cli] discovering + planning '
                                              'download…\n'
                                              '\n'
-                                             '[fsd.download_cli] stopped: successful=5 '
+                                             '[rise_eo.download_cli] stopped: successful=5 '
                                              'failed=2 (total across passes 2) skipped=1 '
                                              '(2.35 GB) | transfer=40.0s convert=3.3s | '
                                              'probe=12.3 MB/s per-stream=58.6 wall=234.5 MB/s '
@@ -631,12 +631,12 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                            '  "error": "circuit breaker tripped"\n'
                                            '}',
                             'stderr': '',
-                            'stdout': '[fsd.download_cli] probing throughput (downloads 1 '
+                            'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 '
                                       'band file)…\n'
-                                      '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                      '[fsd.download_cli] discovering + planning download…\n'
+                                      '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                      '[rise_eo.download_cli] discovering + planning download…\n'
                                       '\n'
-                                      '[fsd.download_cli] failed: successful=5 failed=0 '
+                                      '[rise_eo.download_cli] failed: successful=5 failed=0 '
                                       '(total across passes 0) skipped=1 (2.35 GB) | '
                                       'transfer=40.0s convert=3.3s | probe=12.3 MB/s '
                                       'per-stream=58.6 wall=234.5 MB/s | stopped=False '
@@ -675,13 +675,13 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                                      'unresolved failures"\n'
                                                      '}',
                                       'stderr': '',
-                                      'stdout': '[fsd.download_cli] probing throughput '
+                                      'stdout': '[rise_eo.download_cli] probing throughput '
                                                 '(downloads 1 band file)…\n'
-                                                '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                                '[fsd.download_cli] discovering + planning '
+                                                '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                                '[rise_eo.download_cli] discovering + planning '
                                                 'download…\n'
                                                 '\n'
-                                                '[fsd.download_cli] failed: successful=5 '
+                                                '[rise_eo.download_cli] failed: successful=5 '
                                                 'failed=1 (total across passes 1) skipped=1 '
                                                 '(2.35 GB) | transfer=40.0s convert=3.3s | '
                                                 'probe=12.3 MB/s per-stream=58.6 wall=234.5 '
@@ -720,12 +720,12 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                           'pass"\n'
                                           '}',
                            'stderr': '',
-                           'stdout': '[fsd.download_cli] probing throughput (downloads 1 band '
+                           'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band '
                                      'file)…\n'
-                                     '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                     '[fsd.download_cli] discovering + planning download…\n'
+                                     '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                     '[rise_eo.download_cli] discovering + planning download…\n'
                                      '\n'
-                                     '[fsd.download_cli] failed: successful=2 failed=3 (total '
+                                     '[rise_eo.download_cli] failed: successful=2 failed=3 (total '
                                      'across passes 3) skipped=1 (2.35 GB) | transfer=40.0s '
                                      'convert=3.3s | probe=12.3 MB/s per-stream=58.6 '
                                      'wall=234.5 MB/s | stopped=False circuit_tripped=False '
@@ -762,11 +762,11 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                        '  "error": null\n'
                        '}',
         'stderr': '',
-        'stdout': '[fsd.download_cli] probing throughput (downloads 1 band file)…\n'
-                  '[fsd.download_cli] probe: 12.3 MB/s\n'
-                  '[fsd.download_cli] discovering + planning download…\n'
+        'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band file)…\n'
+                  '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                  '[rise_eo.download_cli] discovering + planning download…\n'
                   '\n'
-                  '[fsd.download_cli] ok: successful=5 failed=0 (total across passes 0) '
+                  '[rise_eo.download_cli] ok: successful=5 failed=0 (total across passes 0) '
                   'skipped=1 (2.35 GB) | transfer=40.0s convert=3.3s | probe=12.3 MB/s '
                   'per-stream=58.6 wall=234.5 MB/s | stopped=False circuit_tripped=False '
                   'pool_broken=False\n'},
@@ -803,7 +803,7 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                      '}',
                       'stderr': '',
                       'stdout': '\n'
-                                '[fsd.download_cli] ok: successful=5 failed=0 (total across '
+                                '[rise_eo.download_cli] ok: successful=5 failed=0 (total across '
                                 'passes 0) skipped=1 (2.35 GB) | transfer=40.0s convert=3.3s '
                                 '| probe=0.0 MB/s per-stream=58.6 wall=234.5 MB/s | '
                                 'stopped=False circuit_tripped=False pool_broken=False\n'},
@@ -839,12 +839,12 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                            '  "error": null\n'
                                            '}',
                             'stderr': '',
-                            'stdout': '[fsd.download_cli] probing throughput (downloads 1 '
+                            'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 '
                                       'band file)…\n'
-                                      '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                      '[fsd.download_cli] discovering + planning download…\n'
+                                      '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                      '[rise_eo.download_cli] discovering + planning download…\n'
                                       '\n'
-                                      '[fsd.download_cli] ok: successful=8 failed=0 (total '
+                                      '[rise_eo.download_cli] ok: successful=8 failed=0 (total '
                                       'across passes 2) skipped=1 (2.44 GB) | transfer=42.0s '
                                       'convert=3.3s | probe=12.3 MB/s per-stream=58.2 '
                                       'wall=222.3 MB/s | stopped=False circuit_tripped=False '
@@ -881,13 +881,13 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                                        '  "error": null\n'
                                                        '}',
                                         'stderr': '',
-                                        'stdout': '[fsd.download_cli] probing throughput '
+                                        'stdout': '[rise_eo.download_cli] probing throughput '
                                                   '(downloads 1 band file)…\n'
-                                                  '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                                  '[fsd.download_cli] discovering + planning '
+                                                  '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                                  '[rise_eo.download_cli] discovering + planning '
                                                   'download…\n'
                                                   '\n'
-                                                  '[fsd.download_cli] ok: successful=5 '
+                                                  '[rise_eo.download_cli] ok: successful=5 '
                                                   'failed=0 (total across passes 0) skipped=1 '
                                                   '(2.35 GB) | transfer=40.0s convert=3.3s | '
                                                   'probe=12.3 MB/s per-stream=58.6 wall=234.5 '
@@ -926,12 +926,12 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                        '  "error": null\n'
                                        '}',
                         'stderr': '',
-                        'stdout': '[fsd.download_cli] probing throughput (downloads 1 band '
+                        'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band '
                                   'file)…\n'
-                                  '[fsd.download_cli] probe: 12.3 MB/s\n'
-                                  '[fsd.download_cli] discovering + planning download…\n'
+                                  '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                                  '[rise_eo.download_cli] discovering + planning download…\n'
                                   '\n'
-                                  '[fsd.download_cli] ok: successful=5 failed=0 (total across '
+                                  '[rise_eo.download_cli] ok: successful=5 failed=0 (total across '
                                   'passes 0) skipped=1 (2.35 GB) | transfer=40.0s '
                                   'convert=3.3s | probe=12.3 MB/s per-stream=58.6 wall=234.5 '
                                   'MB/s | stopped=False circuit_tripped=False '
@@ -968,11 +968,11 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                             '  "error": null\n'
                             '}',
              'stderr': '',
-             'stdout': '[fsd.download_cli] probing throughput (downloads 1 band file)…\n'
-                       '[fsd.download_cli] probe: 12.3 MB/s\n'
-                       '[fsd.download_cli] discovering + planning download…\n'
+             'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band file)…\n'
+                       '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                       '[rise_eo.download_cli] discovering + planning download…\n'
                        '\n'
-                       '[fsd.download_cli] stopped: successful=2 failed=0 (total across '
+                       '[rise_eo.download_cli] stopped: successful=2 failed=0 (total across '
                        'passes 0) skipped=1 (2.35 GB) | transfer=40.0s convert=3.3s | '
                        'probe=12.3 MB/s per-stream=58.6 wall=234.5 MB/s | stopped=True '
                        'circuit_tripped=False pool_broken=False\n'},
@@ -1008,11 +1008,11 @@ EXPECTED_CLI = {'crash_dry_run': {'raised': 'ValueError: nope',
                                  '  "error": null\n'
                                  '}',
                   'stderr': '',
-                  'stdout': '[fsd.download_cli] probing throughput (downloads 1 band file)…\n'
-                            '[fsd.download_cli] probe: 12.3 MB/s\n'
-                            '[fsd.download_cli] discovering + planning download…\n'
+                  'stdout': '[rise_eo.download_cli] probing throughput (downloads 1 band file)…\n'
+                            '[rise_eo.download_cli] probe: 12.3 MB/s\n'
+                            '[rise_eo.download_cli] discovering + planning download…\n'
                             '\n'
-                            '[fsd.download_cli] ok: successful=5 failed=0 (total across '
+                            '[rise_eo.download_cli] ok: successful=5 failed=0 (total across '
                             'passes 0) skipped=0 (0.01 GB) | transfer=0.0s convert=0.0s | '
                             'probe=12.3 MB/s per-stream=0.0 wall=0.0 MB/s | stopped=False '
                             'circuit_tripped=False pool_broken=False\n'}}

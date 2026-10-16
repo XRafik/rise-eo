@@ -4,7 +4,7 @@ Measures how the wall-time to build N datacubes scales with build parallelism
 (`cores`), over a fixed set of geometries, and where the time goes per step. Emits a
 baseline report + a stats JSON we re-run to track future speedups. No read-path
 instrumentation (that is Part 2 / spec 12); this only reads the per-build `timings.json`
-sidecar (builder `write_timings`, enabled here via the `FSD_WRITE_TIMINGS` env var) and
+sidecar (builder `write_timings`, enabled here via the `RISE_EO_WRITE_TIMINGS` env var) and
 the Snakemake `start.txt`/`done.txt` sentinels.
 
 Run:  python -m benchmarks.datacube_throughput_sweep            # full: 100 grids, cores 1..10
@@ -27,8 +27,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from fsd.storage import fs
-from fsd.workflows import create_datacube, runners
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube, runners
 
 ROOT = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 CATALOG = f"{ROOT}/satellite_benchmark/sentinel-2-l2a/catalog.parquet"
@@ -268,9 +268,9 @@ def _progress(folders: list[str], n: int, t0: float, tag: str, stop: list) -> No
 
 def run_sweep(input_df: pd.DataFrame, cores_list: list[int], repeats: int,
               read_log: bool = False) -> list[dict]:
-    os.environ["FSD_WRITE_TIMINGS"] = "1"
+    os.environ["RISE_EO_WRITE_TIMINGS"] = "1"
     if read_log:
-        os.environ["FSD_WRITE_READ_LOG"] = "1"   # inherited by task subprocesses
+        os.environ["RISE_EO_WRITE_READ_LOG"] = "1"   # inherited by task subprocesses
     folders = input_df["export_folderpath"].tolist()
     n = len(input_df)
     total_runs = len(cores_list) * repeats

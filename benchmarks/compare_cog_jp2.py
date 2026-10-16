@@ -16,7 +16,7 @@ import json
 import os
 from pathlib import Path
 
-from fsd.storage import fs
+from rise_eo.storage import fs
 
 ROOT = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 BENCH = f"{ROOT}/fsd/benchmarks"

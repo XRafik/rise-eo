@@ -12,9 +12,9 @@ import os
 import numpy as np
 import pandas as pd
 
-from fsd import api
-from fsd.storage import fs
-from fsd.workflows import create_datacube as cd
+from rise_eo import api
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube as cd
 
 
 def _write_cube(folder, *, empty_metadata=False):
@@ -37,8 +37,8 @@ def _cube_dir(run_folder, id_value):
     fix that makes a row current only if it names that path). These tests used to
     hand-build `run_folder/<id>/`, which a real `setup` has never written -- such a row
     is now purged as stale, so the fixtures use the derived path like everything else."""
-    from fsd import collections as _collections
-    from fsd import config
+    from rise_eo import collections as _collections
+    from rise_eo import config
     segment = cd.window_folder_segment(
         _WINDOW["startdate"], _WINDOW["enddate"], _WINDOW["mosaic_days"],
         bands=_WINDOW["bands"], mosaic_scheme=config.MOSAIC_SCHEME,

@@ -1,7 +1,7 @@
 # Code comments — what earns a line in `src/`
 
-fsd is spec-first, and that produced a habit: every decision got narrated where it landed. The
-result is 28% prose in `src/fsd` (0.49 prose lines per code line) and 986 backward references
+rise-eo is spec-first, and that produced a habit: every decision got narrated where it landed. The
+result is 28% prose in `src/rise_eo` (0.49 prose lines per code line) and 986 backward references
 across 422 functions — about 2.3 `spec NN` / `Dn` tags each. Most of it reads as a changelog.
 
 This page is the rule for what stays. It applies to `src/`; tests and run-books have their own
@@ -117,10 +117,10 @@ A trim is correct when:
 
 Three tools (each docstring says how to run it):
 
-- `scripts/comment_refcount.py src/fsd` — prose lines and backward references per file, densest first;
-- `scripts/comment_parens.py [--apply] src/fsd` — removes reference-only parentheticals
+- `scripts/comment_refcount.py src/rise_eo` — prose lines and backward references per file, densest first;
+- `scripts/comment_parens.py [--apply] src/rise_eo` — removes reference-only parentheticals
   (`(spec 50)`, `(D4)`) from comments and docstrings; never one that holds a `#`;
-- `scripts/comment_astcheck.py <git-ref> src/fsd` — proves the diff is comments-only by comparing
+- `scripts/comment_astcheck.py <git-ref> src/rise_eo` — proves the diff is comments-only by comparing
   docstring-stripped ASTs. **Run it on every comment pass**: in #85 it caught three "comment" edits
   that were inside a `raise ValueError(...)` and an argparse `help=`. Its output, with the three
   other checks in `CONTRIBUTING.md` gate 4, stands in for gate 4's real run on a cloud-job file.

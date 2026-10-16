@@ -7,7 +7,7 @@ colormap (never a continuous stretch), `nodata=255` -> transparent, and **neares
 (class codes must never be interpolated) — the make-or-break trio for a categorical COG
 (`demos/TITILER_LEAFLET.md §7`).
 
-Isolated venv (NOT fsd core):
+Isolated venv (NOT rise-eo core):
     python3.11 -m venv .venv-titiler && .venv-titiler/bin/pip install -e ".[titiler]"
     .venv-titiler/bin/python -m demos.titiler_serve
 """
@@ -91,7 +91,7 @@ def create_app(merged_filepath: str, *, render_json: str | None = None):
     with Reader(merged_filepath) as r:
         bounds4326 = r.get_geographic_bounds("EPSG:4326")
 
-    app = FastAPI(title="fsd Tier-1 pre-styled XYZ (spec 29)")
+    app = FastAPI(title="rise-eo Tier-1 pre-styled XYZ (spec 29)")
     app.add_middleware(
         CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"],
     )

@@ -16,9 +16,9 @@ import rasterio
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from fsd.catalog import declaration as declaration_module
-from fsd.catalog.declaration import S2_L2A_DECLARATION
-from fsd.storage import fs
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.catalog.declaration import S2_L2A_DECLARATION
+from rise_eo.storage import fs
 
 _MODULE_PATH = os.path.join(
     os.path.dirname(__file__), "data", "tutorial", "build_fixture.py"

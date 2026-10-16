@@ -13,44 +13,44 @@ import pytest
 
 
 def test_package_imports():
-    import fsd
+    import rise_eo
 
-    assert fsd.__version__
+    assert rise_eo.__version__
 
 
 def test_version_is_the_installed_distribution_version():
-    import fsd
+    import rise_eo
 
-    assert fsd.__version__ == importlib.metadata.version("fsd")
+    assert rise_eo.__version__ == importlib.metadata.version("rise-eo")
 
 
 @pytest.mark.skipif(os.environ.get("GITHUB_REF_TYPE") != "tag", reason="runs only when CI builds a tag")
 def test_version_matches_the_release_tag():
-    import fsd
+    import rise_eo
 
-    assert os.environ["GITHUB_REF_NAME"] == f"v{fsd.__version__}"
+    assert os.environ["GITHUB_REF_NAME"] == f"v{rise_eo.__version__}"
 
 
 def test_submodules_import():
     for name in [
-        "fsd.config",
-        "fsd.storage.fs",
-        "fsd.sources.cdse",
-        "fsd.catalog.catalog",
-        "fsd.raster.images",
-        "fsd.bands.modify",
-        "fsd.datacube.builder",
-        "fsd.datacube.ops",
-        "fsd.datacube.flatten",
-        "fsd.workflows.task",
-        "fsd.workflows.runners",
-        "fsd.workflows.create_datacube",
+        "rise_eo.config",
+        "rise_eo.storage.fs",
+        "rise_eo.sources.cdse",
+        "rise_eo.catalog.catalog",
+        "rise_eo.raster.images",
+        "rise_eo.bands.modify",
+        "rise_eo.datacube.builder",
+        "rise_eo.datacube.ops",
+        "rise_eo.datacube.flatten",
+        "rise_eo.workflows.task",
+        "rise_eo.workflows.runners",
+        "rise_eo.workflows.create_datacube",
     ]:
         importlib.import_module(name)
 
 
 def test_config_defaults():
-    from fsd import config
+    from rise_eo import config
 
     assert config.REFERENCE_BAND == "B08"
     assert config.SCL_MASK_CLASSES == [0, 1, 3, 7, 8, 9, 10]

@@ -1,5 +1,5 @@
 [project]
-name = "fsd"
+name = "rise-eo"
 version = "0.1.0"
 description = "Fetch satellite tiles and build datacubes (clean rewrite). Sentinel-2 L2A via CDSE; cloud-agnostic by design."
 authors = [{ name = "Nikhil Sasi Rajan", email = "nsasiraj@umd.edu" }]
@@ -24,10 +24,10 @@ dependencies = [
 ]
 
 [project.scripts]
-fsd = "fsd.cli:main"
+rise-eo = "rise_eo.cli:main"
 
 [project.optional-dependencies]
-# Neither of these is ever imported by src/fsd/, so both are config, not code (#80).
+# Neither of these is ever imported by src/rise_eo/, so both are config, not code (#80).
 # snakemake is invoked as a subprocess (`sys.executable -m snakemake`) and s3fs is an
 # fsspec backend resolved by URL scheme -- so moving them out costs zero import-time
 # risk and takes the core closure from 104 packages / 689 MB to 51 / 578.
@@ -44,13 +44,13 @@ notebooks = [
     "scikit-learn",
     "joblib",
 ]
-model-example = [  # for examples/eurocrops_rf.py + tests/manual/deploy.md + demos/ (not fsd core)
+model-example = [  # for examples/eurocrops_rf.py + tests/manual/deploy.md + demos/ (not rise-eo core)
     "scikit-learn",
     "joblib",
     "matplotlib",
     "seaborn",
 ]
-grid = [           # ROI → S2-grid tiling (fsd.grid); optional so core stays lean (spec 19)
+grid = [           # ROI → S2-grid tiling (rise_eo.grid); optional so core stays lean (spec 19)
     "s2",
     "s2cell",
 ]
@@ -72,13 +72,13 @@ mpc = [            # MPC source (spec 32): Microsoft Planetary Computer signing
     # that already has it.
     "planetary-computer>=1,<2",
 ]
-titiler = [        # P5 serving validation (spec 29 Tier 1; grows for Tier 2). NOT fsd core.
+titiler = [        # P5 serving validation (spec 29 Tier 1; grows for Tier 2). NOT rise-eo core.
     "rio-tiler>=6,<8",       # the COG tile read + render (the pre-styled route)
     "fastapi",               # the app
     "uvicorn[standard]",     # ASGI server
     # titiler.core / titiler.mosaic are added in Tier 2 (pgSTAC); Tier 1 needs only rio-tiler.
 ]
-serving = [        # P5 serving Tier 2 (spec 30): stac-geoparquet export. NOT fsd core.
+serving = [        # P5 serving Tier 2 (spec 30): stac-geoparquet export. NOT rise-eo core.
     "stac-geoparquet",
 ]
 dev = [
@@ -94,7 +94,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"fsd" = ["workflows/_snakefiles/**/*"]
+"rise_eo" = ["workflows/_snakefiles/**/*"]
 
 [tool.ruff]
 line-length = 100

@@ -17,7 +17,7 @@ What it measures, per cell:
   dominate; where they do not, the catch-all `other` becomes the largest class,
   which teaches the wrong lesson about class balance.
 
-Not part of the fsd wheel; not run by the test suite (spec 42 D4).
+Not part of the rise-eo wheel; not run by the test suite (spec 42 D4).
 
     python tests/data/tutorial/survey_cells.py \\
         --at-roi ../shapefiles/AT_ROI.geojson \\
@@ -32,7 +32,7 @@ import argparse
 import geopandas as gpd
 import pandas as pd
 
-from fsd.grid import roi_to_s2_grids
+from rise_eo.grid import roi_to_s2_grids
 
 __all__ = ["survey", "main"]
 

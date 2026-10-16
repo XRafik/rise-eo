@@ -3,19 +3,19 @@ status: current
 summary: The local end-to-end Austria walkthrough with real timings; a tutorial and a benchmark report fused into one doc (spec 41 D10) pending extraction into docs/tutorial.md. ⚠️ its step-3/4 numbers are stale — measured 2026-07-13, before `aggregate="median_per_id"` (spec 40 A2); see TODO #62.
 ---
 
-# Running fsd locally — the end-to-end guide (Austria)
+# Running rise-eo locally — the end-to-end guide (Austria)
 
-**This is the go-to doc for running fsd on your own machine.** It walks the whole local pipeline on
+**This is the go-to doc for running rise-eo on your own machine.** It walks the whole local pipeline on
 real, freshly-downloaded Sentinel-2 data, explains every stage (including **how to bundle your own
 model**), and records real timings you can extrapolate from. Driver: `demos/e2e_austria.py`
 (spec 23). Model quality here is not meaningful (a demo RF) — this validates the *plumbing + timings*.
 
 ---
 
-## 1. What fsd does locally
+## 1. What rise-eo does locally
 
 ```
-  fsd.download            fsd.create_training_data                 fsd.run_inference(roi=…)
+  rise_eo.download            rise_eo.create_training_data                 rise_eo.run_inference(roi=…)
  ┌────────────┐   catalog  ┌──────────────────────────┐   bundle   ┌───────────────────────────┐
  │ CDSE STAC  │──────────▶ │ build datacubes over the │ ─────────▶ │ tile ROI → S2 cells;      │
  │ + S3 .jp2  │  (parquet  │ label fields → FLATTEN → │  (model)   │ per cell: build cube +    │
@@ -24,29 +24,29 @@ model**), and records real timings you can extrapolate from. Driver: `demos/e2e_
    step 2                     steps 3–4                               step 5
 ```
 
-The user-facing surface is **four verbs**: `fsd.download`, `fsd.create_training_data`,
-`fsd.run_inference`, `fsd.deploy` (the last a P6 stub). Every verb **preflights** — it asserts
+The user-facing surface is **four verbs**: `rise_eo.download`, `rise_eo.create_training_data`,
+`rise_eo.run_inference`, `rise_eo.deploy` (the last a P6 stub). Every verb **preflights** — it asserts
 bands / T / inputs and fails fast with a clear message *before* any heavy compute, so most mistakes
 surface in seconds, not after an hour.
 
 ---
 
-## 2. Where the imagery comes from — `fsd.download` is a separate step, and why (CDSE now; MPC later)
+## 2. Where the imagery comes from — `rise_eo.download` is a separate step, and why (CDSE now; MPC later)
 
-- **Download is its own verb, run once, up front** (`fsd.download` → a `catalog.parquet` + local
+- **Download is its own verb, run once, up front** (`rise_eo.download` → a `catalog.parquet` + local
   COGs). The compute verbs (`create_training_data`, `run_inference`) **read** that catalog and
   **never call CDSE themselves.** If imagery is missing they stop with an **actionable download
-  plan** (the exact `fsd.download(...)` to run), never a silent auto-fetch. Step 2 of the demo *is*
+  plan** (the exact `rise_eo.download(...)` to run), never a silent auto-fetch. Step 2 of the demo *is*
   that download.
 - **Why separate — three reasons, not just quota:** (1) **CDSE quota** — one controlled pull, not N
   pulls from N workers; (2) **redundant fan-out** — 1,000 grid cells over overlapping MGRS tiles
   would otherwise refetch the same bytes 1,000×; (3) **the Batch model** — download once → storage
   (local now, Azure Blob later) → compute reads from the storage seam.
-- **CDSE needs the download because it serves quota'd S3 `.jp2`**, which fsd **converts to COG on
+- **CDSE needs the download because it serves quota'd S3 `.jp2`**, which rise-eo **converts to COG on
   arrival** (the native ingest format the datacube build reads fast). So with CDSE, `download` is
   **required** before the compute verbs.
 - **How this changes with Microsoft Planetary Computer (MPC), later.** MPC serves **COGs over public
-  HTTP + STAC** — no quota, and no conversion needed. fsd will read MPC pixels **in place** through
+  HTTP + STAC** — no quota, and no conversion needed. rise-eo will read MPC pixels **in place** through
   the GDAL VSI path it already uses for raster reads; an MPC-backed catalog is just a `TileCatalog`
   of `/vsicurl/https://…` COG URLs. The verbs don't change and there's **no `if source==…` branch** —
   point them at an MPC catalog and it "just works" because there is nothing to materialize, so the
@@ -56,12 +56,12 @@ surface in seconds, not after an hour.
   only the byte download needs **S3 keys**. The download is **idempotent** (skips files on disk),
   fail-fast with a **circuit breaker**, and wrapped in a **resume-loop** — if a pass trips on a bad
   CDSE window, **just re-run the script; it resumes** and completes the remainder. A slow/failing
-  pass is not a fsd bug.
+  pass is not a rise-eo bug.
 
-### The safe download runner (`fsd.sources.download_cli`)
+### The safe download runner (`rise_eo.sources.download_cli`)
 
 The demo calls the download **engine** (`cdse.download_resume`) in-process, but for real / large pulls
-there is a **standalone CLI over the same engine** — `python -m fsd.sources.download_cli` (spec 26) —
+there is a **standalone CLI over the same engine** — `python -m rise_eo.sources.download_cli` (spec 26) —
 that adds the operational controls a one-off call doesn't need (it's also what the Batch runner will
 dispatch later):
 
@@ -77,7 +77,7 @@ dispatch later):
 
 ```bash
 # size the full pull first (no bytes fetched):
-.venv-modeldeploy/bin/python -m fsd.sources.download_cli \
+.venv-modeldeploy/bin/python -m rise_eo.sources.download_cli \
     --roi shapefiles/AT_ROI.geojson --start 2018-04-01 --end 2018-09-30 \
     --bands B04 B08 B8A SCL --max-cloudcover 70 \
     --dst tests/outputs/imagery --catalog tests/outputs/imagery/sentinel-2-l2a/catalog.parquet \
@@ -99,20 +99,20 @@ tuned per environment, not baked in (§9; and the Azure re-tune, TODO #24).
 
 ## 3. Prerequisites
 
-- **Python 3.11** and the isolated demo venv (keeps fsd core lean):
+- **Python 3.11** and the isolated demo venv (keeps rise-eo core lean):
   ```bash
   python3.11 -m venv .venv-modeldeploy
   .venv-modeldeploy/bin/pip install -e ".[dev,grid,model-example]"
   ```
   The extras are split deliberately: **`[grid]`** = `s2`/`s2cell` (ROI→S2-cell tiling — *not* in
-  core, which is why `fsd.grid` is an optional import); **`[model-example]`** =
-  `scikit-learn`/`joblib`/`matplotlib` (the demo model + plots, *not* fsd itself — fsd never
+  core, which is why `rise_eo.grid` is an optional import); **`[model-example]`** =
+  `scikit-learn`/`joblib`/`matplotlib` (the demo model + plots, *not* rise-eo itself — rise-eo never
   trains); `[dev]` = ruff/pytest; `[azure]` = `adlfs` (Phase-2, unused in v1).
 - **CDSE credentials** — a gitignored `cdse_credentials.json` with the legacy keys
   (`sh_clientid`/`sh_clientsecret` for discovery, `s3_access_key`/`s3_secret_key` for download).
   Point the script at it with `--creds /path/to/cdse_credentials.json` or `$CDSE_CREDENTIALS_JSON`.
   S3 keys **can expire** — the script warns via `CdseCredentials.is_expired`.
-- **No VPN required.** fsd talks to CDSE over the public internet; a VPN only affects *your* measured
+- **No VPN required.** rise-eo talks to CDSE over the public internet; a VPN only affects *your* measured
   throughput (see §10) — it is never a setup step to reproduce.
 - **(Optional, serving) `.venv-titiler`** — for §8's "serve the crop map to STACNotator" step
   (spec 29): a *separate* isolated venv, `python3.11 -m venv .venv-titiler && .venv-titiler/bin/pip
@@ -173,8 +173,8 @@ The 7 steps and what they produce (heavy artifacts under `tests/outputs/demo_e2e
 
 ## 6. Bundling YOUR model — the step-by-step guide
 
-**fsd owns the plumbing** (download, datacube, flatten, tiling, COG/STAC/merge, runner). **The model
-developer owns the two endpoints** that connect a model to fsd. Write a small adapter (the
+**rise-eo owns the plumbing** (download, datacube, flatten, tiling, COG/STAC/merge, runner). **The model
+developer owns the two endpoints** that connect a model to rise-eo. Write a small adapter (the
 `ModelAdapter` Protocol is duck-typed — any framework; subclass `BaseModelAdapter` for defaults, so
 it's ~10 lines), then `bundle.save`. See `demos/adapters.py::DemoRF` for a complete worked example.
 
@@ -184,29 +184,29 @@ varies per model), `output_dtype`, `output_nodata`, `output_band_names` (1 name 
 N → probabilities/regression).
 
 **6.2 Endpoint ① — datacube → model input** (developer-owned). The feature transform, declared
-**once** and run by fsd at **both** training and inference (the anti-skew guarantee — train and
+**once** and run by rise-eo at **both** training and inference (the anti-skew guarantee — train and
 serve see identical features):
-- `feature_sequence` — a `fsd.bands.modify` pipeline `[(fn, kwargs), …]` on the 5-D
+- `feature_sequence` — a `rise_eo.bands.modify` pipeline `[(fn, kwargs), …]` on the 5-D
   `(samples, T, H, W, bands)` contract (the primary, declarative way); **or** override
   `features(data5d, band_indices)` for logic the sequence can't express.
 - `datacube_to_X(feats, band_indices)` — reshape features `(T,H,W,B)` → model input `(H*W, T*B)`.
   Default provided; override if your model wants a different layout.
 
-**6.3 `predict(X_chunk)`** — your framework, model input → raw per-pixel predictions. fsd handles
+**6.3 `predict(X_chunk)`** — your framework, model input → raw per-pixel predictions. rise-eo handles
 chunking (`predict_batch_size`) and the NaN→nodata scatter.
 
 **6.4 Endpoint ② — raw output → standard `Output`** (developer-owned). `to_output(raw, hw)` →
 `Output((bands, H, W), dtype, nodata, band_names)` — how your model's numbers become the COG bands
-fsd writes. Default maps a class/vector per pixel using the §6.1 declarations; override for custom
+rise-eo writes. Default maps a class/vector per pixel using the §6.1 declarations; override for custom
 band packing.
 
 **6.5 `load()`** — read your artifact(s) into memory once per worker; `self.artifacts`
-`{name: absolute path}` is injected by the bundle before `load()`. (fsd never trains — you bring a
+`{name: absolute path}` is injected by the bundle before `load()`. (rise-eo never trains — you bring a
 trained model.)
 
 **6.6 Bundle it:**
 ```python
-from fsd.model import bundle
+from rise_eo.model import bundle
 bundle_dir = bundle.save(adapter, {"model": "rf.joblib"}, "…/bundle")
 bundle.read_spec(bundle_dir)          # the model-free manifest (no import, no model load)
 ```
@@ -264,7 +264,7 @@ download:
              transfer — the download step wall is 2732.8 s ≈ transfer wall 2688.6 s, not the sum)
   wall     : 2688.6 s  (207 granules, 1 pass, ~0.216 GB/granule)
   probe 26.3 MB/s vs effective 16.7 MB/s (aggregate) -> link-bound: 4 parallel streams were
-  SLOWER than 1 (per-stream 4.4). This is a property of the local uplink, not CDSE or fsd — it
+  SLOWER than 1 (per-stream 4.4). This is a property of the local uplink, not CDSE or rise-eo — it
   is expected to invert on a datacenter NIC; re-tune `max_concurrent_s3` per environment (TODO #24).
 ```
 
@@ -365,7 +365,7 @@ this run's outputs.
   saves a bundle anyway; a live adapter runs sequentially.
 - **The datacube rectangle carries a nodata halo** and can't hug a slanted ROI edge — cosmetic;
   `flatten` drops the nodata. Don't be alarmed eyeballing a cube in QGIS.
-- **`fsd.deploy` is a P6 stub** (registration/push); local train + bundle + infer is the complete
+- **`rise_eo.deploy` is a P6 stub** (registration/push); local train + bundle + infer is the complete
   path today.
 
 ## Appendix C — Why run the full ROI (real bugs it has caught)

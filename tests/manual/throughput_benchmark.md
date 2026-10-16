@@ -83,7 +83,7 @@ running sweep-wide ETA, e.g.:
 3. **Sweep** — for each `cores` value (× `repeats`):
    a. **wipe** each grid folder's artifacts + `start.txt`/`done.txt` sentinels so
       Snakemake actually rebuilds (setup slices are kept);
-   b. set `FSD_WRITE_TIMINGS=1` and run `runners.run_local(input.csv, cores=C)`
+   b. set `RISE_EO_WRITE_TIMINGS=1` and run `runners.run_local(input.csv, cores=C)`
       (the real Snakemake local runner, jitter off);
    c. time the whole call = **total wall**; then **collect** per-grid `wall_seconds`
       (`done.txt − start.txt`) + the builder's `timings.json` sidecar (per-phase seconds).
@@ -93,7 +93,7 @@ running sweep-wide ETA, e.g.:
 **How the per-step timing works:** `build_datacube(write_timings=True)` times each phase
 (missing_check · load_images · dst_crs · reference_profile · resample · stack · ops · save)
 and drops a `timings.json` next to `datacube.npy`. It is **off by default**; the harness
-turns it on for the whole run via the `FSD_WRITE_TIMINGS` env var (inherited by the task
+turns it on for the whole run via the `RISE_EO_WRITE_TIMINGS` env var (inherited by the task
 subprocesses), so nothing else in the workflow needs to change.
 
 ---
@@ -163,7 +163,7 @@ Adding `--read-log` turns on the builder's per-read log and enriches the same re
 `load_images` slows under parallelism.
 
 **What it logs.** With `--read-log`, `build_datacube(write_read_log=True)` (enabled per-task
-via the `FSD_WRITE_READ_LOG=1` env var, same mechanism as `FSD_WRITE_TIMINGS`) writes a
+via the `RISE_EO_WRITE_READ_LOG=1` env var, same mechanism as `RISE_EO_WRITE_TIMINGS`) writes a
 `reads.jsonl` next to each grid's `datacube.npy`. One row per windowed read:
 
 ```json

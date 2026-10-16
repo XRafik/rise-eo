@@ -16,10 +16,10 @@ import pandas as pd
 import pytest
 from shapely.geometry import box
 
-from fsd import api, config
-from fsd import collections as _collections
-from fsd.storage import fs
-from fsd.workflows import create_datacube
+from rise_eo import api, config
+from rise_eo import collections as _collections
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube
 
 
 def _make_catalog(cat_path, tmp_path):
@@ -89,7 +89,7 @@ def test_params_key_differs_when_collection_differs():
     S2's, so the two `params_key` digests can only differ because `collection` itself is
     folded into the key -- not because the declaration digest happened to differ too.
 
-    Registration is torn down in a `finally`: `fsd.collections.REGISTRY` is a global
+    Registration is torn down in a `finally`: `rise_eo.collections.REGISTRY` is a global
     in-process dict, and a leaked test-only id would leak into every later test in the
     session (and into `restamp_cli`'s `--declaration` choices, which are a view over it)."""
     import dataclasses
@@ -960,7 +960,7 @@ def test_setup_writes_a_window_scoped_declaration_control_file(tmp_path):
     import dataclasses
     import json
 
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     cat = tmp_path / "sentinel-2-l2a" / "catalog.parquet"
     shapes = tmp_path / "shapes.geojson"
@@ -1001,7 +1001,7 @@ def test_setup_writes_a_window_scoped_declaration_control_file(tmp_path):
                                                create_datacube.DECLARATION_FILENAME)
 
         # And each still holds its own declaration after BOTH calls have run -- the node
-        # reads plain JSON, never `fsd.collections`.
+        # reads plain JSON, never `rise_eo.collections`.
         with open(paths["s2"]) as f:
             assert declaration_module.from_json(json.load(f)) == s2
         with open(paths["variant"]) as f:

@@ -1,8 +1,8 @@
-"""Spec 51 §9 step 0 — `fsd.model.registry`: layout, `publish`, `resolve`, `migrate`.
+"""Spec 51 §9 step 0 — `rise_eo.model.registry`: layout, `publish`, `resolve`, `migrate`.
 
 One test group per acceptance criterion in `specs/51-deploy-model-registry.md` §4 that step 0
 owns (AC1-5, 11, 13; see `handoff-spec51-step0-registry.md`). Step 0 touches no verb, so these
-tests call `registry.publish`/`resolve`/`migrate` directly rather than through `fsd.deploy`
+tests call `registry.publish`/`resolve`/`migrate` directly rather than through `rise_eo.deploy`
 (steps 1-3, not implemented yet).
 
 Bundles are built with `bundle.save(joblib.Parallel, {}, ..., code=False)` — an installed class
@@ -18,9 +18,9 @@ import os
 import joblib
 import pytest
 
-from fsd.model import bundle, registry
-from fsd.registry import _core as core
-from fsd.storage import fs
+from rise_eo.model import bundle, registry
+from rise_eo.registry import _core as core
+from rise_eo.storage import fs
 
 
 def _make_bundle(tmp_path, subdir="src_bundle", requirements=None) -> str:

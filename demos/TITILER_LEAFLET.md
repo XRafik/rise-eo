@@ -6,8 +6,8 @@ summary: COG/XYZ/titiler/STAC/MPC serving explainer; still accurate as a concept
 # Serving the inference outputs in a web map — titiler + Leaflet (explainer)
 
 > **Note (2026-07-14): this is now a CONCEPTS PRIMER, not the plan.** The original plan (build a local
-> MosaicJSON Leaflet dashboard, `specs/27`) is **superseded** — fsd will not build a dashboard;
-> **STACNotator** is the viewer, fed by a stock **pgSTAC + titiler-pgstac** stack over fsd's standard
+> MosaicJSON Leaflet dashboard, `specs/27`) is **superseded** — rise-eo will not build a dashboard;
+> **STACNotator** is the viewer, fed by a stock **pgSTAC + titiler-pgstac** stack over rise-eo's standard
 > STAC + COGs (see `PROGRESS.md` LATEST + `../STACNOTATOR_DIGEST.md` + TODO #26–#29). The COG / XYZ /
 > titiler / STAC / MPC explanations below are still accurate and worth reading; ignore the
 > "build a Leaflet page / MosaicJSON MVP" framing.
@@ -24,7 +24,7 @@ The Austria end-to-end run (`E2E_AUSTRIA.md §8`) produced three things under
 
 - **300 per-cell COGs** — `cells/<window>/<cell_id>/output.tif`, one crop-classification raster per
   S2 grid cell.
-- **a STAC catalog** — `stac/catalog.json` → `stac/fsd-inference/collection.json` → 300 Item JSONs,
+- **a STAC catalog** — `stac/catalog.json` → `stac/rise-eo-inference/collection.json` → 300 Item JSONs,
   each pointing at one of those COGs.
 - **`merged.tif`** — the 300 cells stitched into one display mosaic (6830×6868 px, EPSG:32633).
 
@@ -60,7 +60,7 @@ the bytes it needs*:
 
 That last point is the magic: over HTTP this becomes a **range request** (`Range: bytes=…`) — "give me
 just bytes 1,048,576–1,081,343." The server (or GDAL locally, via file seeks) reads a few kilobytes
-instead of gigabytes. **This is what makes dynamic tiling possible at all.** fsd already writes COGs
+instead of gigabytes. **This is what makes dynamic tiling possible at all.** rise-eo already writes COGs
 with overviews on download (`spec 14`) and its inference outputs are COGs too — so the outputs are
 *already* in the format a tile server wants. (Background: `E2E_AUSTRIA.md` Appendix A; `TODO #14`.)
 
@@ -138,14 +138,14 @@ by walking our STAC catalog once. That's the design we build.
 
 ## 4. STAC's role here — the catalog we're verifying
 
-**STAC (SpatioTemporal Asset Catalog)** is a JSON convention for describing geospatial datasets. fsd
+**STAC (SpatioTemporal Asset Catalog)** is a JSON convention for describing geospatial datasets. rise-eo
 already *queries* CDSE's STAC to discover imagery; here we *produce* one describing our inference
-outputs (`src/fsd/catalog/stac.py`). The three levels we wrote:
+outputs (`src/rise_eo/catalog/stac.py`). The three levels we wrote:
 
 - **Catalog** (`stac/catalog.json`) — the root; links to the collection.
-- **Collection** (`stac/fsd-inference/collection.json`) — one dataset ("fsd inference outputs"), with a
+- **Collection** (`stac/rise-eo-inference/collection.json`) — one dataset ("rise-eo inference outputs"), with a
   spatial+temporal extent and a **link to each of the 300 Items**.
-- **Item** (`stac/fsd-inference/<cell_id>/<cell_id>.json`) — one output, with:
+- **Item** (`stac/rise-eo-inference/<cell_id>/<cell_id>.json`) — one output, with:
   - a **geometry + bbox** in EPSG:4326 (where on Earth it is),
   - `proj:code` / `proj:shape` / `proj:transform` (its native UTM grid),
   - and an **asset** named `output` whose `href` is the COG's path.

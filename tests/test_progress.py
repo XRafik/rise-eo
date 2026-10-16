@@ -1,8 +1,8 @@
-"""Spec 47 D4/D5 — `fsd.progress.ticker`, the shared throttled progress helper."""
+"""Spec 47 D4/D5 — `rise_eo.progress.ticker`, the shared throttled progress helper."""
 
 import re
 
-from fsd import progress
+from rise_eo import progress
 
 
 def test_ticker_prints_expected_shape(capsys):

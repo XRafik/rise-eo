@@ -10,9 +10,9 @@ import fsspec
 import pandas as pd
 import pytest
 
-from fsd.sources import mpc
-from fsd.storage import fs
-from fsd.workflows import download as download_cli
+from rise_eo.sources import mpc
+from rise_eo.storage import fs
+from rise_eo.workflows import download as download_cli
 
 
 def _full_row(dst: str) -> dict:
@@ -68,7 +68,7 @@ def test_t1_missing_keys_raise_before_any_work(recorders, tmp_path):
     msg = str(exc.value)
     assert "['properties', 'scale']" in msg
     assert "discover_shard_rows" in msg
-    assert "different fsd version" in msg
+    assert "different rise-eo version" in msg
     assert sign_calls == []
     assert transfer_calls == []
     assert catalog.appended == []
@@ -106,7 +106,7 @@ def test_t3_run_shard_fails_without_writing_status(recorders):
         msg = str(exc.value)
         assert "scale" in msg
         assert "discover_shard_rows" in msg
-        assert "different fsd version" in msg
+        assert "different rise-eo version" in msg
         assert not fs.exists(status_url)
     finally:
         mem = fsspec.filesystem("memory")

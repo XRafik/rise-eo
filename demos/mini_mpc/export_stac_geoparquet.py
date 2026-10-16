@@ -2,7 +2,7 @@
 
 Additive: reads the JSON STAC catalog `run_inference`/`regen_output_stac` already write
 (`catalog.json` -> collection -> item JSONs) and writes a single `catalog.parquet` next to it via
-`fsd.catalog.stac_geoparquet.items_to_stac_geoparquet`. Not wired into any default pipeline write
+`rise_eo.catalog.stac_geoparquet.items_to_stac_geoparquet`. Not wired into any default pipeline write
 path (the full catalog-format migration is the #26 follow-on) — run this by hand when you want the
 compact interchange form, e.g. as a second load path into the mini-MPC's pgSTAC (spec 30 B3,
 optional/not exercised by the Tier-2 runbook, which uses ndjson per D-D).
@@ -23,8 +23,8 @@ import os
 
 import pystac
 
-from fsd.catalog import stac as _stac
-from fsd.catalog import stac_geoparquet as _stac_geoparquet
+from rise_eo.catalog import stac as _stac
+from rise_eo.catalog import stac_geoparquet as _stac_geoparquet
 
 
 def _parse_args(argv=None) -> argparse.Namespace:

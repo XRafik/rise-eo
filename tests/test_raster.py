@@ -1,4 +1,4 @@
-"""Tests for fsd.raster.images (spec 07).
+"""Tests for rise_eo.raster.images (spec 07).
 
 Synthetic in-memory rasters (no real .jp2 files) exercise the (data, profile)
 ops, the sequence runners, the file-based round-trip, and the helpers.
@@ -12,7 +12,7 @@ import rasterio.crs
 import rasterio.transform
 import shapely.geometry as sg
 
-from fsd.raster import images, rio_open
+from rise_eo.raster import images, rio_open
 
 UTM = rasterio.crs.CRS.from_epsg(32643)  # metres, so area/extent math is sane
 
@@ -89,7 +89,7 @@ def test_apply_offset_shifts_and_clamps_uint16_no_underflow():
 def test_is_radiometry_band_exempts_non_reflectance_bands():
     """spec 58 D5.3: `_is_reflectance` moved to `CollectionDeclaration.is_radiometry_band`
     -- declared per collection rather than a global regex."""
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     for band in ("B01", "B04", "B08", "B8A", "B12"):
         assert S2_L2A_DECLARATION.is_radiometry_band(band) is True
@@ -283,7 +283,7 @@ def _write_gtiff(path, width, height, dtype="uint16"):
 
 
 def test_to_cog_lossless_with_overviews(tmp_path):
-    from fsd.raster.cog import to_cog
+    from rise_eo.raster.cog import to_cog
 
     src = tmp_path / "src.tif"
     src_data = _write_gtiff(src, 1024, 1024)  # > blocksize so an overview is built
@@ -302,7 +302,7 @@ def test_to_cog_lossless_with_overviews(tmp_path):
 
 
 def test_to_cog_no_overviews(tmp_path):
-    from fsd.raster.cog import to_cog
+    from rise_eo.raster.cog import to_cog
 
     src = tmp_path / "src.tif"
     _write_gtiff(src, 1024, 1024)
@@ -314,7 +314,7 @@ def test_to_cog_no_overviews(tmp_path):
 
 def test_to_cog_verify_is_a_noop_on_lossless(tmp_path):
     """uint8 (SCL-like) source: no NBITS promotion, still bit-identical."""
-    from fsd.raster.cog import to_cog
+    from rise_eo.raster.cog import to_cog
 
     src = tmp_path / "scl.tif"
     src_data = _write_gtiff(src, 64, 64, dtype="uint8")
@@ -330,7 +330,7 @@ def test_to_cog_verify_is_a_noop_on_lossless(tmp_path):
 def _write_stampable_cog(path, value, nodata=None, dtype="uint16"):
     """A small real COG to stamp — `stamp_gdal_tags` reopens in "r+", so the file
     has to be a genuine GDAL-readable raster, not a stub."""
-    from fsd.raster.cog import to_cog
+    from rise_eo.raster.cog import to_cog
 
     plain = str(path) + ".plain.tif"
     with rasterio.open(
@@ -351,7 +351,7 @@ def test_stamped_cog_preserves_low_dn_on_disk(tmp_path, dn):
     """spec 34 §1: the old `apply_boa_offset` clip(DN-1000, 0, ...) is GONE from the
     ingest/store path. A reflectance DN in (0,1000] must survive to disk untouched —
     the offset is *declared* (a tag), never baked into the pixels."""
-    from fsd.raster.cog import stamp_gdal_tags
+    from rise_eo.raster.cog import stamp_gdal_tags
 
     p = _write_stampable_cog(tmp_path / f"b04_{dn}.tif", value=dn)
     stamp_gdal_tags(str(p), offset=-1000, scale=1 / 10000, set_nodata_if_missing=0)
@@ -366,7 +366,7 @@ def test_plain_read_of_stamped_cog_returns_raw_dn(tmp_path):
     the datacube builder does — never auto-applies the GDAL SCALE/OFFSET tags. The
     builder's explicit `apply_offset` is the *only* place the offset is applied, so
     the tag and the builder cannot drift into applying it twice."""
-    from fsd.raster.cog import stamp_gdal_tags
+    from rise_eo.raster.cog import stamp_gdal_tags
 
     p = _write_stampable_cog(tmp_path / "b04.tif", value=1500)
     stamp_gdal_tags(str(p), offset=-1000, scale=1 / 10000, set_nodata_if_missing=0)
@@ -380,7 +380,7 @@ def test_plain_read_of_stamped_cog_returns_raw_dn(tmp_path):
 def test_stamp_sets_nodata_only_when_missing(tmp_path):
     """spec 34 §1c: ingest declares nodata=0 on a source that has none, but a source
     that already declares one keeps its own value."""
-    from fsd.raster.cog import stamp_gdal_tags
+    from rise_eo.raster.cog import stamp_gdal_tags
 
     missing = _write_stampable_cog(tmp_path / "missing.tif", value=100, nodata=None)
     stamp_gdal_tags(str(missing), set_nodata_if_missing=0)

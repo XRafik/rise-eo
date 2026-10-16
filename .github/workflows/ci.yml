@@ -64,7 +64,7 @@ jobs:
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "full suite needed: $code"
-      - name: Install fsd with every extra
+      - name: Install rise-eo with every extra
         run: pip install -e ".[dev,local,s3,notebooks,grid,azure,aml,mpc,titiler,serving]" pytest-reportlog
       - name: Lint
         run: ruff check src/ tests/

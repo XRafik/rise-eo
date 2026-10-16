@@ -33,8 +33,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 warnings.simplefilter("ignore")
 
-from fsd.datacube import flatten  # noqa: E402
-from fsd.storage import fs  # noqa: E402
+from rise_eo.datacube import flatten  # noqa: E402
+from rise_eo.storage import fs  # noqa: E402
 
 RUN = "fsd/tests/outputs/datacube_year/run"
 CSV = os.path.join(RUN, "input.csv")
@@ -212,7 +212,7 @@ def main() -> None:
              "`eurocrops_year_figures/coverage.png`.\n")
 
     L.append("## Reproduce\n```bash\n"
-             "FSD_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py\n"
+             "RISE_EO_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py\n"
              "fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_report.py\n```\n")
     L.append("Cubes + flattened arrays under `tests/outputs/datacube_year/` (gitignored); "
              "this report + figures are committed.\n")

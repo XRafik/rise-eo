@@ -1,4 +1,4 @@
-# Manual tests — `fsd.storage.fs`
+# Manual tests — `rise_eo.storage.fs`
 
 Verifies the storage seam (spec `10-storage-and-scale.md`): generic fsspec I/O on
 the **local** backend (Section A) and the S3-compatible **transport** (Section B,
@@ -22,10 +22,10 @@ pip install -e ".[dev]"
 Confirm the package and storage module import:
 
 ```bash
-python -c "import fsd; from fsd.storage import fs; print('fsd', fsd.__version__, '| storage import OK')"
+python -c "import rise_eo; from rise_eo.storage import fs; print('rise-eo', rise_eo.__version__, '| storage import OK')"
 ```
 
-- [x] Prints `fsd 0.0.1 | storage import OK`
+- [x] Prints `rise-eo 0.0.1 | storage import OK`
 
 Now start an interactive session and keep it open for the rest of Section A:
 
@@ -38,9 +38,9 @@ import os, shutil, tempfile
 import numpy as np
 import geopandas as gpd
 import shapely.geometry as sg
-from fsd.storage import fs
+from rise_eo.storage import fs
 
-WORK = tempfile.mkdtemp(prefix="fsd_storage_")
+WORK = tempfile.mkdtemp(prefix="rise_eo_storage_")
 print("WORK =", WORK)
 ```
 
@@ -65,12 +65,12 @@ print(fs.exists(sub), fs.exists(os.path.join(WORK, "nope")))
 ```python
 p_txt = os.path.join(WORK, "hello.txt")
 with fs.open(p_txt, "w") as f:
-    f.write("hi fsd")
+    f.write("hi rise-eo")
 with fs.open(p_txt, "r") as f:
     print(repr(f.read()), fs.exists(p_txt))
 ```
 
-- [x] `'hi fsd' True`
+- [x] `'hi rise-eo' True`
 
 ### A3. save_npy / load_npy (array)
 
@@ -177,9 +177,9 @@ with any small public object you know; AWS Open Data buckets work with `anon`.)
 
 ```python
 import os, tempfile
-from fsd.storage import fs
+from rise_eo.storage import fs
 
-WORK = tempfile.mkdtemp(prefix="fsd_s3_")
+WORK = tempfile.mkdtemp(prefix="rise_eo_s3_")
 opts = {"anon": True}
 
 # list a public prefix (example shape; swap in a real public bucket/prefix)
@@ -202,10 +202,10 @@ code.)
 
 ```python
 import os, tempfile
-from fsd import config
-from fsd.storage import fs
+from rise_eo import config
+from rise_eo.storage import fs
 
-WORK = tempfile.mkdtemp(prefix="fsd_cdse_")
+WORK = tempfile.mkdtemp(prefix="rise_eo_cdse_")
 src_opts = {
     "key": "YOUR_S3_ACCESS_KEY",
     "secret": "YOUR_S3_SECRET_KEY",

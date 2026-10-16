@@ -1,0 +1,109 @@
+# Local-runner Snakefile for batch datacube creation.
+# Spec: specs/08-workflows.md, specs/36-scale-runner.md (D7).
+#
+# One job per input.csv row, each shelling out to the runner-agnostic task:
+#     python -m rise_eo.workflows.task ...
+# start.txt / done.txt sentinels give resumability (Snakemake skips rows whose
+# done.txt exists) *within one invocation on one machine*; a small deterministic
+# jitter staggers parallel job starts. Located at runtime via importlib.resources
+# (see runners._snakefile_path).
+#
+# Sentinels live on node-local scratch, keyed by a hash of
+# export_folderpath, decoupled from the artifact destination -- they are this
+# invocation's own bookkeeping, not durable state. The durable "did this cube
+# already get built" signal is the artifact's own existence (datacube.npy), checked
+# by `rise_eo.workflows.task.run_task` itself (works whether export_folderpath is local
+# or a remote rise_eo.storage URL, e.g. abfss://). That is what lets a shard retried on a
+# fresh node (no scratch history) skip every cube it already finished, and is why this
+# Snakefile no longer needs to reject a remote export_folderpath.
+
+import hashlib
+import os
+import sys
+import tempfile
+import time
+from zlib import adler32
+
+import pandas as pd
+
+from rise_eo.storage import fs as _fs
+
+
+def jitter(key, span=10):   # deterministic 0..(span-1)s delay
+    return adler32(str(key).encode()) % max(int(span), 1)
+
+
+def touch(filepath):
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w") as h:
+        h.write(pd.Timestamp.now(tz="UTC").isoformat())
+
+
+input_df = pd.read_csv(config["input_csv"])
+njobs = int(config.get("njobs", 1))
+njobs_load_images = int(config.get("njobs_load_images", 1))
+jitter_span = int(config.get("jitter_span", 1))
+# Node-local scratch root for sentinels only (never the artifact destination).
+scratch_dir = config.get("scratch_dir") or os.path.join(tempfile.gettempdir(), "rise-eo-snakemake-scratch")
+
+START_OUTFILENAME = "start.txt"
+FINAL_OUTFILENAME = "done.txt"
+
+row_by_done = {}
+final_outputs = []
+for _, row in input_df.iterrows():
+    export_folderpath = row["export_folderpath"]
+    if _fs.is_local(export_folderpath):
+        # os.path.abspath is only meaningful (and safe) for a local path — setup()
+        # already applied it; re-applying here is idempotent (specs/31 §6).
+        export_folderpath = os.path.abspath(export_folderpath)
+    key = hashlib.sha1(export_folderpath.encode()).hexdigest()
+    scratch = os.path.join(scratch_dir, key)
+    done_output = os.path.join(scratch, FINAL_OUTFILENAME)
+    row_by_done[done_output] = {
+        "start_output": os.path.join(scratch, START_OUTFILENAME),
+        "shapefilepath": row["shapefilepath"],
+        "catalog_filepath": row["catalog_filepath"],
+        "startdate": row["startdate"],
+        "enddate": row["enddate"],
+        "export_folderpath": export_folderpath,
+        "mosaic_days": row["mosaic_days"],
+        "mosaic_scheme": row["mosaic_scheme"],
+        "declaration_filepath": row["declaration_filepath"],
+        "bands": row["bands"],
+    }
+    final_outputs.append(done_output)
+
+
+rule all:
+    input:
+        expand("{final_output}", final_output=final_outputs)
+
+
+rule run:
+    output:
+        _done = "{final_output}"
+    params:
+        _r = lambda wc: row_by_done[wc.final_output],
+        _python = sys.executable,
+        _njobs = njobs,
+        _njobs_load_images = njobs_load_images,
+    threads: 1
+    run:
+        time.sleep(jitter(key=output._done, span=jitter_span))
+        touch(params._r["start_output"])
+        shell(
+            "{params._python} -m rise_eo.workflows.task "
+            "{params._r[shapefilepath]} "
+            "{params._r[catalog_filepath]} "
+            "\"{params._r[startdate]}\" "
+            "\"{params._r[enddate]}\" "
+            "{params._r[export_folderpath]} "
+            "--bands {params._r[bands]} "
+            "--mosaic-days {params._r[mosaic_days]} "
+            "--mosaic-scheme {params._r[mosaic_scheme]} "
+            "--declaration-filepath {params._r[declaration_filepath]} "
+            "--njobs {params._njobs} "
+            "--njobs-load-images {params._njobs_load_images}"
+        )
+        touch(output._done)

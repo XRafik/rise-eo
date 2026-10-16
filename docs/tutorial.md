@@ -1,16 +1,16 @@
 # Tutorial — download to crop map, offline, in one sitting
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify by re-running
-> this tutorial after any change to `fsd.create_training_data`, `fsd.run_inference`,
-> `fsd.workflows.create_datacube`, or `tests/data/tutorial/`; the underlying pipeline is pinned by
+> this tutorial after any change to `rise_eo.create_training_data`, `rise_eo.run_inference`,
+> `rise_eo.workflows.create_datacube`, or `tests/data/tutorial/`; the underlying pipeline is pinned by
 > `tests/test_tutorial_fixture.py`, which runs in `pytest -q`.
 
 **This tutorial cannot fail.** Every byte it reads is a real Sentinel-2 pixel already committed to
 the repo — no download, no credentials, no cloud account. If a step below does not do what it
-says, that is a bug in fsd or in this page, not something to work around: please open an issue with
+says, that is a bug in rise-eo or in this page, not something to work around: please open an issue with
 the exact command and output (`gh issue create`, or however you were pointed here).
 
-If you've finished this and want to point fsd at your own region, real imagery, a cluster, your own
+If you've finished this and want to point rise-eo at your own region, real imagery, a cluster, your own
 model, or a map viewer, the next stop is [`docs/howto/`](howto/).
 
 ## What you'll build
@@ -26,14 +26,14 @@ advance so it doesn't look like a hang.
 
 ```bash
 git clone https://github.com/nikhilsrajan/fsd.git
-cd fsd
+cd fsd        # the clone folder keeps the repo's name until the transfer
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,local,model-example]"
 ```
 
 `local` brings in `snakemake`, which runs the default `runner="local"` pipeline — steps 3 and 6
 below both need it. `model-example` brings in `scikit-learn`/`joblib` for the classifier this
-tutorial trains — fsd
+tutorial trains — rise-eo
 itself never trains a model (permanent design choice, see [`ARCHITECTURE.md`](../ARCHITECTURE.md)).
 
 ## 1. The data you already have
@@ -63,7 +63,7 @@ reproduce it byte for byte ([#121](https://github.com/nikhilsrajan/fsd/issues/12
 **On radiometry, if you're curious:** these are 2018-era Microsoft Planetary Computer products,
 generated before Sentinel-2's processing-baseline-04.00 offset convention existed. Their radiometric
 offset is **declared by the source** as `0`, not the `-1000` you'll see on newer products — both are
-correct, they're just different product versions of the same acquisitions. fsd reads whatever the
+correct, they're just different product versions of the same acquisitions. rise-eo reads whatever the
 source declares; it never guesses.
 
 ## 2. Labels: three classes, derived from data
@@ -92,22 +92,22 @@ silently broke this fixture once already (every field collapsed to `other` until
 derived from clipped area instead of guessed). If you build your own fixture, print your own
 `value_counts()` — don't copy these names.
 
-## 3. Build training arrays — `fsd.create_training_data`
+## 3. Build training arrays — `rise_eo.create_training_data`
 
 ```python
 import datetime
-import fsd
+import rise_eo
 
 startdate = datetime.datetime(2018, 4, 1)
 enddate = datetime.datetime(2018, 9, 29)
 
-training = fsd.create_training_data(
+training = rise_eo.create_training_data(
     label_polygons="tests/data/tutorial/fields.geojson",
     catalog_filepath="tests/data/tutorial/sentinel-2-l2a/catalog.parquet",
     startdate=startdate, enddate=enddate, mosaic_days=20,
     bands=["B04", "B08", "SCL"],
     id_col="fid", label_col="label",
-    export_folderpath="/tmp/fsd_tutorial/training",
+    export_folderpath="/tmp/rise_eo_tutorial/training",
 )
 
 loaded = training.load()
@@ -127,11 +127,11 @@ pixel count across all 43 labelled fields — this call returns one row **per pi
 (pass `aggregate="median_per_id"` if you want one row per field instead). `10` is `T`, the mosaic
 interval count (`ceil(181 days / 20) = 10`, from `startdate=2018-04-01` to `enddate=2018-09-29`);
 `2` is the band count — `B04`, `B08` (`SCL` was consumed as the cloud/shadow mask and dropped, per
-fsd's masking default).
+rise-eo's masking default).
 
-## 4. Train a classifier (your code, not fsd's)
+## 4. Train a classifier (your code, not rise-eo's)
 
-fsd hands you arrays; it never trains a model. Any framework works — this is deliberately the
+rise-eo hands you arrays; it never trains a model. Any framework works — this is deliberately the
 simplest possible one:
 
 ```python
@@ -155,13 +155,13 @@ so this builds a single datacube via the same workflow entrypoint `create_traini
 the hood:
 
 ```python
-from fsd.workflows import create_datacube
+from rise_eo.workflows import create_datacube
 
-csv_filepath = "/tmp/fsd_tutorial/infer_build/input.csv"
+csv_filepath = "/tmp/rise_eo_tutorial/infer_build/input.csv"
 create_datacube.run_create_datacube(
     catalog_filepath="tests/data/tutorial/sentinel-2-l2a/catalog.parquet", timestamp_col="timestamp",
     shapefilepath="tests/data/tutorial/roi.geojson", id_col="id",
-    run_folderpath="/tmp/fsd_tutorial/infer_build",
+    run_folderpath="/tmp/rise_eo_tutorial/infer_build",
     startdate=startdate, enddate=enddate, bands=["B04", "B08", "SCL"],
     mosaic_days=20, csv_filepath=csv_filepath, label_col=None, cores=1,
 )
@@ -169,19 +169,19 @@ create_datacube.run_create_datacube(
 
 The SCL mask is not passed: it is declared on the `sentinel-2-l2a` collection (spec 58 D3).
 `collection=` (default `"sentinel-2-l2a"`) and `properties_filter=` are the two knobs that
-replace it — see `fsd.collections.known()`.
+replace it — see `rise_eo.collections.known()`.
 
 This takes seconds — it's one cell, not 43 fields.
 
-## 6. Run inference — `fsd.run_inference`
+## 6. Run inference — `rise_eo.run_inference`
 
-Wrap the trained classifier as a `ModelAdapter` (the contract fsd calls at inference time — see
+Wrap the trained classifier as a `ModelAdapter` (the contract rise-eo calls at inference time — see
 [`docs/howto/bundle-your-model.md`](howto/bundle-your-model.md) for the full guide) and run it over
 the datacube you just built:
 
 ```python
 import numpy as np
-from fsd.model import BaseModelAdapter
+from rise_eo.model import BaseModelAdapter
 
 class TutorialClassifier(BaseModelAdapter):
     required_bands = ["B04", "B08"]
@@ -206,7 +206,7 @@ class TutorialClassifier(BaseModelAdapter):
         return np.array([self.classes.index(p) for p in pred], dtype="uint8")
 
 adapter = TutorialClassifier(clf, classes)
-result = fsd.run_inference(adapter, csv_filepath, "/tmp/fsd_tutorial/out", progress=False)
+result = rise_eo.run_inference(adapter, csv_filepath, "/tmp/rise_eo_tutorial/out", progress=False)
 print(result.output_filepaths)
 print(result.stac_catalog_filepath)
 ```

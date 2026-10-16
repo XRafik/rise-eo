@@ -1,13 +1,13 @@
-"""Load fsd's static STAC catalog into the mini-MPC's pgSTAC (spec 30 A2).
+"""Load rise-eo's static STAC catalog into the mini-MPC's pgSTAC (spec 30 A2).
 
 Reads the existing JSON STAC catalog `run_inference`/`regen_output_stac` write
-(`catalog.json` -> collection -> item JSONs) through the **`fsd.storage`** seam, rewrites each
+(`catalog.json` -> collection -> item JSONs) through the **`rise_eo.storage`** seam, rewrites each
 output COG's asset `href` from its host absolute path to the **container-visible**
 `/data/<path-under-outputs-dir>` (the compose `raster` service bind-mounts `--outputs-dir` ->
 `/data` — this is the one non-obvious wiring step; tiles 500 without it, spec 30 A2), emits
 `collections.ndjson` + `items.ndjson`, and `pypgstac load`s both into the pgSTAC DB.
 
-Needs `pypgstac[psycopg]` (NOT fsd's core `.venv` — a scratch venv, e.g. `.venv-mini-mpc`, per
+Needs `pypgstac[psycopg]` (NOT rise-eo's core `.venv` — a scratch venv, e.g. `.venv-mini-mpc`, per
 `README.md`). Pinned API (installed `pypgstac==0.9.11`, matching the `database` image tag):
 `pypgstac.db.PgstacDB(dsn=...)` + `pypgstac.load.Loader(db=...).load_collections(...)`
 / `.load_items(...)` with `insert_mode=Methods.upsert` (idempotent re-runs).
@@ -30,13 +30,13 @@ DEFAULT_DSN = "postgresql://username:password@localhost:5439/postgis"
 def _parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="python load_pgstac.py",
-        description="Convert fsd's static STAC catalog to ndjson (rewriting output hrefs to the "
+        description="Convert rise-eo's static STAC catalog to ndjson (rewriting output hrefs to the "
                     "/data mount) and pypgstac-load it into the mini-MPC's pgSTAC.",
     )
     p.add_argument("--stac-dir", required=True, help="folder holding catalog.json")
     p.add_argument("--outputs-dir", required=True,
                    help="the host folder bind-mounted to /data in the raster container "
-                        "(compose's FSD_OUTPUTS_DIR — MUST match)")
+                        "(compose's RISE_EO_OUTPUTS_DIR — MUST match)")
     p.add_argument("--dsn", default=DEFAULT_DSN, help="pgSTAC DSN (default: the compose db)")
     p.add_argument("--ndjson-dir", default=".",
                    help="where to write collections.ndjson / items.ndjson (default: cwd)")
@@ -71,7 +71,7 @@ def main(argv=None) -> int:
     from pypgstac.db import PgstacDB
     from pypgstac.load import Loader, Methods
 
-    from fsd.catalog import stac as _stac
+    from rise_eo.catalog import stac as _stac
 
     args = _parse_args(argv)
     result_json = args.result_json

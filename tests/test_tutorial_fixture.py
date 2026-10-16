@@ -38,11 +38,11 @@ import pystac
 import pytest
 import rasterio
 
-import fsd
-from fsd.catalog import declaration as declaration_module
-from fsd.model.adapter import BaseModelAdapter
-from fsd.storage import fs
-from fsd.workflows import create_datacube as _create_datacube
+import rise_eo
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.model.adapter import BaseModelAdapter
+from rise_eo.storage import fs
+from rise_eo.workflows import create_datacube as _create_datacube
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "data", "tutorial")
 # Spec 59 D2/D5: the fixture IS an archive root -- `{root}/{collection}/catalog.parquet`.
@@ -185,7 +185,7 @@ def test_pipeline_create_training_data_train_and_infer(tmp_path):
     enddate = (gdf["timestamp"].max() + pd.Timedelta(days=1)).to_pydatetime().replace(tzinfo=None)
 
     export_folderpath = str(tmp_path / "training")
-    td = fsd.create_training_data(
+    td = rise_eo.create_training_data(
         label_polygons=FIELDS_PATH, catalog_filepath=CATALOG_PATH,
         startdate=startdate, enddate=enddate, mosaic_days=MOSAIC_DAYS,
         bands=BANDS, id_col="fid", label_col="label",
@@ -230,7 +230,7 @@ def test_pipeline_create_training_data_train_and_infer(tmp_path):
 
     out_dir = str(tmp_path / "out")
     adapter = _TutorialTrivialClassifier(clf, classes)
-    result = fsd.run_inference(adapter, csv_filepath, out_dir, progress=False)
+    result = rise_eo.run_inference(adapter, csv_filepath, out_dir, progress=False)
 
     assert len(result.output_filepaths) == 1
     with rasterio.open(result.output_filepaths[0]) as src:
@@ -242,7 +242,7 @@ def test_pipeline_create_training_data_train_and_infer(tmp_path):
     assert len(items) == 1
 
 
-# --- spec 48 AC10: fsd.verify_adapter, runner="local", no network ------------
+# --- spec 48 AC10: rise_eo.verify_adapter, runner="local", no network ------------
 
 
 class _TutorialConstantAdapter(BaseModelAdapter):
@@ -277,7 +277,7 @@ def test_verify_adapter_real_fixture_local_runner(tmp_path):
     enddate = (gdf["timestamp"].max() + pd.Timedelta(days=1)).to_pydatetime().replace(tzinfo=None)
 
     export_folderpath = str(tmp_path / "verify_adapter")
-    result = fsd.verify_adapter(
+    result = rise_eo.verify_adapter(
         _TutorialConstantAdapter(), roi=ROI_PATH, catalog_filepath=CATALOG_PATH,
         startdate=startdate, enddate=enddate, mosaic_days=MOSAIC_DAYS, bands=BANDS,
         export_folderpath=export_folderpath, runner="local",
@@ -296,7 +296,7 @@ def test_verify_adapter_real_fixture_local_runner(tmp_path):
     # D5: a second call with the SAME request finds the cube already landed and skips
     # straight to inference -- no rebuild (cube file untouched).
     cube_mtime = os.path.getmtime(os.path.join(export_folderpath, "datacube.npy"))
-    result2 = fsd.verify_adapter(
+    result2 = rise_eo.verify_adapter(
         _TutorialConstantAdapter(), roi=ROI_PATH, catalog_filepath=CATALOG_PATH,
         startdate=startdate, enddate=enddate, mosaic_days=MOSAIC_DAYS, bands=BANDS,
         export_folderpath=export_folderpath, runner="local",

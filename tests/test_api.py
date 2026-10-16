@@ -16,8 +16,8 @@ import pandas as pd
 import pytest
 import shapely.geometry
 
-import fsd
-from fsd import api
+import rise_eo
+from rise_eo import api
 
 JAN1 = datetime.datetime(2018, 1, 1)
 JAN1_NEXT = datetime.datetime(2019, 1, 1)
@@ -45,11 +45,11 @@ def _touch(path):
 
 def test_compute_n_timestamps_calendar_identity():
     # full 2018, 20-day windows -> ceil(365/20) = 19 (matches the spec-15 benchmark).
-    assert fsd.compute_n_timestamps(JAN1, JAN1_NEXT, 20) == 19
+    assert rise_eo.compute_n_timestamps(JAN1, JAN1_NEXT, 20) == 19
     # exact multiple: Jan 1 -> Feb 10 is 40 days, /10 = 4 windows.
-    assert fsd.compute_n_timestamps(JAN1, datetime.datetime(2018, 2, 10), 10) == 4
+    assert rise_eo.compute_n_timestamps(JAN1, datetime.datetime(2018, 2, 10), 10) == 4
     # one short window.
-    assert fsd.compute_n_timestamps(JAN1, datetime.datetime(2018, 1, 6), 20) == 1
+    assert rise_eo.compute_n_timestamps(JAN1, datetime.datetime(2018, 1, 6), 20) == 1
 
 
 # --- preflight ---------------------------------------------------------------
@@ -58,7 +58,7 @@ def test_preflight_rejects_bad_window_and_makes_nothing(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     export = tmp_path / "export"
     with pytest.raises(api.PreflightError):
-        fsd.create_training_data(
+        rise_eo.create_training_data(
             label_polygons=_polys(tmp_path), catalog_filepath=cat,
             startdate=JAN1_NEXT, enddate=JAN1,  # reversed
             mosaic_days=0, bands=[],            # bad mosaic + empty bands
@@ -69,7 +69,7 @@ def test_preflight_rejects_bad_window_and_makes_nothing(tmp_path):
 
 def test_preflight_missing_catalog(tmp_path):
     with pytest.raises(api.PreflightError, match="catalog_filepath"):
-        fsd.create_training_data(
+        rise_eo.create_training_data(
             label_polygons=_polys(tmp_path),
             catalog_filepath=str(tmp_path / "nope.parquet"),
             startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
@@ -80,7 +80,7 @@ def test_preflight_missing_catalog(tmp_path):
 def test_preflight_missing_columns(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     with pytest.raises(api.PreflightError, match="not in label_polygons"):
-        fsd.create_training_data(
+        rise_eo.create_training_data(
             label_polygons=_polys(tmp_path), catalog_filepath=cat,
             startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
             id_col="MISSING", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -93,7 +93,7 @@ def test_preflight_missing_columns(tmp_path):
 def test_seam_guard_local_only(tmp_path, kwargs):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     with pytest.raises(api.PreflightError):
-        fsd.create_training_data(
+        rise_eo.create_training_data(
             label_polygons=_polys(tmp_path), catalog_filepath=cat,
             startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
             id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -106,7 +106,7 @@ def test_seam_guard_local_only(tmp_path, kwargs):
 def test_adapter_and_feature_sequence_conflict(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     with pytest.raises(api.PreflightError, match="not both"):
-        fsd.create_training_data(
+        rise_eo.create_training_data(
             label_polygons=_polys(tmp_path), catalog_filepath=cat,
             startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
             id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -117,7 +117,7 @@ def test_adapter_and_feature_sequence_conflict(tmp_path):
 def test_unknown_aggregate_rejected(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     with pytest.raises(api.PreflightError, match="aggregate"):
-        fsd.create_training_data(
+        rise_eo.create_training_data(
             label_polygons=_polys(tmp_path), catalog_filepath=cat,
             startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
             id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -193,7 +193,7 @@ def test_create_training_data_orchestration(tmp_path, monkeypatch):
         ).to_csv(csv_filepath, index=False)
 
     def fake_flatten(*, export_folderpath, **kw):
-        from fsd.storage import fs
+        from rise_eo.storage import fs
         fs.makedirs(export_folderpath)
         fs.save_npy(f"{export_folderpath}/data.npy", np.zeros((n_px, T, len(bands))))
         fs.save_npy(f"{export_folderpath}/ids.npy", np.zeros(n_px))
@@ -207,12 +207,12 @@ def test_create_training_data_orchestration(tmp_path, monkeypatch):
     monkeypatch.setattr(api._create_datacube, "run_create_datacube", fake_run_create_datacube)
     monkeypatch.setattr(api._flatten, "flatten", fake_flatten)
 
-    td = fsd.create_training_data(
+    td = rise_eo.create_training_data(
         label_polygons=_polys(tmp_path), catalog_filepath=cat,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=bands,
         id_col="fid", label_col="crop", export_folderpath=str(export),
     )
-    assert isinstance(td, fsd.TrainingData)
+    assert isinstance(td, rise_eo.TrainingData)
     assert td.n_pixels == n_px
     assert td.n_timestamps == T
     assert td.bands == bands
@@ -241,7 +241,7 @@ def _preflight_text(fn, *args, **kwargs) -> str:
 
 
 def test_download_unknown_source_then_max_tiles(tmp_path):
-    text = _preflight_text(fsd.download, **_download_kw(tmp_path, source="nope", max_tiles=0))
+    text = _preflight_text(rise_eo.download, **_download_kw(tmp_path, source="nope", max_tiles=0))
     assert text == (
         "preflight failed:\n"
         "  - source='nope' must be one of 'cdse', 'mpc'.\n"
@@ -251,7 +251,7 @@ def test_download_unknown_source_then_max_tiles(tmp_path):
 
 def test_download_cdse_max_tiles_then_creds(tmp_path):
     text = _preflight_text(
-        fsd.download, **_download_kw(tmp_path, source="cdse", max_tiles=0, creds=None)
+        rise_eo.download, **_download_kw(tmp_path, source="cdse", max_tiles=0, creds=None)
     )
     assert text == (
         "preflight failed:\n"
@@ -262,7 +262,7 @@ def test_download_cdse_max_tiles_then_creds(tmp_path):
 
 def test_download_unserved_collection_comes_first(tmp_path):
     text = _preflight_text(
-        fsd.download,
+        rise_eo.download,
         **_download_kw(tmp_path, source="cdse", collection="sentinel-1-rtc", max_tiles=0),
     )
     assert text == (
@@ -277,7 +277,7 @@ def test_download_unserved_collection_comes_first(tmp_path):
 def test_create_training_data_wave2_max_tiles_required_then_creds(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     text = _preflight_text(
-        fsd.create_training_data,
+        rise_eo.create_training_data,
         label_polygons=_polys(tmp_path), catalog_filepath=cat,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -298,7 +298,7 @@ _NOT_BOTH = (
 def test_create_training_data_not_both_exact_text(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     text = _preflight_text(
-        fsd.create_training_data,
+        rise_eo.create_training_data,
         label_polygons=_polys(tmp_path), catalog_filepath=cat,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B04"],
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -309,7 +309,7 @@ def test_create_training_data_not_both_exact_text(tmp_path):
 
 def test_flatten_training_data_not_both_exact_text(tmp_path):
     text = _preflight_text(
-        fsd.flatten_training_data, str(tmp_path / "missing.csv"), str(tmp_path / "e"),
+        rise_eo.flatten_training_data, str(tmp_path / "missing.csv"), str(tmp_path / "e"),
         adapter=object(), feature_sequence=[("x", {})], runner="batch",
     )
     assert text == _NOT_BOTH
@@ -322,7 +322,7 @@ class _NeedsB04:
 def test_create_training_data_aggregate_error_follows_adapter_error(tmp_path):
     cat = _touch(tmp_path / "sentinel-2-l2a" / "catalog.parquet")
     text = _preflight_text(
-        fsd.create_training_data,
+        rise_eo.create_training_data,
         label_polygons=_polys(tmp_path), catalog_filepath=cat,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=["B08"],
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),
@@ -338,7 +338,7 @@ def test_create_training_data_aggregate_error_follows_adapter_error(tmp_path):
 
 def test_flatten_training_data_aggregate_error_follows_seam_errors(tmp_path):
     text = _preflight_text(
-        fsd.flatten_training_data, str(tmp_path / "missing.csv"), str(tmp_path / "e"),
+        rise_eo.flatten_training_data, str(tmp_path / "missing.csv"), str(tmp_path / "e"),
         aggregate="bogus", runner="batch",
     )
     assert text == (
@@ -357,7 +357,7 @@ def test_create_training_data_alias_spelling_is_not_a_missing_band(tmp_path, req
         required_bands = required
 
     text = _preflight_text(
-        fsd.create_training_data,
+        rise_eo.create_training_data,
         label_polygons=_polys(tmp_path), catalog_filepath=cat,
         startdate=JAN1, enddate=JAN1_NEXT, mosaic_days=20, bands=bands,
         id_col="fid", label_col="crop", export_folderpath=str(tmp_path / "e"),

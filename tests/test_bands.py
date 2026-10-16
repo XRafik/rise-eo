@@ -1,4 +1,4 @@
-"""Tests for fsd.bands.modify (spec 06).
+"""Tests for rise_eo.bands.modify (spec 06).
 
 5-D contract: (samples, timestamps, height, width, bands). Most tests use a
 1x1x1 spatial/temporal cell so index arithmetic is hand-checkable.
@@ -7,7 +7,7 @@
 import numpy as np
 import pytest
 
-from fsd.bands import modify
+from rise_eo.bands import modify
 
 S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B11", "B12"]
 

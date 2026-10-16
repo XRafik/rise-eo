@@ -1,5 +1,5 @@
 """First real batch-download run (TODO #9): 1 year of the Ethiopia multi-CRS ROI,
-4 bands. Exercises fsd.sources.cdse.download end-to-end and records fast-fail stats.
+4 bands. Exercises rise_eo.sources.cdse.download end-to-end and records fast-fail stats.
 
 Run: .venv/bin/python benchmarks/download_year_ethiopia.py
 Writes a stats JSON next to this file; the .md report is composed from it.
@@ -10,14 +10,14 @@ import json
 import os
 from pathlib import Path
 
-from fsd.catalog.catalog import TileCatalog
-from fsd.sources import cdse
+from rise_eo.catalog.catalog import TileCatalog
+from rise_eo.sources import cdse
 
 WS = str(Path(__file__).resolve().parents[2])  # workspace root: the folder holding fsd/ and the archives
 ROI = f"{WS}/shapefiles/s2grid=165bca4.geojson"
 # Dedicated benchmark tree so the real `satellite/` data stays unpolluted.
 ROOT = f"{WS}/satellite_benchmark/sentinel-2-l2a"
-CATALOG = f"{ROOT}/catalog.parquet"            # fresh fsd GeoParquet catalog
+CATALOG = f"{ROOT}/catalog.parquet"            # fresh rise-eo GeoParquet catalog
 BANDS = ["B04", "B08", "B8A", "SCL"]
 START = datetime.datetime(2018, 1, 1)
 END = datetime.datetime(2019, 1, 1)
@@ -36,7 +36,7 @@ def dir_bytes(path):
 
 
 def main():
-    from fsd import config
+    from rise_eo import config
 
     creds = cdse.CdseCredentials.from_json(f"{WS}/secrets/cdse_credentials.json")
     catalog = TileCatalog(CATALOG)

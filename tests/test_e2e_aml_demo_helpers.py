@@ -3,7 +3,7 @@
 The demo run itself is not unit-testable by design (spec 40 §6) -- it needs a cluster.
 Its *helpers* are, and three of them are the ones a real run bets 80 GB on:
 
-- `_list_run_ids`/`_new_dispatch_timings`: how a step learns which run(s) its `fsd.*`
+- `_list_run_ids`/`_new_dispatch_timings`: how a step learns which run(s) its `rise_eo.*`
   call dispatched under, since no verb returns a run id (ADR 0021). Exercised here
   against a real fsspec backend (`memory://`), because the bug it has to survive --
   `fs.glob` returning the filesystem's own scheme-less path form -- only shows up
@@ -24,7 +24,7 @@ import sys
 
 import pytest
 
-from fsd.storage import fs
+from rise_eo.storage import fs
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _DEMOS_DIR = os.path.join(os.path.dirname(_HERE), "demos")
@@ -58,7 +58,7 @@ def test_list_run_ids_is_empty_when_nothing_has_dispatched():
 
 
 def test_new_dispatch_timings_returns_only_runs_created_after_the_snapshot():
-    """The before/after diff each dispatching step wraps its `fsd.*` call in."""
+    """The before/after diff each dispatching step wraps its `rise_eo.*` call in."""
     root = "memory://disc_diff"
     _write_timing(root, "run-old")
     before = demo._list_run_ids(root)
@@ -186,9 +186,9 @@ def _build_archive(tmp_path, *, granules=3, sidecar=True, offset=-1000, nodata=N
     """
     import shapely.geometry as sg
 
-    from fsd import config
-    from fsd.catalog.catalog import TileCatalog
-    from fsd.catalog.declaration import CollectionDeclaration
+    from rise_eo import config
+    from rise_eo.catalog.catalog import TileCatalog
+    from rise_eo.catalog.declaration import CollectionDeclaration
 
     imagery = tmp_path / "imagery"
     eff_nodata = config.NODATA if nodata is None else nodata
@@ -321,7 +321,7 @@ def test_archive_trust_rejects_an_offset_outside_the_two_esa_values(tmp_path):
 
 
 def test_archive_trust_requires_a_stamped_source_declaration(tmp_path):
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     catalog_fp, imagery = _build_archive(tmp_path)
     rows = TileCatalog(catalog_fp).read()
@@ -368,7 +368,7 @@ def _dispatch(with_stamps: bool, n=3):
 def test_dispatch_telemetry_gate_fails_on_an_image_that_predates_the_stamps():
     """The 2026-07-29 run: green end to end, 97 jobs, four dispatches, and
     `job_admission_seconds: null` on every one -- because the four stamps are written by
-    the `fsd` inside the AML image, not by the driver's checkout. Nothing failed, which
+    the `rise-eo` inside the AML image, not by the driver's checkout. Nothing failed, which
     is precisely the problem."""
     with pytest.raises(demo.PreflightFailure, match="in-job stamps"):
         demo._assert_dispatch_telemetry_complete([_dispatch(with_stamps=False)],
@@ -457,8 +457,8 @@ def test_preflight_deps_cover_what_the_steps_actually_import():
     declared = {m.split(".")[0] for m, _, _ in demo._DRIVER_DEPS}
     stdlib_or_local = {
         "__future__", "os", "sys", "json", "time", "re", "signal", "datetime", "contextlib",
-        "argparse", "importlib", "ast", "statistics", "fsd", "adapters",
-        "numpy", "pandas", "geopandas", "shapely", "rasterio",  # fsd CORE deps
+        "argparse", "importlib", "ast", "statistics", "rise_eo", "adapters",
+        "numpy", "pandas", "geopandas", "shapely", "rasterio",  # rise-eo CORE deps
     }
 
     missed = set()

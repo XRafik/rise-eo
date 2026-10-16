@@ -1,10 +1,10 @@
 # How to: bundle your model as a `ModelAdapter`
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify after any
-> change to `fsd.model.BaseModelAdapter`, `fsd.model.bundle`, or the feature-sequence contract in
-> `fsd.bands.modify`.
+> change to `rise_eo.model.BaseModelAdapter`, `rise_eo.model.bundle`, or the feature-sequence contract in
+> `rise_eo.bands.modify`.
 
-**fsd owns the plumbing** — download, datacube build, tiling, COG/STAC/merge, the local and AML
+**rise-eo owns the plumbing** — download, datacube build, tiling, COG/STAC/merge, the local and AML
 runners. **You own two endpoints** that connect your trained model to that plumbing. This page is
 the step-by-step version of what [`docs/tutorial.md`](../tutorial.md) §6 did with a five-line
 throwaway class; [`examples/eurocrops_rf.py`](../../examples/eurocrops_rf.py) is a complete,
@@ -32,17 +32,17 @@ caller's window to choose.)
 
 ### 2. Endpoint ① — datacube → model input (your feature transform)
 
-Declared **once**, run by fsd at **both** training and inference — the anti-skew guarantee: train
+Declared **once**, run by rise-eo at **both** training and inference — the anti-skew guarantee: train
 and serve see identical features, by construction, not by discipline.
 
 **That guarantee only holds if you hand the adapter to the training call too:**
-`fsd.create_training_data(..., adapter=my_adapter)`. Without it, `create_training_data` writes the
+`rise_eo.create_training_data(..., adapter=my_adapter)`. Without it, `create_training_data` writes the
 **raw bands** and your transform runs at inference only — which is exactly the train/serve skew this
 section claims to rule out. (There is also a raw `feature_sequence=` argument for adapter-less
 exploration; pass one or the other, never both.)
 
 ```python
-from fsd.bands import modify
+from rise_eo.bands import modify
 
 feature_sequence = [
     (modify.mask_invalid_and_interpolate, {}),
@@ -51,7 +51,7 @@ feature_sequence = [
 ]
 ```
 
-This is a `fsd.bands.modify` pipeline over the 5-D `(samples, timestamps, height, width, bands)`
+This is a `rise_eo.bands.modify` pipeline over the 5-D `(samples, timestamps, height, width, bands)`
 contract — the primary, declarative way to specify a transform. If your feature logic can't be
 expressed as a sequence of `(fn, kwargs)` steps, override `features(data5d, band_indices)` instead
 (what the tutorial's trivial classifier does — `feature_sequence = None`, `features` returns the
@@ -67,13 +67,13 @@ def predict(self, X_chunk):
     return self.clf.predict(X_chunk).astype("uint8")
 ```
 
-fsd hands you valid (non-NaN) rows already chunked (`predict_batch_size`) and scatters NaN → nodata
+rise-eo hands you valid (non-NaN) rows already chunked (`predict_batch_size`) and scatters NaN → nodata
 on the output side — `predict` never sees a NaN and never has to think about masking.
 
 ### 4. Endpoint ② — raw output → standard `Output` (your packaging)
 
 `to_output(raw, hw)` → `Output((bands, H, W), dtype, nodata, band_names)` — how your model's numbers
-become the COG bands fsd writes. A default is provided that maps one categorical/vector value per
+become the COG bands rise-eo writes. A default is provided that maps one categorical/vector value per
 pixel using the declarations from step 1; override only for custom band packing.
 
 ### 5. `load()` — read your artifact once per worker
@@ -83,13 +83,13 @@ def load(self):
     self.clf, self.label_encoder = joblib.load(self.artifacts["model"])
 ```
 
-`self.artifacts` is `{name: absolute path}`, injected by the bundle before `load()` runs. fsd never
+`self.artifacts` is `{name: absolute path}`, injected by the bundle before `load()` runs. rise-eo never
 trains a model — you bring one that's already fit.
 
 ## Bundle it
 
 ```python
-from fsd.model import bundle
+from rise_eo.model import bundle
 
 bundle_dir = bundle.save(adapter, {"model": "rf.joblib"}, "path/to/bundle")
 bundle.read_spec(bundle_dir)   # the model-free manifest -- no import, no model load
@@ -125,7 +125,7 @@ the top of `code/`, raises a `ValueError` naming the fix.
 Check a saved bundle without importing anything:
 
 ```python
-from fsd.model import bundle
+from rise_eo.model import bundle
 m = bundle.read_spec("path/to/bundle")
 print(m["fsd_bundle_version"], m["adapter"], m.get("code"), m.get("requirements"))
 ```
@@ -137,15 +137,15 @@ print(m["fsd_bundle_version"], m["adapter"], m.get("code"), m.get("requirements"
 Before dispatching a many-cell fan-out, run these **in order** — each is cheap relative to the one
 after it, and each answers a question the others cannot:
 
-1. **`fsd.verify_adapter`** — does my adapter's LOGIC compute the right thing? Builds ONE real
+1. **`rise_eo.verify_adapter`** — does my adapter's LOGIC compute the right thing? Builds ONE real
    grid cell's datacube (locally, or on AML for the case that matters), lands it on your laptop, and
    runs your adapter over it through the exact same code the cluster runs
-   (`fsd.workflows.infer_only_task.run_infer_only`) — so you can open `output.tif` in QGIS before
+   (`rise_eo.workflows.infer_only_task.run_infer_only`) — so you can open `output.tif` in QGIS before
    trusting the bundle at all. **Does NOT check:** the inference image (see step 2), scale (one
    cell is not the fan-out), or any cell but the one it ran.
 
    ```python
-   report = fsd.verify_adapter(
+   report = rise_eo.verify_adapter(
        bundle_dir, roi="your_roi.geojson", catalog_filepath=catalog,
        startdate=..., enddate=..., mosaic_days=20, bands=required_bands,
        export_folderpath="data/verify_adapter",   # the cube + output.tif land HERE, locally
@@ -153,28 +153,28 @@ after it, and each answers a question the others cannot:
    assert report["pass"], report["error"]
    ```
 
-2. **`fsd.model.verify_image`** — will the inference IMAGE actually run this bundle? Submits ONE
+2. **`rise_eo.model.verify_image`** — will the inference IMAGE actually run this bundle? Submits ONE
    real Azure ML node running your bundle inside the target Environment (~40–380s). **Does NOT
    check:** whether the adapter's logic is correct (that's step 1 — a local run here would pass
    trivially, since the driver already has your adapter's source on `sys.path`) or scale.
 
    ```python
-   from fsd.model import verify_image
+   from rise_eo.model import verify_image
 
    report = verify_image(
-       bundle_dir, environment="fsd-infer-sklearn:3",
+       bundle_dir, environment="rise-eo-infer-sklearn:3",
        runner_kwargs={"cluster": ..., "root": ..., "identity_client_id": ...},
    )
    assert report["pass"], report["error"]
    ```
 
-3. **`fsd.run_inference`** — the fan-out, N nodes. **Does NOT re-check** what steps 1–2 already
+3. **`rise_eo.run_inference`** — the fan-out, N nodes. **Does NOT re-check** what steps 1–2 already
    proved; it assumes the adapter and image are both sound.
 
 ## Run it
 
 ```python
-result = fsd.run_inference(
+result = rise_eo.run_inference(
     bundle_dir, output_folderpath="data/predictions",
     roi="your_roi.geojson", catalog_filepath=catalog,
     startdate=..., enddate=..., mosaic_days=20, bands=required_bands,

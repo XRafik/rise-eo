@@ -1,4 +1,4 @@
-"""Tests for fsd.sources.cdse (spec 01).
+"""Tests for rise_eo.sources.cdse (spec 01).
 
 Credential loading only (no network). Uses DUMMY values — never the real
 secrets/cdse_credentials.json.
@@ -15,10 +15,10 @@ import types
 import geopandas as gpd
 import shapely.geometry as sg
 
-from fsd import collections as _collections
-from fsd import config
-from fsd.sources import cdse
-from fsd.sources.cdse import CdseCredentials
+from rise_eo import collections as _collections
+from rise_eo import config
+from rise_eo.sources import cdse
+from rise_eo.sources.cdse import CdseCredentials
 
 
 def _esa_name(id, dt, baseline):
@@ -330,7 +330,7 @@ def test_fmt_progress_line():
 def test_download_raises_when_over_max_tiles(monkeypatch, tmp_path):
     import pytest
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     # 3 fake items overlapping the ROI, max_tiles=2 -> raise before any download
     items = [_fake_item(i, "2018-01-01T00:00:00Z", 0.0, 0.0, 0.0) for i in "abc"]
@@ -345,7 +345,7 @@ def test_download_raises_when_over_max_tiles(monkeypatch, tmp_path):
 
 def test_download_end_to_end_mocked(monkeypatch, tmp_path):
     """Full download flow with storage mocked — no network, real catalog write."""
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     item = _fake_item("S2A_T36PZT", "2018-01-30T08:00:00Z", 36.0, 11.0, 5.0, safe=SAFE)
     monkeypatch.setattr(cdse, "_search_items", lambda *a, **k: [item])
@@ -386,7 +386,7 @@ def test_download_creates_missing_local_root(monkeypatch, tmp_path):
     the same code path as the reported cog=True disk-probe crash."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     item = _fake_item("S2A_T36PZT", "2018-01-30T08:00:00Z", 36.0, 11.0, 5.0, safe=SAFE)
     monkeypatch.setattr(cdse, "_search_items", lambda *a, **k: [item])
@@ -419,7 +419,7 @@ def test_download_accumulates_timing_bytes_and_by_band(monkeypatch, tmp_path):
     """spec 23 SO-1/D11: download() records transfer/convert seconds, bytes, and per-band bytes."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     item = _fake_item("S2A_T36PZT", "2018-01-30T08:00:00Z", 36.0, 11.0, 5.0, safe=SAFE)
     monkeypatch.setattr(cdse, "_search_items", lambda *a, **k: [item])
@@ -469,7 +469,7 @@ def test_sum_results_aggregates():
 
 def test_plan_download_diffs_needed_vs_present(monkeypatch, tmp_path):
     """spec 23 D13: plan_download queries STAC, diffs vs the local catalog, suggests params + eta."""
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     needed = gpd.GeoDataFrame({"id": ["t1", "t2", "t3"]},
                               geometry=[sg.box(0, 0, 1, 1)] * 3, crs="EPSG:4326")
@@ -488,12 +488,12 @@ def test_plan_download_diffs_needed_vs_present(monkeypatch, tmp_path):
     assert plan["download_params"]["max_tiles"] == 3
     assert plan["estimate"]["gb"] == round(2 * 2e6 / 1e9, 2)   # 2 missing x (1MB+1MB)
     msg = cdse.format_download_plan(plan)
-    assert "fsd.download(" in msg and "missing: 2" in msg
+    assert "rise_eo.download(" in msg and "missing: 2" in msg
 
 
 def test_format_download_plan_fully_present_is_not_contradictory():
     """When missing_count == 0, the message must not say "not present" nor emit a
-    fsd.download(...) command (regression: it did both, contradicting "missing: 0")."""
+    rise_eo.download(...) command (regression: it did both, contradicting "missing: 0")."""
     plan = {
         "needed_count": 13, "present_count": 13, "missing_count": 0, "missing_ids": [],
         "download_params": {
@@ -504,7 +504,7 @@ def test_format_download_plan_fully_present_is_not_contradictory():
     }
     msg = cdse.format_download_plan(plan)
     assert "fully present" in msg and "missing: 0" in msg
-    assert "fsd.download(" not in msg
+    assert "rise_eo.download(" not in msg
     assert "not (fully) present" not in msg
 
 
@@ -513,7 +513,7 @@ def test_circuit_breaker_trips_and_stops_early(monkeypatch, tmp_path):
     A2 pipeline has no chunk boundary -- semantics are "stops within ~max_staged of
     the trip", not an exact chunk count. `max_staged=1` forces strictly serialized
     submission (one file in flight at a time) so the trip point is deterministic."""
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     # 6 tiles, 1 file each; every transfer fails; breaker at 3 consecutive.
     items = [_fake_item(f"t{i}", "2018-01-01T00:00:00Z", 0.0, 0.0, 0.0) for i in range(6)]
@@ -599,7 +599,7 @@ def test_download_cog_accepts_remote_root_via_local_scratch(monkeypatch, tmp_pat
     catalog's local_folderpath to the remote location."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     item = _fake_item("S2A_T36PZT", "2018-01-30T08:00:00Z", 36.0, 11.0, 5.0, safe=SAFE)
     monkeypatch.setattr(cdse, "_search_items", lambda *a, **k: [item])
@@ -617,7 +617,7 @@ def test_download_cog_accepts_remote_root_via_local_scratch(monkeypatch, tmp_pat
 
     roi = gpd.GeoDataFrame(geometry=[sg.box(36.0, 11.0, 37.0, 12.0)], crs="EPSG:4326")
     cat = TileCatalog(str(tmp_path / "c.parquet"))
-    remote_root = "memory://fsd-cdse-test/imagery"
+    remote_root = "memory://rise-eo-cdse-test/imagery"
     result = cdse.download(
         roi, datetime.datetime(2018, 1, 1), datetime.datetime(2018, 2, 1),
         ["B04"], remote_root, cat, CdseCredentials(**DUMMY_FIELDS),
@@ -628,13 +628,13 @@ def test_download_cog_accepts_remote_root_via_local_scratch(monkeypatch, tmp_pat
     import fsspec
 
     memfs = fsspec.filesystem("memory")
-    assert memfs.exists("fsd-cdse-test/imagery/tile/B04.tif")
+    assert memfs.exists("rise-eo-cdse-test/imagery/tile/B04.tif")
     gdf = cat.read()
     assert gdf["local_folderpath"].iloc[0].startswith(remote_root)
 
 
 def test_download_resume_loops_until_complete(monkeypatch):
-    from fsd.sources.cdse import DownloadResult
+    from rise_eo.sources.cdse import DownloadResult
 
     seq = [
         DownloadResult(1, 6, failed_count=5, circuit_tripped=True),   # bad window
@@ -816,7 +816,7 @@ def test_download_cog_pipeline_converts_via_injected_sync_executor(monkeypatch, 
 
     import rasterio
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     item = _fake_item("S2A_T36PZT", "2018-01-30T08:00:00Z", 36.0, 11.0, 5.0, safe=SAFE)
     monkeypatch.setattr(cdse, "_search_items", lambda *a, **k: [item])
@@ -911,7 +911,7 @@ def test_download_pipeline_bounds_staged_backpressure(monkeypatch, tmp_path):
     in-flight count (peak), not a filesystem race."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     n_tiles = 6
     items = [
@@ -955,7 +955,7 @@ def test_download_cog_false_never_spawns_convert_pool(monkeypatch, tmp_path):
     """A cog=False run spawns zero convert processes (spec 25: lazy pool creation)."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     def _boom_factory(max_workers):
         raise AssertionError("convert pool factory must not be invoked (cog=False)")
@@ -987,7 +987,7 @@ def test_download_all_skip_pass_never_spawns_convert_pool(monkeypatch, tmp_path)
     zero convert processes (spec 25: lazy pool creation)."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     def _boom_factory(max_workers):
         raise AssertionError("convert pool factory must not be invoked (all-skip pass)")
@@ -1091,7 +1091,7 @@ def _setup_multi_tile_download(monkeypatch, tmp_path, n_tiles=4):
     """Common fixture: n_tiles items, one B04 band each, fake local transfer."""
     import os
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     items = [
         _fake_item(f"t{i}", "2018-01-01T00:00:00Z", float(i), 0.0, 0.0)
@@ -1267,7 +1267,7 @@ def test_download_resume_breaks_on_stopped_pass(monkeypatch):
     """spec 26 test 3: a `should_stop` that trips on pass 1 ends `download_resume`
     immediately -- only one pass ran, the last result has `stopped True`, no cooldown
     taken (a user stop is neither a bad-window cooldown nor a completion)."""
-    from fsd.sources.cdse import DownloadResult
+    from rise_eo.sources.cdse import DownloadResult
 
     calls = {"n": 0}
 
@@ -1316,7 +1316,7 @@ def test_fmt_progress_eta_placeholder_before_first_completion():
         assert token in s1
 
 
-# --- _roi_gdf reads through fsd.storage, not gpd.read_file(path) ---------------
+# --- _roi_gdf reads through rise_eo.storage, not gpd.read_file(path) ---------------
 # Regression: spec 37 dispatches downloads with the roi on blob. pyogrio/GDAL does
 # not understand `abfss://` and raised `DataSourceError: No such file or directory`
 # for a file that demonstrably existed. Same fix workflows/task.py already carries
@@ -1324,7 +1324,7 @@ def test_fmt_progress_eta_placeholder_before_first_completion():
 # that GDAL cannot open, so this test fails on a revert to `gpd.read_file(roi)`.
 
 def test_roi_gdf_reads_a_non_gdal_url_through_the_storage_seam():
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     gdf = gpd.GeoDataFrame(
         {"id": ["a"]}, geometry=[sg.box(16.0, 48.0, 16.1, 48.1)], crs="EPSG:4326"
@@ -1351,7 +1351,7 @@ def test_download_resume_forwards_every_option_to_download(monkeypatch):
     """A14 (#145): each resume pass hands `download` the caller's `collection`, `processing`,
     `max_cloudcover`, `cog`, `max_convert_procs`, `max_staged`, `max_concurrent_s3` and
     `chunksize` (non-default values, so a dropped one cannot hide behind a default)."""
-    from fsd.sources.cdse import DownloadResult
+    from rise_eo.sources.cdse import DownloadResult
 
     seen = []
 

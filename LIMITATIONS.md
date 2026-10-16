@@ -1,6 +1,6 @@
-# LIMITATIONS — what fsd cannot do today
+# LIMITATIONS — what rise-eo cannot do today
 
-**The one-page honest answer to "can fsd do X?"** — written for a *user* of the system
+**The one-page honest answer to "can rise-eo do X?"** — written for a *user* of the system
 (and for anyone sizing a demo), not for an implementer.
 
 **This is an index, not a register.** One line per limitation, no detail. The detail
@@ -46,7 +46,7 @@ column is what "hitting it" means for each row.
 | **There will be no Azure *Batch* runner.** The project's Batch account has a 6 vCPU quota against a 64-core pool VM, so it cannot allocate a node; dropped rather than quota-requested. | someone needs Batch specifically (or a generic task-queue backend: AWS Batch, k8s) | `docs/reference/AZURE_INFRA.md` §3.1 |
 | **Inference-on-blob (`run_inference(roi=…, runner="aml")`) is FULLY VALIDATED on the real cluster (2026-07-28) — Phases 0-3 all GREEN.** Phase 0 (env + adapter smoke, D3/D4), Phase 1 (single-MGRS-tile ROI → 9 cells → 9 COGs + STAC; found + fixed the grids.geojson GDAL-on-blob bug, `9422a1a`), Phase 2 (D6/D7 resume + D13 guard), and **Phase 3 (`AT_ROI` → 300 cells, 16 shards, 300 COGs + STAC, `n_failed == 0`, `bundle_loads == 16`, wall 2066.9 s)** and **Phase 4 (strict single-CRS `merge` -> one 14.1 MB `merged.tif` on blob, wall 1082.1 s)**. Phase 3's two earlier failures were a *label set* passed as `roi=` (spec 21 D-GRID-1), not an infrastructure limit. **Known cost shape: 52.5 % of wall was driver overhead, undecomposed** (TODO #59). `deploy` and the pre-built-cubes `run_inference` path stay local-only (unchanged, D14 scope). | the overhead share matters, or a non-demo-scale ROI | spec 38; spec 21 D-GRID-1; TODO #59 |
 | **P4's crash-resume is per-cell, not per-shard-atomic**: a shard that crashes mid-cell loses only that cell's un-pushed scratch (each cell publishes atomically via D5's `to_cog` remote branch); a re-dispatch skips every cell whose `output.tif` already exists on blob (D6) and rebuilds only the unfinished tail. Same honest limitation shape as spec 37 D8's download resume, cheaper here (a crashed shard re-runs only its cells, not the whole download). | a crash-resume actually happens on the cluster | spec 38 D6/D12 |
-| **An inference image serves one dependency family** (e.g. sklearn), not every model: the bundle carries the adapter's code, but a model needing new packages needs a new image. Images are declared and built with `fsd.image` (`docs/howto/build-the-images.md`); the build is an operator step, not automatic. | a model with a new dependency family | spec 44; spec 56; ADR 0002 |
+| **An inference image serves one dependency family** (e.g. sklearn), not every model: the bundle carries the adapter's code, but a model needing new packages needs a new image. Images are declared and built with `rise_eo.image` (`docs/howto/build-the-images.md`); the build is an operator step, not automatic. | a model with a new dependency family | spec 44; spec 56; ADR 0002 |
 | **A crashed AML download job loses its un-pushed scratch.** A fresh-node resume re-downloads the unpushed remainder: it cannot see COGs already on blob, since the push is whole-run. Cheap for MPC (only the crashed shard's slice re-runs); costs re-downloaded bytes for CDSE. | a crash-resume actually happens | spec 37 D8 |
 | **CDSE creds delivered via blob JSON (`--creds-url`) sit as plaintext at rest on blob**, unlike the Key Vault path, because the operator has no Key Vault *write* role (`ForbiddenByRbac`). Mitigated by a `_secrets/` prefix and a file scoped to one run, deleted in a `finally`. Rotate the CDSE keys if a run was long or the prefix is broadly readable. | a Key Vault write role becomes available | spec 37 D5 REVISED |
 | **`create_training_data(download=True, runner="aml")` end to end is unrun on the cluster.** Its flatten leg alone is validated (900 blob cubes → one single-node reduce, 2026-07-27). | someone runs it and reports back | spec 39 |
@@ -58,9 +58,9 @@ column is what "hitting it" means for each row.
 
 | Limitation | Trigger to fix | Detail |
 |---|---|---|
-| **fsd serves nothing.** It emits COGs + STAC; a stock server turns them into XYZ tiles (`docs/howto/serve-xyz.md`), and none is hosted. | someone needs a hosted map | #26; #63; `ROADMAP.md` P5 |
+| **rise-eo serves nothing.** It emits COGs + STAC; a stock server turns them into XYZ tiles (`docs/howto/serve-xyz.md`), and none is hosted. | someone needs a hosted map | #26; #63; `ROADMAP.md` P5 |
 | **No render config on outputs** — nothing tells a viewer how to colour a class raster. | first output shown to a non-author | TODO #28 |
-| **The STAC Collection's `classification:classes` lists only the *masked* SCL values, with placeholder names.** Misleading to an external STAC consumer; fsd itself is unaffected. | an external tool actually reads our STAC | TODO #45 |
+| **The STAC Collection's `classification:classes` lists only the *masked* SCL values, with placeholder names.** Misleading to an external STAC consumer; rise-eo itself is unaffected. | an external tool actually reads our STAC | TODO #45 |
 
 ## Models
 
@@ -75,7 +75,7 @@ column is what "hitting it" means for each row.
 
 | Limitation | Trigger to fix | Detail |
 |---|---|---|
-| **The local Austria archive predates spec 59, and current fsd refuses to read it.** Every catalog written before spec 59 lacks its four columns and raises on read; there is no migration. | any real-data run | #119; `docs/reference/test-data.md` |
+| **The local Austria archive predates spec 59, and current rise-eo refuses to read it.** Every catalog written before spec 59 lacks its four columns and raises on read; there is no migration. | any real-data run | #119; `docs/reference/test-data.md` |
 | **The `rise` blob COGs carry the pre-fix (wrong) GDAL offset tag** — a titiler `unscale=true` render of them would be all black. | before ever serving those blob COGs | TODO #44 |
 
 ## Legacy capabilities not carried over
@@ -84,11 +84,11 @@ From the pre-fsd repos (`fetch_satdata`, `rsutils`, `cdseutils`), left out on pu
 
 | Capability | Why it was left out | Reconsider when |
 |---|---|---|
-| Sentinel-2 **L1C**, and **s2cloudless** cloud masking (L1C-only, heavy dependency) | fsd is L2A-first | an L1C use case returns |
+| Sentinel-2 **L1C**, and **s2cloudless** cloud masking (L1C-only, heavy dependency) | rise-eo is L2A-first | an L1C use case returns |
 | **Planet** datacube path | a same-CRS special case, not a download source | a uniform-grid source is needed |
 | **SSH / cluster fetch** (`fetch_from_cluster`) | infrastructure-specific | a multi-machine workflow without blob storage |
 | **ESA WorldCover / WorldCereal** TIF generators | reference-data tooling, not core | reference layers are needed in-repo |
-| Sentinel-Hub **Process API** download (evalscripts) | fsd downloads whole granules | small on-the-fly composites are needed |
+| Sentinel-Hub **Process API** download (evalscripts) | rise-eo downloads whole granules | small on-the-fly composites are needed |
 | `rsutils` plotting, `rich_data_filter`, `esa_download`, `utils_preprocess` (SAR scaling, patch-finding) | not on the data-prep path; plotting belongs in notebooks | per need |
 | Band ops: rolling `median_mosaic` (window/step), `sav_gol` smoothing, `trim_bands`, `modify_bands_chunkwise` | not used by any band sequence | a training-time rolling mosaic, temporal smoothing, timestamp trimming, or out-of-memory band math |
 | Preprocess-log save and replay | not on the band path | a preprocessing recipe must be persisted and replayed |

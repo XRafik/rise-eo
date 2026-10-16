@@ -16,7 +16,7 @@ import argparse
 import json
 import os
 
-from fsd.catalog import stac as _stac
+from rise_eo.catalog import stac as _stac
 
 
 def _parse_args(argv=None) -> argparse.Namespace:
@@ -27,8 +27,8 @@ def _parse_args(argv=None) -> argparse.Namespace:
     )
     p.add_argument("--input-csv", required=True, help="the run_inference build manifest")
     p.add_argument("--stac-dir", required=True, help="STAC output folder (overwritten)")
-    p.add_argument("--collection-id", default="fsd-inference")
-    p.add_argument("--catalog-id", default="fsd-inference")
+    p.add_argument("--collection-id", default="rise-eo-inference")
+    p.add_argument("--catalog-id", default="rise-eo-inference")
     p.add_argument("--result-json", default=None,
                    help="write the spec-24 _result.json here (default <stac-dir>/../_result.json)")
     return p.parse_args(argv)
@@ -46,7 +46,7 @@ def main(argv=None) -> int:
         )
         _stac.write_stac_catalog(
             items, args.stac_dir, catalog_id=args.catalog_id, collection_id=args.collection_id,
-            description="fsd inference outputs (STAC, regenerated with true cell geometry).",
+            description="rise-eo inference outputs (STAC, regenerated with true cell geometry).",
         )
         distinct_ids = len({it.id for it in items})
         non_rectangular = sum(

@@ -19,9 +19,9 @@ From `fsd/` with the dev env active (`source .venv/bin/activate`):
 import os, datetime, tempfile
 import geopandas as gpd
 import rasterio, numpy as np
-from fsd.sources import cdse
-from fsd.sources.cdse import CdseCredentials
-from fsd.catalog.catalog import TileCatalog
+from rise_eo.sources import cdse
+from rise_eo.sources.cdse import CdseCredentials
+from rise_eo.catalog.catalog import TileCatalog
 
 ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))
 creds = CdseCredentials.from_json(os.path.join(os.getcwd(), "secrets/cdse_credentials.json"))

@@ -1,7 +1,7 @@
 # Manual test — `run_inference(roi=…)` (Mode A, one call: ROI → per-cell COGs)
 
 Validates the **P0.75 ROI inference verb** (spec 21) on real data: a single
-`fsd.run_inference(roi=…)` call **tiles an ROI into S2 grid cells, builds one datacube per
+`rise_eo.run_inference(roi=…)` call **tiles an ROI into S2 grid cells, builds one datacube per
 cell, infers each, and writes per-cell COGs + a STAC catalog (+ an optional merged map)** — all
 local, via the **runner seam** (Snakemake now; Azure Batch swaps in at P4 unchanged).
 
@@ -23,8 +23,8 @@ subprocess — put it in a real module on `PYTHONPATH`, **not** an interactive `
 `ndvi_thresh.py`:
 
 ```python
-from fsd.bands import modify
-from fsd.model import BaseModelAdapter
+from rise_eo.bands import modify
+from rise_eo.model import BaseModelAdapter
 
 class NDVIThresh(BaseModelAdapter):
     required_bands = ["B04", "B08"]
@@ -51,14 +51,14 @@ From the repo root (`fsd/`), with `ndvi_thresh.py` importable (`PYTHONPATH=.`):
 import datetime, os
 import geopandas as gpd
 from shapely.geometry import box
-import fsd
+import rise_eo
 from ndvi_thresh import NDVIThresh
 
 CAT = "../satellite_benchmark/sentinel-2-l2a/catalog.parquet"
 # a small ~9 km sub-ROI keeps the cell count (and time) down; use inference_roi.geojson for the full run
 roi = gpd.GeoDataFrame({"geometry": [box(36.20, 11.45, 36.28, 11.53)]}, crs="EPSG:4326")
 
-res = fsd.run_inference(
+res = rise_eo.run_inference(
     NDVIThresh(),
     output_folderpath=os.path.join("tests/outputs/roi_inference"),
     roi=roi, catalog_filepath=CAT,
@@ -124,6 +124,6 @@ print("stac items:", len(list(cat.get_items(recursive=True))))
   class). `cores` = how many cells build+infer at once (the runner seam); Batch (P4) dispatches the
   same per-cell task.
 - **Imagery is assumed present** in `catalog_filepath` — inference never calls CDSE (conserve quota;
-  spec 21 SO-6). Download first with `fsd.download` if a cell has no tiles (those cells warn + skip).
+  spec 21 SO-6). Download first with `rise_eo.download` if a cell has no tiles (those cells warn + skip).
 - Outputs are gitignored (`tests/outputs/`). Full-ROI run = swap in `shapefiles/inference_roi.geojson`
   and a full-year window (`T=19`); expect both UTM zones → `merge="reproject"`.

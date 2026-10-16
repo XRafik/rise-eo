@@ -1,12 +1,12 @@
-# AGENTS.md — fsd
+# AGENTS.md — rise-eo
 
 Instructions for AI coding agents in this repo. People: start with `CONTRIBUTING.md`.
 
-## What fsd is
+## What rise-eo is
 
-`fsd` downloads Sentinel-2 L2A imagery, builds datacubes and flattens them into training data. Its verb
-API is `fsd.download`, `fsd.create_training_data`, `run_inference` and `deploy`. It runs locally or on
-Azure ML, with no cloud lock-in. Users train their own models; fsd does not. The plan is in
+`rise-eo` downloads Sentinel-2 L2A imagery, builds datacubes and flattens them into training data. Its verb
+API is `rise_eo.download`, `rise_eo.create_training_data`, `run_inference` and `deploy`. It runs locally or on
+Azure ML, with no cloud lock-in. Users train their own models; rise-eo does not. The plan is in
 `ROADMAP.md`, the design in `ARCHITECTURE.md`, the vocabulary in `CONTEXT.md`.
 
 ## Setup and checks
@@ -44,7 +44,7 @@ A PR merges when it passes four gates (details in `CONTRIBUTING.md`):
    agent, that is a different session, or a reviewer agent (below) spawned under such an account. A review
    from any other account is a pre-review. Every finding is fixed in the PR or filed as an issue.
 4. **A real run is shown** when the change touches real data, the cloud or pixels: the output or a
-   screenshot, pasted into the PR. Code that runs as a cloud job (the AML runner, `fsd.workflows.shard` /
+   screenshot, pasted into the PR. Code that runs as a cloud job (the AML runner, `rise_eo.workflows.shard` /
    `infer_shard`, the runners they call) counts as the cloud even when tests use fakes; `CONTRIBUTING.md`
    gate 4 says which runs count. A diff that `scripts/comment_astcheck.py` proves comments-only needs no
    run (`CONTRIBUTING.md` gate 4 has the two checks).
@@ -69,11 +69,11 @@ A PR merges when it passes four gates (details in `CONTRIBUTING.md`):
   belongs in git and the PR description, so comments describe the code as it is now.
 - **Keep the safety checks.** Never drop checks on user input (ROIs, dates, config, paths), or an error
   whose removal would let data be skipped or lost silently.
-- **All file I/O goes through `fsd.storage`** (fsspec), so local disk, Azure Blob and S3 are config, not
+- **All file I/O goes through `rise_eo.storage`** (fsspec), so local disk, Azure Blob and S3 are config, not
   code. The exceptions: raster pixel reads use rasterio/GDAL, and a path that is local by construction (a
   temp or scratch directory the process creates, the user config file, a source tree read to package it)
   may use the standard library. Any other path from a caller, a CLI flag or config may be a URL, so it goes
-  through `fsd.storage` (ADR 0034). S3 access is generic (`s3fs`, any `endpoint_url`); never `boto3`
+  through `rise_eo.storage` (ADR 0034). S3 access is generic (`s3fs`, any `endpoint_url`); never `boto3`
   directly.
 - **Raster ops take and return `(data, profile)`**, so they chain as `sequence=[(func, kwargs), ...]`.
 - **Band math uses 5-D arrays** `(samples, timestamps, height, width, bands)` plus a `band_indices` dict
@@ -92,7 +92,7 @@ A PR merges when it passes four gates (details in `CONTRIBUTING.md`):
   QGIS; unit tests alone do not prove pixels are right.
 - **Never write a bare "tile".** An **MGRS tile** is the ~110 km source granule (`T36PZT`, catalog
   column `mgrs_tile`); we download it, and the builder merges across MGRS tiles. A **grid cell** is the
-  ~5 km piece of an ROI from `fsd.grid.roi_to_s2_grids` (id like `165b09c`, column `id`). One grid cell =
+  ~5 km piece of an ROI from `rise_eo.grid.roi_to_s2_grids` (id like `165b09c`, column `id`). One grid cell =
   one inference datacube = one per-cell task.
 - **Docs.** Keep the living docs true in the same PR as the code: `README.md`, `CONTRIBUTING.md`,
   `ARCHITECTURE.md`, `CONTEXT.md`, `LIMITATIONS.md`, `ROADMAP.md`, `docs/`. Specs, ADRs and run-books

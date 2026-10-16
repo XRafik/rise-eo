@@ -1,11 +1,11 @@
 # How to: build the two AML node images
 
 > **Last verified:** 2026-08-27 @ spec 56. Re-verify after any change to
-> `fsd.image`/`fsd.aml`, to the extras in `pyproject.toml`, or to the base image.
+> `rise_eo.image`/`rise_eo.aml`, to the extras in `pyproject.toml`, or to the base image.
 
-Everything on an Azure ML cluster runs inside a container. fsd needs **two**, and neither of them
-is per-model. Since spec 56 the recipe for each is an `fsd.image.ImageDefinition` -- declared in
-Python, resolved, digested, and handed to `fsd.aml.ensure_environment`, which checks the image
+Everything on an Azure ML cluster runs inside a container. rise-eo needs **two**, and neither of them
+is per-model. Since spec 56 the recipe for each is an `rise_eo.image.ImageDefinition` -- declared in
+Python, resolved, digested, and handed to `rise_eo.aml.ensure_environment`, which checks the image
 registry before building anything. No Dockerfile lives in this repo any more; `render_dockerfile()`
 generates one at build time.
 
@@ -15,13 +15,13 @@ Do this **before** [`run-at-scale.md`](run-at-scale.md). That page assumes both 
 
 | image | used by | what it adds |
 |---|---|---|
-| **`fsd-aml-env`** | download shards, datacube builds, `create_training_data`'s flatten | fsd + `[azure,mpc]` |
-| **`fsd-infer-sklearn`** | the `run_inference` fan-out, `verify_image`'s smoke job | the same, **plus** `scikit-learn` + `joblib` |
+| **`rise-eo-aml-env`** | download shards, datacube builds, `create_training_data`'s flatten | rise-eo + `[azure,mpc]` |
+| **`rise-eo-infer-sklearn`** | the `run_inference` fan-out, `verify_image`'s smoke job | the same, **plus** `scikit-learn` + `joblib` |
 
 The inference image is generic **per dependency family**, never per model. Since spec 44 the
 adapter's *source* travels inside the bundle, so the image copies no adapter and sets no
 `PYTHONPATH`. Every sklearn model you ever bundle runs on this one image. A torch model needs an
-`fsd-infer-torch` -- `BASE.derive(name="fsd-infer-torch", extra_pip=("torch",))` -- built
+`rise-eo-infer-torch` -- `BASE.derive(name="rise-eo-infer-torch", extra_pip=("torch",))` -- built
 identically with the last dependency swapped.
 
 ## Prerequisites
@@ -29,33 +29,33 @@ identically with the last dependency swapped.
 - `az login` into the tenant hosting the workspace, plus the `ml` extension (`az extension add -n ml`).
 - An AML workspace and resource group -- a platform-admin action, not something this repo
   provisions. Ask for them by name; see [`run-at-scale.md`](run-at-scale.md).
-- A local fsd checkout with its venv (`pip install -e ".[dev,aml,mpc,azure,grid]"`) -- or, for a
-  consumer with no checkout, fsd installed from a git ref (`pip install "fsd[aml] @ git+https://github.com/nikhilsrajan/fsd@<ref>"`).
-- Your Azure coordinates in `~/.config/fsd/config.toml`, **including `image_registry`** (spec 55
+- A local rise-eo checkout with its venv (`pip install -e ".[dev,aml,mpc,azure,grid]"`) -- or, for a
+  consumer with no checkout, rise-eo installed from a git ref (`pip install "rise-eo[aml] @ git+https://github.com/nikhilsrajan/fsd@<ref>"`).
+- Your Azure coordinates in `~/.config/rise-eo/config.toml`, **including `image_registry`** (spec 55
   D2 -- the storage-seam path definitions are published to):
   ```bash
-  fsd init      # interactive; fill in every value, including image_registry
+  rise-eo init      # interactive; fill in every value, including image_registry
   ```
   Every variable is documented in [`../reference/environment.md`](../reference/environment.md).
 
 ## Declare the definitions
 
 ```python
-from fsd.image import ImageDefinition
+from rise_eo.image import ImageDefinition
 
-# fsd developer, from a checkout: fsd="path:..." -- the ONE case that builds a wheel and hashes
+# rise-eo developer, from a checkout: rise_eo="path:..." -- the ONE case that builds a wheel and hashes
 # its content (spec 56 D5). A consumer with no checkout uses a pinned git ref instead:
-#   fsd="git+https://github.com/nikhilsrajan/fsd@<40-char sha or branch>"
+#   rise_eo="git+https://github.com/nikhilsrajan/fsd@<40-char sha or branch>"
 BASE = ImageDefinition(
-    name="fsd-aml-env",
-    fsd="path:/path/to/your/fsd/checkout",
+    name="rise-eo-aml-env",
+    rise_eo="path:/path/to/your/rise-eo/checkout",
     extras=("local", "azure", "mpc"),
 )
-INFER = BASE.derive(name="fsd-infer-sklearn", extra_pip=("scikit-learn", "joblib"))
+INFER = BASE.derive(name="rise-eo-infer-sklearn", extra_pip=("scikit-learn", "joblib"))
 ```
 
 > **`local` is not optional here (#80).** `snakemake` lives in the `[local]` extra, and the
-> in-job entrypoints (`fsd.workflows.shard`, `fsd.workflows.infer_shard`) call back into
+> in-job entrypoints (`rise_eo.workflows.shard`, `rise_eo.workflows.infer_shard`) call back into
 > `runners.run_local` — a node runs the same Snakemake orchestration a laptop does. Leave it
 > out and the build succeeds, then the dispatch fails ~30 min in. If you built images before
 > 2026-09-04, rebuild them with `local` added.
@@ -66,18 +66,18 @@ itself. `name` never affects what gets built: it is where the image is registere
 contains (D2) -- `BASE.derive(name=...)` alone changes nothing about the image.
 
 **Bringing your own Dockerfile?** `ImageDefinition(name=..., build_context="./my-context")` takes
-a directory you own; fsd digests its file contents (never the path) and builds it unchanged, no
-`fsd=`/`base=`/`extras=` needed.
+a directory you own; rise-eo digests its file contents (never the path) and builds it unchanged, no
+`rise_eo=`/`base=`/`extras=` needed.
 
 ## Ensure the environments
 
 ```python
-import fsd
-import fsd.aml
+import rise_eo
+import rise_eo.aml
 
-cfg = fsd.config.load()
+cfg = rise_eo.config.load()
 
-result = fsd.aml.ensure_environment(
+result = rise_eo.aml.ensure_environment(
     BASE, registry=cfg.image_registry,
     resource_group=cfg.resource_group, workspace=cfg.workspace,
 )
@@ -94,7 +94,7 @@ the same call plus `alias="current"`; that works on a reuse as well as on a buil
 In order (D4):
 
 1. resolve the definition -- every moving reference fixed: a git ref pinned to a 40-char sha, a
-   `path:` fsd hashed to its built wheel's content digest, the base image tag resolved to
+   `path:` rise-eo hashed to its built wheel's content digest, the base image tag resolved to
    `@sha256:...` when the registry can answer;
 2. digest the resolved definition and look it up in `registry=` by digest;
 3. on a hit, confirm the AML asset it names **still exists** (`az ml environment show`) -- a
@@ -119,7 +119,7 @@ moved under a tag you did not pin).
 **This is the step people skip, and it is the expensive one to skip.** `az ml environment create`
 registers the *asset* and returns immediately; the image builds asynchronously in ACR (~10-20 min
 each, occasionally flaky). The v2 `Environment` object carries **no build state whatsoever**, so
-`ml_client.environments.get(name, version)` succeeds against a half-built image and every fsd
+`ml_client.environments.get(name, version)` succeeds against a half-built image and every rise-eo
 preflight goes green regardless. Submit early and jobs do not fail -- they sit in *Preparing*
 until ACR is done, and that wait lands inside `job_admission_seconds`.
 
@@ -130,7 +130,7 @@ terminal` for ten minutes while both builds completed normally in Studio, 2026-0
 environment show` proves the **asset** is registered, never that the image is built.
 
 So open `result.build_url` (or `az ml environment show -n <name> -v <version> ...` and build the
-Studio URL from the `WSID`/tenant it needs -- `fsd.aml.environment.build_link` does exactly that)
+Studio URL from the `WSID`/tenant it needs -- `rise_eo.aml.environment.build_link` does exactly that)
 and read it. Wait for **Build status: Succeeded** on *both* images before running anything against
 them.
 
@@ -139,7 +139,7 @@ them.
 ```python
 runner_kwargs = dict(environment=result.ref, ...)
 
-from fsd.model.verify_image import verify_image
+from rise_eo.model.verify_image import verify_image
 
 vres = verify_image(
     bundle_dir, environment=result.ref, runner="aml", runner_kwargs=runner_kwargs,
@@ -150,21 +150,21 @@ assert vres["pass"], vres
 
 **`result.ref` and `result.registry_ref` are different numbers and are not interchangeable.**
 AML versions *assets*; the image registry versions *definitions*, in its own integer sequence —
-`fsd-aml-env:5` in AML can be `fsd-aml-env:1` in the registry. `environment=` wants AML's
+`rise-eo-aml-env:5` in AML can be `rise-eo-aml-env:1` in the registry. `environment=` wants AML's
 (`.ref`, `.version`); `image_ref=` wants the registry's (`.registry_ref`, `.registry_version`).
 Swapping them fails as a missing `v<N>` directory, not as a type error, so name the field.
 
 `verify_image`'s wheel-staleness gate (spec 47) now has two equivalent forms (D8):
 `build_context=` for a checked-out build (unchanged since spec 47), and `image_ref=` +
 `registry=` for anything built through `ensure_environment` -- it resolves the registry entry and
-checks its resolved `fsd` reference the same way `build_context` checks a wheel. Pass whichever
+checks its resolved `rise-eo` reference the same way `build_context` checks a wheel. Pass whichever
 matches how the image was built; `build_context` wins if both are given.
 
 ## Prefer to run it than read it?
 
 [`notebooks/build_images.ipynb`](../../notebooks/build_images.ipynb) is this page as a
 runnable notebook, and is **the one notebook this repo tracks**. It reads every Azure coordinate
-(including `image_registry`) from `~/.config/fsd/config.toml` via `fsd.config.load()` rather than
+(including `image_registry`) from `~/.config/rise-eo/config.toml` via `rise_eo.config.load()` rather than
 carrying them, and `tests/test_notebooks.py` fails the build if it ever gains a saved output or a
 hardcoded identifier -- that guard is why it can be public at all. Clear its outputs
 (*Kernel -> Restart & Clear All Outputs*) before committing.
@@ -172,7 +172,7 @@ hardcoded identifier -- that guard is why it can be public at all. Clear its out
 ## Troubleshooting
 
 **`ensure_environment` built when I expected a reuse.** Either the definition really changed (for
-`fsd="path:..."`, an uncommitted edit changes the wheel's content digest -- there is no separate
+`rise_eo="path:..."`, an uncommitted edit changes the wheel's content digest -- there is no separate
 git-dirty check, D5), or the registry entry's AML asset no longer exists and `ensure_environment`
 correctly refused to hand back a dead reference.
 
@@ -183,7 +183,7 @@ extension **half-deleted**, after which every `az ml` command breaks. Run these 
 laptop, or reinstall the extension with `sudo`.
 
 **`verify_image` returns `wheel_has_spec44: False` / `image_ref_has_spec44: False`.** The image
-was built from a pre-spec-44 fsd. Rebuild from a current checkout or a current git ref.
+was built from a pre-spec-44 rise-eo. Rebuild from a current checkout or a current git ref.
 
 **A build failed.** Studio -> Environments -> the version -> build log. Calling
 `ensure_environment` again retries the same digest and gets you the same version back --

@@ -1,15 +1,15 @@
 # How to: download real imagery (and why a small ROI doesn't make it small)
 
 > **Last verified:** 2026-07-31 @ `df98463` (spec 41 D5 tier 2 — "dated"). Re-verify if
-> `fsd.download`'s granule selection, `max_tiles` preflight, or the CDSE/MPC byte-per-granule
+> `rise_eo.download`'s granule selection, `max_tiles` preflight, or the CDSE/MPC byte-per-granule
 > profile changes.
 
 The tutorial never downloaded anything — it ran entirely on a committed fixture. This page is what
-you read before you run `fsd.download` for real, so the byte budget doesn't surprise you mid-run.
+you read before you run `rise_eo.download` for real, so the byte budget doesn't surprise you mid-run.
 
 ## The one fact that makes this page necessary
 
-**fsd reads whole ~110 km MGRS-tile granules — there is no windowed/partial-tile read** (see
+**rise-eo reads whole ~110 km MGRS-tile granules — there is no windowed/partial-tile read** (see
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md)'s invariants and `LIMITATIONS.md`). A granule averages
 **~426 MB** across four bands (B04 184 MB + B08 187 MB + B8A 51 MB + SCL 4.6 MB, measured). Your ROI
 picks *which* granules intersect it — a 5 km ROI and a 100 km ROI inside the same MGRS tile pull the
@@ -34,12 +34,12 @@ download (spec 41 D11) — there is no real-download configuration that is tutor
 ## Size your download before running it
 
 Query the granule count for your ROI/window/bands through your source's own STAC search before
-calling `fsd.download` — no bytes move for a query. `fsd.download`'s own preflight does the same
+calling `rise_eo.download` — no bytes move for a query. `rise_eo.download`'s own preflight does the same
 count internally and refuses the run if it exceeds `max_tiles` (below), so sizing first just lets
 you make that decision on purpose instead of by trial and error.
 
 ```python
-from fsd import grid
+from rise_eo import grid
 
 n_cells = len(grid.roi_to_s2_grids("your_roi.geojson", grid_size_km=5))
 print(n_cells, "grid cells")   # cells, not granules -- see the note below
@@ -52,22 +52,22 @@ by ~426 MB × (bands you're keeping ÷ 4) for a byte estimate.
 
 ### From the command line (CDSE only): preview, then a run you can stop
 
-`fsd.sources.download_cli` is a thin CLI over CDSE's `download_resume`. `--dry-run` reads metadata
+`rise_eo.sources.download_cli` is a thin CLI over CDSE's `download_resume`. `--dry-run` reads metadata
 only (no band bytes) and reports what the real run would fetch. `--stop-file` lets you stop a long
 run cleanly from another terminal; re-running the same command resumes it.
 
 ```bash
 # preview: metadata only
-.venv/bin/python -m fsd.sources.download_cli \
+.venv/bin/python -m rise_eo.sources.download_cli \
   --roi my_roi.geojson --start 2018-01-01 --end 2019-01-01 \
   --bands B04 B08 SCL --dst data/imagery --catalog data/imagery/sentinel-2-l2a/catalog.parquet \
   --max-tiles 600 --dry-run
 
-# real run; `touch /tmp/fsd.stop` from another terminal stops it cleanly
-.venv/bin/python -m fsd.sources.download_cli \
+# real run; `touch /tmp/rise-eo.stop` from another terminal stops it cleanly
+.venv/bin/python -m rise_eo.sources.download_cli \
   --roi my_roi.geojson --start 2018-01-01 --end 2019-01-01 \
   --bands B04 B08 SCL --dst data/imagery --catalog data/imagery/sentinel-2-l2a/catalog.parquet \
-  --max-tiles 600 --stop-file /tmp/fsd.stop --creds cdse_credentials.json
+  --max-tiles 600 --stop-file /tmp/rise-eo.stop --creds cdse_credentials.json
 ```
 
 It writes `<dst>/_result.json`. The exit code is the verdict: 0 on a clean finish or a user stop,
@@ -77,10 +77,10 @@ rest (`--max-cloudcover`, `--max-passes`, `--no-cog`, …).
 ## `max_tiles` is a required, not optional, guardrail
 
 ```python
-import fsd
-from fsd.sources.cdse import CdseCredentials
+import rise_eo
+from rise_eo.sources.cdse import CdseCredentials
 
-catalog = fsd.download(
+catalog = rise_eo.download(
     roi="your_roi.geojson",
     startdate=..., enddate=...,
     bands=["B04", "B08", "B8A", "SCL"],

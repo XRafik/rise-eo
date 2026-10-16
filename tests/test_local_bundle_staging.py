@@ -29,10 +29,10 @@ import rasterio
 from rasterio.crs import CRS
 from rasterio.transform import from_origin
 
-from fsd import api
-from fsd.model import BaseModelAdapter, bundle, registry
-from fsd.storage import fs
-from fsd.workflows import infer_shard, runners
+from rise_eo import api
+from rise_eo.model import BaseModelAdapter, bundle, registry
+from rise_eo.storage import fs
+from rise_eo.workflows import infer_shard, runners
 
 BANDS = ["B04", "B08"]
 EPSG = 32637
@@ -213,7 +213,7 @@ def test_ac5_staged_bundle_holds_exactly_the_manifest_declared_files(tmp_path):
     import json
     with open(os.path.join(staged, "bundle.json")) as f:
         manifest = json.load(f)
-    from fsd.model import bundle as _bundle
+    from rise_eo.model import bundle as _bundle
     expected = {_bundle.BUNDLE_MANIFEST} | set(manifest.get("artifacts", {}).values()) \
         | set(_bundle.manifest_code_files(manifest))
     got = set()
@@ -271,7 +271,7 @@ def test_ac7_roi_mode_runner_aml_performs_zero_local_fetches(tmp_path, monkeypat
 
     monkeypatch.setattr(infer_shard, "fetch_bundle_to_scratch", _boom)
     monkeypatch.setattr(
-        "fsd.grid.roi_to_s2_grids",
+        "rise_eo.grid.roi_to_s2_grids",
         lambda roi, **kw: gpd.GeoDataFrame(
             {"id": ["s1"], "geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326",
         ),
@@ -292,8 +292,8 @@ def test_ac7_roi_mode_runner_aml_performs_zero_local_fetches(tmp_path, monkeypat
     cat = tmp_path / "sentinel-2-l2a" / "catalog.parquet"
     import pandas as pd
 
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     gdf = gpd.GeoDataFrame(
         [{"id": "T_0", "acquisition_key": "T_0", "processing_version": None, "processing_datetime": None, "source": "mpc", "satellite": "sentinel-2-l2a", "timestamp": pd.Timestamp("2018-06-01", tz="UTC"),
@@ -328,7 +328,7 @@ def test_ac7_roi_mode_runner_local_still_stages(tmp_path, monkeypatch):
     registry_root, ref = _publish_to_blob_registry(tmp_path)
 
     monkeypatch.setattr(
-        "fsd.grid.roi_to_s2_grids",
+        "rise_eo.grid.roi_to_s2_grids",
         lambda roi, **kw: gpd.GeoDataFrame(
             {"id": ["s1"], "geometry": [box(0, 0, 1, 1)]}, crs="EPSG:4326",
         ),
@@ -346,8 +346,8 @@ def test_ac7_roi_mode_runner_local_still_stages(tmp_path, monkeypatch):
     monkeypatch.setattr(runners, "run_local_inference", _fake_run_local_inference)
 
     cat = tmp_path / "sentinel-2-l2a" / "catalog.parquet"
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     gdf = gpd.GeoDataFrame(
         [{"id": "T_0", "acquisition_key": "T_0", "processing_version": None, "processing_datetime": None, "source": "mpc", "satellite": "sentinel-2-l2a", "timestamp": pd.Timestamp("2018-06-01", tz="UTC"),

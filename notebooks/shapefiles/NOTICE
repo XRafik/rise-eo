@@ -2,7 +2,7 @@ NOTICE — notebooks/shapefiles/
 
 These geometries are committed deliberately: they are what the demo notebooks read, and a
 test geometry that exists only on one laptop is not a test geometry. They do not travel in a
-package install — no data ships in the fsd wheel (git tracking and wheel contents are set by
+package install — no data ships in the rise-eo wheel (git tracking and wheel contents are set by
 different mechanisms).
 
 AT_2018_TRAIN.geojson
@@ -11,7 +11,7 @@ AT_2018_TRAIN.geojson
   harmonises national parcel declarations — for Austria, the INVEKOS/AMA data — onto a common
   crop taxonomy. Sampled and reprojected for this repository; not the upstream dataset.
 
-  Licence: CC BY 4.0, not fsd's MIT. The code in this repository is MIT; data derived from
+  Licence: CC BY 4.0, not rise-eo's MIT. The code in this repository is MIT; data derived from
   EuroCrops is CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reuse it with
   attribution and a note that it was modified (sampled, reprojected, attributes reduced).
   Suggested citation: Schneider, M., Chan, A., & Körner, M. (2023). EuroCrops: A Pan-European
@@ -36,6 +36,6 @@ s2grid=4772924.geojson
                Use it for anything that needs imagery AND labels — e.g. the
                create_training_data leg of runbooks/58-p2-window-a.md.
 
-  Generated with fsd.grid.roi_to_s2_grids(AT_ROI, grid_size_km=5).
+  Generated with rise_eo.grid.roi_to_s2_grids(AT_ROI, grid_size_km=5).
 
 Precedent for committing test data with a NOTICE: tests/data/tutorial/NOTICE.

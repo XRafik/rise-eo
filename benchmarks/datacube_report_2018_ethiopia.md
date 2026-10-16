@@ -5,7 +5,7 @@ summary: Full-year Ethiopia multi-CRS datacube benchmark against the satellite_b
 
 # Datacube benchmark — 1 year, Ethiopia multi-CRS ROI
 
-Heavy test of `fsd.datacube.builder.build_datacube` on a **full year (2018)** of real,
+Heavy test of `rise_eo.datacube.builder.build_datacube` on a **full year (2018)** of real,
 locally-downloaded Sentinel-2 L2A tiles, plus an **NDVI correctness check** that makes
 the cloud-mask + median-mosaic effect visible. Two goals:
 

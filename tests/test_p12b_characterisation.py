@@ -19,12 +19,12 @@ import rasterio.shutil
 import rasterio.transform
 import shapely.geometry as sg
 
-from fsd import config
-from fsd.catalog import declaration as declaration_module
-from fsd.catalog.catalog import COLUMNS, TileCatalog
-from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-from fsd.datacube import ops
-from fsd.raster import cog, images, rio_env, rio_open
+from rise_eo import config
+from rise_eo.catalog import declaration as declaration_module
+from rise_eo.catalog.catalog import COLUMNS, TileCatalog
+from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
+from rise_eo.datacube import ops
+from rise_eo.raster import cog, images, rio_env, rio_open
 
 FORMATS = pathlib.Path(__file__).parent / "data" / "formats"
 UTM = rasterio.crs.CRS.from_epsg(32643)
@@ -160,8 +160,8 @@ def test_b8_error_messages_in_full():
         "declaration JSON is missing required field 'fsd_declaration_version'."
     )
     assert _from_json_error({"fsd_declaration_version": 3}) == (
-        "declaration JSON was written by a newer fsd (version 3) than this one supports "
-        "(version 2); upgrade fsd before reading this catalog."
+        "declaration JSON was written by a newer rise-eo (version 3) than this one supports "
+        "(version 2); upgrade rise-eo before reading this catalog."
     )
     assert _from_json_error({"fsd_declaration_version": 2, "bogus": 1}) == (
         "declaration JSON (version 2) has unknown field(s) ['bogus']; known fields are "
@@ -334,7 +334,7 @@ class _FakeSrc:
 def fake_rasterio(monkeypatch):
     _FakeEnv.created = []
     opened = []
-    monkeypatch.setattr("fsd.raster.storage_token", lambda: "TOKEN")
+    monkeypatch.setattr("rise_eo.raster.storage_token", lambda: "TOKEN")
     monkeypatch.setattr(rasterio, "Env", _FakeEnv)
     monkeypatch.setattr(rasterio, "open", lambda *a, **k: opened.append((a, k)) or _FakeSrc())
     return opened

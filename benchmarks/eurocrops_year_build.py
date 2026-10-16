@@ -2,7 +2,7 @@
 
 Builds one datacube per field over the whole of 2018 (mosaic_days=20 -> ~19 calendar
 mosaic timestamps, spec 15) via the real workflow (setup -> Snakemake -> task), with
-per-cube `timings.json` sidecars enabled (FSD_WRITE_TIMINGS) so the companion report
+per-cube `timings.json` sidecars enabled (RISE_EO_WRITE_TIMINGS) so the companion report
 script can profile the build.
 
 Dataset: shapefiles/austria_eurocrops_sampled_ethiopia_translated.geojson (id=`fid`,
@@ -11,7 +11,7 @@ satellite_benchmark/. Cubes land under fsd/tests/outputs/datacube_year/ (gitigno
 the report + figures are produced by `eurocrops_year_report.py`.
 
 Run from the workspace root (parent of fsd/):
-    FSD_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py
+    RISE_EO_WRITE_TIMINGS=1 fsd/.venv/bin/python fsd/benchmarks/eurocrops_year_build.py
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ import time
 import pandas as pd
 
 # per-cube timings.json (propagates to the task subprocesses the workflow spawns)
-os.environ.setdefault("FSD_WRITE_TIMINGS", "1")
+os.environ.setdefault("RISE_EO_WRITE_TIMINGS", "1")
 
-from fsd.workflows import create_datacube  # noqa: E402  (after env set)
+from rise_eo.workflows import create_datacube  # noqa: E402  (after env set)
 
 SHAPES = "shapefiles/austria_eurocrops_sampled_ethiopia_translated.geojson"
 CATALOG = "satellite_benchmark/sentinel-2-l2a/catalog.parquet"
@@ -44,7 +44,7 @@ def main() -> None:
     os.makedirs(RUN, exist_ok=True)
     t0 = time.time()
     print(f"[{datetime.datetime.now():%H:%M:%S}] full-year (2018) build, 1015 fields, "
-          f"cores={CORES}, timings={os.environ.get('FSD_WRITE_TIMINGS')}", flush=True)
+          f"cores={CORES}, timings={os.environ.get('RISE_EO_WRITE_TIMINGS')}", flush=True)
 
     create_datacube.run_create_datacube(
         catalog_filepath=CATALOG, timestamp_col="timestamp", shapefilepath=SHAPES,

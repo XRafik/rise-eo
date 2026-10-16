@@ -12,7 +12,7 @@ Steps (each prints a ✓ check; a failed check aborts — this is a gate, not a 
   2. DOWNLOAD (probe + resume + timing)  6. plots (per-class NDVI + crop map)
   3. training data (create_training_data) 7. timing report + cost_model + ETA estimator
 
-Download is a SEPARATE step (CDSE serves quota'd .jp2 that fsd converts to COG); compute reads the
+Download is a SEPARATE step (CDSE serves quota'd .jp2 that rise-eo converts to COG); compute reads the
 catalog and never touches CDSE. Needs CDSE creds + the isolated venv:
 
     python3.11 -m venv .venv-modeldeploy
@@ -45,12 +45,12 @@ os.environ["PYTHONPATH"] = _HERE + os.pathsep + os.environ.get("PYTHONPATH", "")
 import estimate as _estimate  # noqa: E402  (demos/estimate.py — the no-download ETA helper)
 from adapters import DemoRF  # noqa: E402
 
-import fsd  # noqa: E402
-from fsd import config, grid  # noqa: E402
-from fsd.catalog.catalog import TileCatalog  # noqa: E402
-from fsd.model import bundle  # noqa: E402
-from fsd.sources import cdse  # noqa: E402
-from fsd.sources.cdse import CdseCredentials  # noqa: E402
+import rise_eo  # noqa: E402
+from rise_eo import config, grid  # noqa: E402
+from rise_eo.catalog.catalog import TileCatalog  # noqa: E402
+from rise_eo.model import bundle  # noqa: E402
+from rise_eo.sources import cdse  # noqa: E402
+from rise_eo.sources.cdse import CdseCredentials  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(_HERE))                     # workspace root
 
@@ -62,7 +62,7 @@ LABEL_COL = "crop"
 
 # --- the model-specific part (adapter DemoRF needs B04/B08; SCL masks; B8A is dropped) ---
 # The SCL mask classes are no longer a verb parameter (spec 58 D3) -- they are declared
-# on the `sentinel-2-l2a` CollectionDeclaration (`fsd.collections.get("sentinel-2-l2a")`),
+# on the `sentinel-2-l2a` CollectionDeclaration (`rise_eo.collections.get("sentinel-2-l2a")`),
 # and happen to be exactly this list already, so this demo's behavior is unchanged.
 # `collection=` (default "sentinel-2-l2a") and `properties_filter=` (spec 58 D9) are both
 # left at their defaults here: S2 L2A declares `mosaic_partition=()`, so there is no
@@ -91,7 +91,7 @@ CLASS_COLORS = {
 
 OUTDIR = os.path.join(_HERE, "..", "tests/outputs/demo_e2e")       # heavy artifacts (gitignored)
 # Spec 59 D12: ONE shared archive for every run (not under OUTDIR); the catalog lives at
-# the archive layout (D5; see `fsd.archive_catalog_filepath`).
+# the archive layout (D5; see `rise_eo.archive_catalog_filepath`).
 DATA_DIR = os.path.join(_HERE, "..", "tests/outputs/imagery")
 FIGDIR = os.path.join(_HERE, "figures")                           # small PNGs (committable)
 
@@ -160,7 +160,7 @@ def step_preflight(creds_fp):
 # --- step 1: tiling ----------------------------------------------------------
 
 def step_tiling(fast, roi_run_fp):
-    log("1. ROI → S2 grid cells (fsd.grid.roi_to_s2_grids)")
+    log("1. ROI → S2 grid cells (rise_eo.grid.roi_to_s2_grids)")
     grids = grid.roi_to_s2_grids(roi_run_fp, grid_size_km=5, scale_fact=1.1)
     grids_fp = os.path.join(OUTDIR, "inference_s2_grids.geojson")
     grids.to_file(grids_fp, driver="GeoJSON")
@@ -176,7 +176,7 @@ def step_tiling(fast, roi_run_fp):
 def step_download(creds, download_roi_fp):
     log("2. DOWNLOAD S2 L2A (probe throughput → resume-loop → jp2/COG timing)")
     os.makedirs(DATA_DIR, exist_ok=True)
-    catalog_fp = fsd.archive_catalog_filepath(DATA_DIR, config.SATELLITE_S2L2A)
+    catalog_fp = rise_eo.archive_catalog_filepath(DATA_DIR, config.SATELLITE_S2L2A)
 
     # 2a) single-threaded baseline probe (achievable CDSE MB/s right now).
     print("  2a) baseline throughput probe (1 file, 1 thread) ...", flush=True)
@@ -226,7 +226,7 @@ def step_download(creds, download_roi_fp):
             "probe_mb_per_s": round(probe_mbps, 2),
             "convert_s_per_file": round(agg.convert_seconds / max(agg.successful_count, 1), 3),
             "mean_bytes_by_band": {b: int(v / granules) for b, v in agg.bytes_by_band.items()},
-            "t_calib": fsd.compute_n_timestamps(START, END, MOSAIC_DAYS),
+            "t_calib": rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS),
         })
     ok(f"{granules} granules in catalog; every file on disk (re-run resumes)")
     return catalog_fp, granules
@@ -254,7 +254,7 @@ def step_training_data(fast, catalog_fp, adapter, clip_fp=None):
         print(f"  training fields: {len(g)} ({'clipped ' if clip_fp else ''}"
               f"{'sampled' if fast else 'all-in-slice'})")
     t0 = time.time()
-    td = fsd.create_training_data(
+    td = rise_eo.create_training_data(
         label_polygons=fields_fp, catalog_filepath=catalog_fp,
         startdate=START, enddate=END, mosaic_days=MOSAIC_DAYS, bands=BANDS,
         id_col=ID_COL, label_col=LABEL_COL,
@@ -274,7 +274,7 @@ def step_training_data(fast, catalog_fp, adapter, clip_fp=None):
     n_cubes = len(pd.read_csv(os.path.join(OUTDIR, "training_run", "input.csv")))
     if n_cubes:
         COST_MODEL["build_s_per_cube"] = round((time.time() - t0) / n_cubes, 3)
-    feats, T = d["features"], fsd.compute_n_timestamps(START, END, MOSAIC_DAYS)
+    feats, T = d["features"], rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS)
     print(f"  features: {feats.shape} {td.feature_bands} | raw: {d['data'].shape}")
     if feats.shape[1] != T:
         _fail(f"features T={feats.shape[1]} != expected T={T}")
@@ -285,7 +285,7 @@ def step_training_data(fast, catalog_fp, adapter, clip_fp=None):
 # --- step 4: train + bundle --------------------------------------------------
 
 def step_train(d, adapter):
-    log("4. train RandomForest (sklearn — fsd does not train) + save model bundle")
+    log("4. train RandomForest (sklearn — rise-eo does not train) + save model bundle")
     import joblib
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.preprocessing import LabelEncoder
@@ -306,7 +306,7 @@ def step_train(d, adapter):
     print(f"  trained on {len(X)} samples, {len(le.classes_)} classes -> {model_fp}")
     print(f"  bundle: adapter={spec['adapter']} n_timestamps={spec['n_timestamps']} "
           f"required_bands={spec['required_bands']}")
-    if spec["n_timestamps"] != fsd.compute_n_timestamps(START, END, MOSAIC_DAYS):
+    if spec["n_timestamps"] != rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS):
         _fail("bundle n_timestamps disagrees with the window T")
     ok(f"model-free bundle spec reads back ({bundle_dir})")
     return bundle_dir, list(le.classes_)
@@ -318,10 +318,10 @@ def step_inference(bundle_dir, catalog_fp, roi_run_fp, grids):
     log("5. run_inference(roi=…) → COG per cell + STAC + merged crop map")
     t0 = time.time()
     # merge="reproject": cross-UTM-zone-safe (lossless for single-zone Austria — no cell changes
-    # zone). fsd tiles the ROI, builds each cell's cube in its own CRS, runs the model, writes a COG
+    # zone). rise-eo tiles the ROI, builds each cell's cube in its own CRS, runs the model, writes a COG
     # (spec 21); cores=INFER_CORES fans out via the Snakemake runner; cubes_per_task amortises the RF
     # load. Idempotent: a re-run skips cells whose output.tif exists.
-    result = fsd.run_inference(
+    result = rise_eo.run_inference(
         model=bundle_dir, output_folderpath=os.path.join(OUTDIR, "model_outputs"),
         roi=roi_run_fp, catalog_filepath=catalog_fp,
         startdate=START, enddate=END, mosaic_days=MOSAIC_DAYS, bands=BANDS,
@@ -356,7 +356,7 @@ def step_report(granules, grids):
     if not COST_MODEL.get("mean_bytes_by_band"):
         print("  (re-run without existing imagery to (re)calibrate mean bytes/band)")
         return
-    T = fsd.compute_n_timestamps(START, END, MOSAIC_DAYS)
+    T = rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS)
     self_est = _estimate.estimate_from_counts(
         granules=granules, cells=len(grids), t=T, bands=BANDS, cost_model=COST_MODEL)
     print("  sanity — estimate for THIS run's own counts:", json.dumps(self_est, indent=2))
@@ -472,7 +472,7 @@ def _single_tile_roi(out_fp, half_deg=0.03):
 
 def main():
     global ROI_FP, TRAIN_FP, ID_COL, LABEL_COL, START, END, CORES, INFER_CORES
-    ap = argparse.ArgumentParser(description="fsd end-to-end LOCAL gate (spec 23).")
+    ap = argparse.ArgumentParser(description="rise-eo end-to-end LOCAL gate (spec 23).")
     ap.add_argument("--fast", action="store_true",
                     help="quick smoke: 2-month window, 3 fields/class, small inference ROI "
                          "(still downloads the FULL ROI).")
@@ -501,7 +501,7 @@ def main():
     fast = args.fast or args.tiny_download
     START = datetime.datetime(2018, 4, 1)
     END = datetime.datetime(2018, 6, 1) if fast else datetime.datetime(2018, 9, 30)
-    T = fsd.compute_n_timestamps(START, END, MOSAIC_DAYS)
+    T = rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS)
 
     os.makedirs(OUTDIR, exist_ok=True)
     # ROIs: --tiny-download clips BOTH the download and the inference ROI to one small central slice

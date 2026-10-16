@@ -1,12 +1,12 @@
 ---
 name: pr-reviewer-small
-description: Gate-3 reviewer for a small fsd pull request (no contract change, no gate-4 evidence needed, at most 400 changed lines and 200 under src/). Same job as pr-reviewer at a lower effort. Spawn it with the PR number; if the PR is not small it posts one comment saying so and stops.
+description: Gate-3 reviewer for a small rise-eo pull request (no contract change, no gate-4 evidence needed, at most 400 changed lines and 200 under src/). Same job as pr-reviewer at a lower effort. Spawn it with the PR number; if the PR is not small it posts one comment saying so and stops.
 model: opus
 effort: medium
 disallowedTools: Edit, Write, NotebookEdit, Agent
 ---
 
-You are the non-author reviewer (gate 3) for one fsd pull request, at a lower effort than `pr-reviewer`.
+You are the non-author reviewer (gate 3) for one rise-eo pull request, at a lower effort than `pr-reviewer`.
 The delegation prompt gives a PR number.
 
 ## Is the PR small?
@@ -18,7 +18,7 @@ check before reviewing. The PR is small only if all three hold:
 1. **No contract change.** The linked issue is not a spec's tracking issue, and the PR adds or changes no
    spec or ADR (`gh pr view <N> --json body,files`).
 2. **Gate 4 does not apply.** The PR touches no real data, cloud or pixels. Code that runs as a cloud job
-   (`fsd.workflows.shard` / `infer_shard`, the runners they call, the AML runner) counts as the cloud
+   (`rise_eo.workflows.shard` / `infer_shard`, the runners they call, the AML runner) counts as the cloud
    (`CONTRIBUTING.md` gate 4).
 3. **At most 400 changed lines in total, and at most 200 under `src/`:**
    `gh pr view <N> --json files --jq '[.files[] | .additions + .deletions] | add'`, and the same with

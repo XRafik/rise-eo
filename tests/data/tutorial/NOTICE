@@ -2,7 +2,7 @@ Contains modified Copernicus Sentinel data 2018
 
 fields.geojson holds crop-labelled field parcels for Austria, 2018, clipped from the
 EuroCrops-derived `AT_2018_TRAIN` set (see notebooks/shapefiles/NOTICE). Licence: CC BY 4.0
-(https://creativecommons.org/licenses/by/4.0/), not fsd's MIT; the code in this repository is MIT.
+(https://creativecommons.org/licenses/by/4.0/), not rise-eo's MIT; the code in this repository is MIT.
 Modified: reprojected to EPSG:4326, clipped to the tutorial cell, with a collapsed `label` column added.
 Suggested citation: Schneider, M., Chan, A., & Körner, M. (2023). EuroCrops: A Pan-European
 crop dataset. Zenodo. doi:10.5281/zenodo.7851838.

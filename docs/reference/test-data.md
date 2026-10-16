@@ -1,6 +1,6 @@
 # Reference — test data
 
-What test data fsd has, where it lives, and the traps in it. Kept true in the same PR as any change
+What test data rise-eo has, where it lives, and the traps in it. Kept true in the same PR as any change
 to it.
 
 ## 1. In git: the tutorial micro-fixture
@@ -35,7 +35,7 @@ print(int(labels.to_crs(cell.crs).intersects(cell.geometry.iloc[0]).sum()))   # 
 
 ## 3. Not in git: the Austria archive (real imagery)
 
-> **Current fsd cannot read this archive yet.** It was downloaded on 2026-09-07, before spec 59
+> **Current rise-eo cannot read this archive yet.** It was downloaded on 2026-09-07, before spec 59
 > changed the catalog schema. Its `catalog.parquet` lacks `acquisition_key`, `processing_version`,
 > `processing_datetime` and `source`, so `TileCatalog.read` refuses it and asks for a re-download.
 > Spec 59 D12 re-downloads it into the shared local archive `tests/outputs/imagery/`; that run

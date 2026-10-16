@@ -13,8 +13,8 @@ from __future__ import annotations
 import joblib
 import pytest
 
-from fsd import api
-from fsd.model import bundle, registry
+from rise_eo import api
+from rise_eo.model import bundle, registry
 
 
 def _make_bundle(tmp_path, subdir="src_bundle") -> str:
@@ -181,15 +181,15 @@ def test_run_inference_prints_the_model_line_exactly_once_with_environment(
 
     import numpy as np
 
-    from fsd.storage import fs
-    from fsd.workflows import runners as _runners
+    from rise_eo.storage import fs
+    from rise_eo.workflows import runners as _runners
 
     src = _make_bundle(tmp_path)
     registry_root = str(tmp_path / "registry")
     v1 = registry.publish(src, "crop-rf", registry_root, alias="champion")
     registry.write_deploy_record(
         "crop-rf", v1,
-        {"name": "crop-rf", "version": v1, "environment": "fsd-infer-sklearn:6"},
+        {"name": "crop-rf", "version": v1, "environment": "rise-eo-infer-sklearn:6"},
         registry_root,
     )
 
@@ -223,7 +223,7 @@ def test_run_inference_prints_the_model_line_exactly_once_with_environment(
     assert seen == [registry.version_path(registry_root, "crop-rf", 1)]
 
     out = capsys.readouterr().out
-    line = "[model] crop-rf@champion -> v1 (verified against fsd-infer-sklearn:6)"
+    line = "[model] crop-rf@champion -> v1 (verified against rise-eo-infer-sklearn:6)"
     assert out.count(line) == 1
     assert out.count("[model]") == 1
 
@@ -262,7 +262,7 @@ def test_ensure_bundle_prints_the_shorter_line_when_deploy_json_has_no_environme
 
 
 def test_ensure_bundle_prints_the_shorter_line_when_deploy_json_is_malformed(tmp_path, capsys):
-    from fsd.storage import fs
+    from rise_eo.storage import fs
 
     src = _make_bundle(tmp_path)
     registry_root = str(tmp_path / "registry")

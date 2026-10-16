@@ -1,4 +1,4 @@
-"""Characterisation pins for `fsd.catalog.stac`'s two item builders (refactor audit #145, P14a).
+"""Characterisation pins for `rise_eo.catalog.stac`'s two item builders (refactor audit #145, P14a).
 
 Literals were computed once from the code BEFORE `tile_catalog_to_items` and
 `cog_outputs_to_items` were split into helpers, and are never regenerated: the split must
@@ -17,8 +17,8 @@ import pandas as pd
 import pytest
 import shapely.geometry
 
-from fsd.catalog import stac
-from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
+from rise_eo.catalog import stac
+from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
 
 
 # Copied from tests/test_catalog_stac.py: CI runs bare `pytest`, which cannot import `tests.*`.
@@ -210,10 +210,10 @@ def _two_cogs(tmp):
 def _allow_path_fps(monkeypatch):
     # `rio_open` itself takes only str, so a pathlib.Path fp can reach the footprint lookup
     # only through a wrapper; `cog_outputs_to_items` imports `rio_open` on each call, so this applies.
-    import fsd.raster
+    import rise_eo.raster
 
-    real = fsd.raster.rio_open
-    monkeypatch.setattr(fsd.raster, "rio_open", lambda p, *a, **k: real(str(p), *a, **k))
+    real = rise_eo.raster.rio_open
+    monkeypatch.setattr(rise_eo.raster, "rio_open", lambda p, *a, **k: real(str(p), *a, **k))
 
 
 def _cog_ok(name, tmp):
@@ -1148,7 +1148,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                  'profile=cloud-optimized',
                                          'title': 'output',
                                          'roles': ['data']}},
-                   'collection': 'fsd-inference'},
+                   'collection': 'rise-eo-inference'},
                   {'type': 'Feature',
                    'stac_version': '1.1.0',
                    'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1173,7 +1173,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                  'profile=cloud-optimized',
                                          'title': 'output',
                                          'roles': ['data']}},
-                   'collection': 'fsd-inference'}],
+                   'collection': 'rise-eo-inference'}],
  'none_bands_collection': [{'type': 'Feature',
                             'stac_version': '1.1.0',
                             'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1260,7 +1260,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                       'title': 'output',
                                       'eo:bands': [{'name': 'x'}],
                                       'roles': ['data']}},
-                'collection': 'fsd-inference'},
+                'collection': 'rise-eo-inference'},
                {'type': 'Feature',
                 'stac_version': '1.1.0',
                 'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1283,7 +1283,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                       'title': 'output',
                                       'eo:bands': [{'name': 'x'}],
                                       'roles': ['data']}},
-                'collection': 'fsd-inference'}],
+                'collection': 'rise-eo-inference'}],
  'shapely_form': [{'type': 'Feature',
                    'stac_version': '1.1.0',
                    'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1305,7 +1305,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                  'profile=cloud-optimized',
                                          'title': 'output',
                                          'roles': ['data']}},
-                   'collection': 'fsd-inference'},
+                   'collection': 'rise-eo-inference'},
                   {'type': 'Feature',
                    'stac_version': '1.1.0',
                    'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1327,7 +1327,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                  'profile=cloud-optimized',
                                          'title': 'output',
                                          'roles': ['data']}},
-                   'collection': 'fsd-inference'}],
+                   'collection': 'rise-eo-inference'}],
  'feature_without_id': [{'type': 'Feature',
                          'stac_version': '1.1.0',
                          'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1354,7 +1354,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                        'profile=cloud-optimized',
                                                'title': 'output',
                                                'roles': ['data']}},
-                         'collection': 'fsd-inference'}],
+                         'collection': 'rise-eo-inference'}],
  'feature_null_properties': [{'type': 'Feature',
                               'stac_version': '1.1.0',
                               'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1381,7 +1381,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                             'profile=cloud-optimized',
                                                     'title': 'output',
                                                     'roles': ['data']}},
-                              'collection': 'fsd-inference'}],
+                              'collection': 'rise-eo-inference'}],
  'str_key_wins_over_path_key': [{'type': 'Feature',
                                  'stac_version': '1.1.0',
                                  'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1408,7 +1408,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                                'profile=cloud-optimized',
                                                        'title': 'output',
                                                        'roles': ['data']}},
-                                 'collection': 'fsd-inference'}],
+                                 'collection': 'rise-eo-inference'}],
  'path_key_when_no_str_key': [{'type': 'Feature',
                                'stac_version': '1.1.0',
                                'stac_extensions': ['https://stac-extensions.github.io/projection/v2.0.0/schema.json'],
@@ -1435,7 +1435,7 @@ COG_EXPECTED = {'none_nobands': [{'type': 'Feature',
                                                              'profile=cloud-optimized',
                                                      'title': 'output',
                                                      'roles': ['data']}},
-                               'collection': 'fsd-inference'}]}
+                               'collection': 'rise-eo-inference'}]}
 
 COG_ERR_EXPECTED = {'no_entry': ('ValueError',
               'cog_outputs_to_items: geometries has no entry for output COG '

@@ -1,4 +1,4 @@
-"""Tests for fsd.sources.mpc (spec 32/34).
+"""Tests for rise_eo.sources.mpc (spec 32/34).
 
 No network — duck-typed fake items (mirrors tests/test_cdse.py's `_FakeItem`).
 """
@@ -11,10 +11,10 @@ import pytest
 import shapely.geometry as sg
 from pystac.extensions.raster import RasterExtension
 
-from fsd import collections as _collections
-from fsd import config
-from fsd.catalog.declaration import S2_L2A_DECLARATION
-from fsd.sources import _s2_radiometry, mpc
+from rise_eo import collections as _collections
+from rise_eo import config
+from rise_eo.catalog.declaration import S2_L2A_DECLARATION
+from rise_eo.sources import _s2_radiometry, mpc
 
 
 def _product_uri(id, dt, baseline, mgrs_tile, generation_time):
@@ -159,7 +159,7 @@ def test_items_to_gdf_carries_offset_and_nodata():
 
 
 def _select(items, processing="latest"):
-    from fsd.catalog import processing as processing_module
+    from rise_eo.catalog import processing as processing_module
 
     gdf = mpc._items_to_gdf(items, collection=config.SATELLITE_S2L2A,
                             declaration=_collections.get(config.SATELLITE_S2L2A))
@@ -375,7 +375,7 @@ def test_download_drops_the_duplicate_before_transfer(monkeypatch, tmp_path):
 
     monkeypatch.setattr(mpc.fs, "transfer", _fake_transfer)
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     catalog = TileCatalog(str(tmp_path / "catalog.parquet"))
     roi = gpd.GeoDataFrame(geometry=[sg.box(0.2, 0.2, 0.5, 0.5)], crs="EPSG:4326")
@@ -421,7 +421,7 @@ def test_download_end_to_end_mocked(monkeypatch, tmp_path):
 
     monkeypatch.setattr(mpc.fs, "transfer", _fake_transfer)
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     catalog_fp = str(tmp_path / "catalog.parquet")
     catalog = TileCatalog(catalog_fp)
@@ -459,11 +459,11 @@ def test_download_accepts_remote_root_and_stamps_via_local_scratch(tmp_path, mon
 
     monkeypatch.setattr(mpc.fs, "transfer", _fake_transfer)
 
-    from fsd.catalog.catalog import TileCatalog
+    from rise_eo.catalog.catalog import TileCatalog
 
     catalog = TileCatalog(str(tmp_path / "catalog.parquet"))
     roi = gpd.GeoDataFrame(geometry=[sg.box(0.2, 0.2, 0.5, 0.5)], crs="EPSG:4326")
-    remote_root = "memory://fsd-mpc-test/imagery"
+    remote_root = "memory://rise-eo-mpc-test/imagery"
 
     result = mpc.download(
         roi, datetime.datetime(2021, 1, 1), datetime.datetime(2022, 12, 31),
@@ -476,7 +476,7 @@ def test_download_accepts_remote_root_and_stamps_via_local_scratch(tmp_path, mon
 
     memfs = fsspec.filesystem("memory")
     d = items[0].datetime
-    assert memfs.exists(f"fsd-mpc-test/imagery/{config.SATELLITE_S2L2A}/{d:%Y/%m/%d}/"
+    assert memfs.exists(f"rise-eo-mpc-test/imagery/{config.SATELLITE_S2L2A}/{d:%Y/%m/%d}/"
                         f"{_canon(items[0])}/B04.tif")
 
 
@@ -495,7 +495,7 @@ def test_gdal_tag_and_stac_raster_bands_agree(tmp_path, monkeypatch):
     import rasterio
     import shapely.geometry
 
-    from fsd.catalog import stac
+    from rise_eo.catalog import stac
 
     offset = -1000  # baseline >= 04.00
     dst = tmp_path / "B04.tif"
@@ -568,7 +568,7 @@ def test_stac_roundtrip_preserves_dn_offset_for_builder(tmp_path):
     import pandas as pd
     import shapely.geometry
 
-    from fsd.catalog import stac
+    from rise_eo.catalog import stac
 
     row = {
         "id": "S2A_MSIL2A_20220601T075611_N0500_R035_T33UWP_20220601T120000",
@@ -587,7 +587,7 @@ def test_stac_roundtrip_preserves_dn_offset_for_builder(tmp_path):
 
 # --- the [mpc] extra names itself, like [grid]/[local]/[s3] ------------------------
 # `planetary_computer` is imported lazily at two points, so without this a user who
-# installed fsd without `[mpc]` sees a bare ModuleNotFoundError naming a package they
+# installed rise-eo without `[mpc]` sees a bare ModuleNotFoundError naming a package they
 # never typed -- from a call they made as source="mpc".
 
 
@@ -603,7 +603,7 @@ def test_missing_planetary_computer_names_the_mpc_extra(monkeypatch):
 
     monkeypatch.delitem(__import__("sys").modules, "planetary_computer", raising=False)
     monkeypatch.setattr(builtins, "__import__", _no_pc)
-    with pytest.raises(ImportError, match=r"fsd\[mpc\]"):
+    with pytest.raises(ImportError, match=r"rise-eo\[mpc\]"):
         mpc._import_pc()
 
 

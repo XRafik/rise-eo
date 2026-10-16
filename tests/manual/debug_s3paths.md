@@ -1,19 +1,19 @@
-# Debug runbook — fetching a tile's S3 paths (legacy boto3 vs fsd s3fs)
+# Debug runbook — fetching a tile's S3 paths (legacy boto3 vs rise-eo s3fs)
 
 > **SUPERSEDED (2026-07-01).** The premise below (an s3fs-vs-boto3 *signing*
 > difference on recursive listing) was **disproven**: the user's multi-run debug
 > showed the **legacy boto3** path *also* fails intermittently with the same errors,
 > and sometimes fully succeeds — i.e. the cause is **CDSE server-side** (node
-> credential-replication inconsistency), not fsd. See
+> credential-replication inconsistency), not rise-eo. See
 > `debug-attempts/s3_paths_fetch/cdse_s3_intermittent_auth_report.md` and BUG-001 in
 > `BUGS.md` at tag `docs-archive-2026`. Kept for history; steps 1–4 are still a fine way to *observe* the
 > intermittency, but the fix is client resilience, not a listing-method change.
 
 Goal (original): isolate **BUG-001** (`BUGS.md` at tag `docs-archive-2026`). Shallow listing of a `.SAFE`
-works in fsd, but the **recursive** listing my file-selection uses
+works in rise-eo, but the **recursive** listing my file-selection uses
 (`fs.glob(".../**/*.jp2")`) fails with `SignatureDoesNotMatch`, while the legacy
 **boto3** `objects.filter(Prefix=...)` lists recursively fine. This runbook builds
-the legacy known-good reference, then diffs the fsd path against it so we can see
+the legacy known-good reference, then diffs the rise-eo path against it so we can see
 exactly what to change.
 
 Run top-to-bottom in one Python session (dev env active). Tick a box per step.
@@ -24,8 +24,8 @@ Never print secret values.
 ## 0. Setup
 
 ```python
-from fsd.sources.cdse import CdseCredentials
-from fsd.storage import fs
+from rise_eo.sources.cdse import CdseCredentials
+from rise_eo.storage import fs
 import os
 
 ROOT = os.path.abspath(os.path.join(os.getcwd(), ".."))  # workspace root
@@ -60,7 +60,7 @@ print(fs.ls(SAFE_URL, **opts))
 
 This mirrors `cdseutils.sentinel2.get_s3paths_single_url` (the path that reliably
 lists a whole `.SAFE`). If this works, recursive listing IS possible with these
-keys/endpoint — proving the fsd failure is an s3fs-signing difference.
+keys/endpoint — proving the rise-eo failure is an s3fs-signing difference.
 
 ```python
 import boto3
@@ -79,11 +79,11 @@ print("sample jp2:", jp2s[0].split("/")[-1] if jp2s else None)
 ```
 
 - [ ] Prints a non-trivial object count and IMG_DATA `.jp2` files (e.g.
-      `T36PZT_..._B02_10m.jp2`). **This is the reference behavior fsd must match.**
+      `T36PZT_..._B02_10m.jp2`). **This is the reference behavior rise-eo must match.**
 
 ---
 
-## 3. fsd current — recursive s3fs glob (the failing call)
+## 3. rise-eo current — recursive s3fs glob (the failing call)
 
 ```python
 try:
@@ -121,7 +121,7 @@ probe("glob **/*.jp2",            lambda: s3fs_fs.glob(f"{BUCKET}/{SAFE_PREFIX}/
 
 ---
 
-## 5. Candidate fixes — try until fsd matches the legacy reference
+## 5. Candidate fixes — try until rise-eo matches the legacy reference
 
 Try each; note which makes step 3 (or an equivalent recursive listing) succeed.
 
@@ -163,5 +163,5 @@ listing can't be made to sign correctly.
 ## What to report back
 - Step 2 (legacy boto3) result — does recursive listing work? (expected: yes)
 - Step 4 — exact set of s3fs modes that fail.
-- Step 5 — which candidate fix makes fsd match the legacy reference.
+- Step 5 — which candidate fix makes rise-eo match the legacy reference.
 - `s3fs` / `aiobotocore` / `botocore` versions (`pip show s3fs aiobotocore`).

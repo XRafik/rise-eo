@@ -1,6 +1,6 @@
 """Tests for ROI → S2-grid tiling (spec 19). Synthetic, no network.
 
-Skips when the optional `[grid]` extra (`s2`/`s2cell`) isn't installed — e.g. in fsd's lean
+Skips when the optional `[grid]` extra (`s2`/`s2cell`) isn't installed — e.g. in rise-eo's lean
 `.venv`; run these from the `.venv-modeldeploy` that has `.[grid]`.
 """
 
@@ -10,7 +10,7 @@ import geopandas as gpd
 import pytest
 import shapely.geometry
 
-from fsd import grid
+from rise_eo import grid
 
 pytest.importorskip("s2", reason="needs the [grid] extra (s2 + s2cell)")
 

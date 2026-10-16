@@ -11,7 +11,7 @@ So the exception needs teeth. These tests are the reason the file can be tracked
   * no saved outputs and no execution counts -- an executed notebook must be cleared before
     it is committed (Kernel > Restart & Clear All Outputs);
   * no identifiers in the source -- the private values come from
-    `~/.config/fsd/config.toml` (spec 54) at run time, never from the file itself.
+    `~/.config/rise-eo/config.toml` (spec 54) at run time, never from the file itself.
 
 **Blob paths are the one exception (user, 2026-09-29).** A storage account, container or
 `abfss://` path may be written into a notebook directly: it grants nothing without a
@@ -22,7 +22,7 @@ home directories, resource-group / workspace / cluster names.
 **Run-books are notebooks too (spec 24 A1).** Every `runbooks/*.ipynb` is tracked (only
 `notebooks/*.ipynb` is gitignored), so each one gets the same two guards by glob -- a new
 run-book is covered the moment it exists. Two more rules are theirs alone (A1.5): the notebook
-names its kernel, and it checks which `fsd` it imported.
+names its kernel, and it checks which `rise_eo` it imported.
 
 Synthetic and offline: this reads the checked-in JSON, it never runs a cell.
 """
@@ -120,14 +120,14 @@ _FORBIDDEN = {
 @pytest.mark.parametrize("folder, name", GUARDED)
 @pytest.mark.parametrize("what, pattern", sorted(_FORBIDDEN.items()))
 def test_file_carries_no_identifiers(what, pattern, folder, name):
-    """The notebook's private values come from `~/.config/fsd/config.toml` at run time.
+    """The notebook's private values come from `~/.config/rise-eo/config.toml` at run time.
 
     Anything matching here has been baked into a public file — in a cell, or in an output.
     """
     hits = sorted(set(re.findall(pattern, _whole_file(name, folder))))
     assert not hits, (
         f"{folder}/{name} hardcodes {what}: {hits}. "
-        "Read it through fsd.config.load() instead."
+        "Read it through rise_eo.config.load() instead."
     )
 
 
@@ -234,16 +234,16 @@ def test_blob_paths_are_allowed_but_identifiers_are_not():
 
 
 @pytest.mark.parametrize("name", TRACKED_NOTEBOOKS)
-def test_private_values_still_come_from_fsd_config(name):
+def test_private_values_still_come_from_rise_eo_config(name):
     """The positive half of the rule above.
 
-    Without this, deleting the `fsd.config.load()` call and replacing it with literals
+    Without this, deleting the `rise_eo.config.load()` call and replacing it with literals
     would still pass every pattern check right up until someone filled in a real name.
-    Spec 54 D6 moved the config half of `notebooks/_config.py` into `fsd.config`; this
+    Spec 54 D6 moved the config half of `notebooks/_config.py` into `rise_eo.config`; this
     guard's purpose is unchanged, only its target call.
     """
     src = _source(name)
-    assert re.search(r"\bfsd\.config\.load\(", src), f"{name} no longer calls fsd.config.load()"
+    assert re.search(r"\brise_eo\.config\.load\(", src), f"{name} no longer calls rise_eo.config.load()"
 
 
 # --- run-book notebooks only (spec 24 A1.5) --------------------------------------------
@@ -266,9 +266,10 @@ def test_runbook_names_its_kernel(name):
 
 
 @pytest.mark.parametrize("name", RUNBOOK_NOTEBOOKS)
-def test_runbook_checks_which_fsd_it_imported(name):
-    """`fsd` is installed editable from the MAIN checkout, so a worktree's run-book that just
-    `import fsd`s runs main's code. The run-book must put its own `src/` first and check."""
+def test_runbook_checks_which_rise_eo_it_imported(name):
+    """`rise_eo` is installed editable from the MAIN checkout, so a worktree's run-book that just
+    `import rise_eo`s runs main's code. The run-book must put its own `src/` first and check."""
     src = _source(name, "runbooks")
-    assert "sys.path.insert" in src and "fsd.__file__" in src, (
-        f"runbooks/{name} must put its own src/ on sys.path and assert fsd.__file__")
+    # Run-book records written before the rename (spec 102 A11) still say `fsd.__file__`.
+    assert "sys.path.insert" in src and ("rise_eo.__file__" in src or "fsd.__file__" in src), (
+        f"runbooks/{name} must put its own src/ on sys.path and assert rise_eo.__file__")

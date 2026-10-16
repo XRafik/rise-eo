@@ -1,10 +1,10 @@
-"""Check every kwarg passed to an fsd verb in the notebooks, docs and demos against the live signature.
+"""Check every kwarg passed to a rise-eo verb in the notebooks, docs and demos against the live signature.
 
 Catches call sites left behind when a verb parameter is removed or renamed -- the failure
 pytest cannot see, because prose and notebook cells are never executed. Found four dead
 `scl_mask_classes=` call sites after spec 58 P1 removed it (3 notebook cells + docs/tutorial.md).
 
-Run from the fsd repo root: .venv/bin/python scripts/docs_kwarg_sweep.py
+Run from the rise-eo repo root: .venv/bin/python scripts/docs_kwarg_sweep.py
 Exits 1 if any call site is stale.
 """
 from __future__ import annotations
@@ -17,13 +17,13 @@ import sys
 
 sys.path.insert(0, "src")
 
-import fsd  # noqa: E402
-from fsd.workflows import create_datacube  # noqa: E402
+import rise_eo  # noqa: E402
+from rise_eo.workflows import create_datacube  # noqa: E402
 
 TARGETS: dict[str, inspect.Signature] = {}
 for _name in ("download", "create_training_data", "run_inference", "verify_adapter",
               "build_datacube", "compute_n_timestamps", "deploy"):
-    _f = getattr(fsd, _name, None)
+    _f = getattr(rise_eo, _name, None)
     if _f is not None:
         TARGETS[_name] = inspect.signature(_f)
 for _name in ("run_create_datacube", "setup", "params_key", "build_shortfall_only"):
@@ -35,7 +35,7 @@ bad = 0
 
 
 def check(source: str, origin: str) -> None:
-    """Report every kwarg in `source` that the called fsd verb does not accept."""
+    """Report every kwarg in `source` that the called rise-eo verb does not accept."""
     global bad
     try:
         tree = ast.parse(source)

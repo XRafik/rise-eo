@@ -1,6 +1,6 @@
 # Reference — what good code is, and how to audit for it
 
-**Status:** reference note for the 2026-10 refactor audit of `src/fsd/`, written 2026-10-09. It adds no rules.
+**Status:** reference note for the 2026-10 refactor audit of `src/rise_eo/`, written 2026-10-09. It adds no rules.
 The rules are in [`AGENTS.md`](../../AGENTS.md) ("Code conventions") and [`code-comments.md`](code-comments.md).
 This note explains where they come from and turns them into questions an auditor can ask. If this note and a
 rule disagree, the rule wins; report the disagreement. Words in quotation marks were read on the cited page
@@ -35,12 +35,12 @@ query that modifies state."
 else. You can test it with a value, cache it, and reorder it. An effectful function writes files, calls
 the network or reads a clock. You test it by its effects, and the order of calls matters.
 
-**What this means in fsd.**
+**What this means in rise-eo.**
 - Raster ops take and return `(data, profile)`, so they chain as `sequence=[(func, kwargs), ...]`
   (`AGENTS.md`). They are close to pure mappings. A small one is fine if it hides a real decision, such as
   how to resample to a reference grid. Judge it by Frege and SICP: does it map one well-defined input to
   one output, and can it be used without reading the body?
-- The verbs (`fsd.download`, `fsd.create_training_data`, `fsd.run_inference`, `fsd.deploy`) are
+- The verbs (`rise_eo.download`, `rise_eo.create_training_data`, `rise_eo.run_inference`, `rise_eo.deploy`) are
   commands. Their real result is files on disk; they return a path or a handle to what they wrote. That
   is Fowler's "pop" case, and it is acceptable. Judge a verb by Parnas: which decision does it hide from the
   user (runners, storage backends, grid cells), and does a change to that decision stay inside it?
@@ -61,7 +61,7 @@ the network or reads a clock. You test it by its effects, and the order of calls
 | Complexity is "anything related to the structure of a system that makes it hard to work on the development of that system". Its causes are dependencies and obscurity. | Ousterhout, *A Philosophy of Software Design* ch. 2; CS190 notes | Ask two questions: what else must change when this changes (dependencies)? What must a reader already know (obscurity)? |
 | Deep modules: "The best methods are those that provide a lot of functionality but have a very simple interface". Shallow ones hide little. | Ousterhout, ch. 4; aposd-vs-clean-code | A wrapper that adds a name but hides no decision is a cost. |
 | Information leakage and pass-through variables. | Ousterhout, ch. 5 and §7.5 (titles from the TOC) | The same knowledge spread over several modules, or a value handed down through layers that do not use it. |
-| "Whenever possible, define errors out of existence"; "reduce the number of places where exceptions must be handled". | Ousterhout, ch. 10; CS190 notes | Change the semantics so the error cannot happen. Do not catch and hide it. See §5 for the limit in fsd. |
+| "Whenever possible, define errors out of existence"; "reduce the number of places where exceptions must be handled". | Ousterhout, ch. 10; CS190 notes | Change the semantics so the error cannot happen. Do not catch and hide it. See §5 for the limit in rise-eo. |
 | Simple means "one fold": not interleaved. "simple is actually an objective notion", while "easy is relative". | Hickey, "Simple Made Easy" (2011) | "I find this hard to read" is about *easy*. "These two concerns are braided together" is about *simple*, and you can check it. |
 | Simplicity "keeps programs short and manageable"; clarity "makes sure they are easy to understand, for people as well as machines"; generality means programs "work well in a broad range of situations". | Kernighan & Pike, *The Practice of Programming*, preface | Generality is earned by real cases, not guessed. |
 | Debugging is twice as hard as writing, so code written as cleverly as you can manage is code you cannot debug (paraphrased). | Kernighan & Plauger, *The Elements of Programming Style*, 2nd ed., ch. 2 (via Wikiquote) | Prefer the plain version. A clever one-liner in a data path is a finding. |
@@ -106,7 +106,7 @@ comments that restate the code.
 internal code). Whether a long name beats a short name plus a comment. Whether a missing comment costs more
 than a wrong one. These are judgement calls, and the sources do not settle them.
 
-**fsd's position.** Code carries the *what* and the *how*, through names, signatures and structure. A
+**rise-eo's position.** Code carries the *what* and the *how*, through names, signatures and structure. A
 comment carries only what code cannot: the hazard, the invariant, the reason a tempting change is wrong.
 That is `code-comments.md`'s rule, "Cut the changelog. Keep the hazard." It sits between Martin and
 Ousterhout: Martin's suspicion of narrating comments, plus Ousterhout's view that some knowledge exists only
@@ -116,15 +116,15 @@ next programmer is most likely to lack.
 ## 4. What is objective and what is judgement
 
 **Objective:** two careful auditors would reach the same answer, often with a tool.
-- Unused imports, variables, arguments, functions and options. `ruff check --select F401,F841,ARG src/fsd`
+- Unused imports, variables, arguments, functions and options. `ruff check --select F401,F841,ARG src/rise_eo`
   finds the first three; the rest need `grep` for callers.
 - Near-copies of code (read and compare; a diff of the two blocks settles it).
 - A rule in `AGENTS.md` or `code-comments.md` that the code breaks (a bare "tile", I/O outside
-  `fsd.storage`, a date-stamped comment, a changelog comment).
+  `rise_eo.storage`, a date-stamped comment, a changelog comment).
 - Cyclomatic complexity, McCabe (1976): the number of independent paths through a function. McCabe shows
   that "complexity is independent of physical size" and used "10 which seems like a reasonable, but not
   magical, upper limit". He allowed a large case statement as an exception. `ruff check --select C901
-  src/fsd` uses 10; on 2026-10-09 it reports 24 functions. A high number is a fact. Whether to split the
+  src/rise_eo` uses 10; on 2026-10-09 it reports 24 functions. A high number is a fact. Whether to split the
   function is judgement.
 
 **Judgement:** a reasonable reader could disagree.
@@ -135,29 +135,29 @@ next programmer is most likely to lack.
 sentences and names the source or rule it leans on, so the maintainer can disagree with the reasoning
 rather than with a feeling.
 
-## 5. Tensions with fsd's rules
+## 5. Tensions with rise-eo's rules
 
 - **Ousterhout's "define errors out of existence" vs `AGENTS.md` "Keep the safety checks".** They agree when
   an error can be removed by changing semantics without losing information. Example: deleting a file that is
   already gone can succeed. They conflict when "defining it away" would let a bad ROI, date or path through,
-  or let a failed download leave a gap. Nodata is 0, so a gap can pass for real values. fsd leans hard toward
+  or let a failed download leave a gap. Nodata is 0, so a gap can pass for real values. rise-eo leans hard toward
   the safety check. Ousterhout's own book has a section called "Taking it too far" (§10.10).
 - **Clean Code's tiny functions vs Ousterhout's deep modules vs `AGENTS.md` "smallest code".** "Smallest
   code" means the least code overall, not the most functions. Splitting into many small functions often adds
   code and interfaces. Ousterhout's warning about entangled methods applies: if you must read both to
-  understand one, they should be one. fsd leans toward Ousterhout: no speculative abstractions, and few
+  understand one, they should be one. rise-eo leans toward Ousterhout: no speculative abstractions, and few
   layers.
-- **DRY vs Metz.** Spec 102 A7 cites DRY for "reuse an fsd helper before you write". Metz warns that merging
-  look-alike code into the wrong abstraction costs more than the copies. fsd's rules lean DRY for new code
+- **DRY vs Metz.** Spec 102 A7 cites DRY for "reuse a rise-eo helper before you write". Metz warns that merging
+  look-alike code into the wrong abstraction costs more than the copies. rise-eo's rules lean DRY for new code
   and say nothing about merging old code. In the audit, merge only when the copies change for the same reason.
 - **"Few comments" vs Ousterhout's pro-comment stance.** `code-comments.md` sets a default of none, but keeps
   invariants, failure modes, deliberate choices, dependency traps and prohibitions. That is close to
-  Ousterhout's list of what code cannot say, minus interface prose. fsd leans to fewer comments, with a firm
+  Ousterhout's list of what code cannot say, minus interface prose. rise-eo leans to fewer comments, with a firm
   exception for hazards.
-- **Ousterhout's pass-through variables vs fsd's per-hop kwarg forwarding.** Ousterhout calls a value
-  handed through layers that do not use it a red flag (§7.5). fsd forwards each verb kwarg explicitly on
+- **Ousterhout's pass-through variables vs rise-eo's per-hop kwarg forwarding.** Ousterhout calls a value
+  handed through layers that do not use it a red flag (§7.5). rise-eo forwards each verb kwarg explicitly on
   every runner on purpose. A default once hid a dropped `collection=` (CONTRIBUTING's review checklist), and
-  each hop has a forwarding test. fsd's rule wins. Flag a pass-through only if it has no test.
+  each hop has a forwarding test. rise-eo's rule wins. Flag a pass-through only if it has no test.
 - **Ousterhout's "shallow wrapper" vs Parnas's "hide a decision".** `storage/fs.py` looks shallow: thin
   functions over fsspec. But it hides the backend choice (local, Blob, S3), which is the decision most likely
   to change, and its traps (`code-comments.md` keeps it above the comment target for that reason). Parnas
@@ -171,10 +171,10 @@ guards user input or prevents silent data loss (`AGENTS.md`, "Keep the safety ch
 1. **[objective]** Is any function, parameter, option, branch or import unused? Check callers with `grep`,
    including tests, notebooks, Snakefiles and `docs/`. (Fowler "Remove Dead Code"; Beck rule 4; `AGENTS.md`
    "no speculative options")
-2. **[objective]** Is there a near-copy of this block elsewhere in `src/fsd`? If yes, record both places.
+2. **[objective]** Is there a near-copy of this block elsewhere in `src/rise_eo`? If yes, record both places.
    Then, as **[judgement]**, say whether they change for the same reason, before you propose a merge.
    (Fowler "Duplicated Code"; Metz)
-3. **[objective]** Does the code break a written rule: a bare "tile", file I/O outside `fsd.storage`, a
+3. **[objective]** Does the code break a written rule: a bare "tile", file I/O outside `rise_eo.storage`, a
    changelog or date-stamped comment, more than one spec reference per function, a docstring past
    `code-comments.md`'s ~15 lines? (`AGENTS.md` "Code conventions"; `code-comments.md`)
 4. **[objective]** What is the function's cyclomatic complexity (`ruff check --select C901`)? Above 10,
@@ -204,7 +204,7 @@ guards user input or prevents silent data loss (`AGENTS.md`, "Keep the safety ch
     silent data loss. Note whether the silencing is explicit and opt-in (like `raise_error=False`). (PEP 20;
     Shore "Fail Fast" via spec 102 A7; `AGENTS.md` "Keep the safety checks")
 12. **[objective]** Is there a leftover legacy workaround: a compatibility shim for an old archive layout, a
-    branch for a case the code no longer produces, or code copied from `fetch_satdata/` that fsd's own
+    branch for a case the code no longer produces, or code copied from `fetch_satdata/` that rise-eo's own
     structure makes unnecessary? (`AGENTS.md` "No compatibility shims"; Fowler "Remove Dead Code")
 13. **[judgement]** Does one change in behaviour need edits in many files (shotgun surgery), or does one
     file change for many unrelated reasons? (Fowler "Shotgun Surgery", "Divergent Change"; Ousterhout,

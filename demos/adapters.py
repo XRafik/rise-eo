@@ -8,8 +8,8 @@ Band-limited on purpose: `satellite_benchmark/` only has B04/B08/B8A, so this us
 
 from __future__ import annotations
 
-from fsd.bands import modify
-from fsd.model import BaseModelAdapter
+from rise_eo.bands import modify
+from rise_eo.model import BaseModelAdapter
 
 
 class DemoRF(BaseModelAdapter):

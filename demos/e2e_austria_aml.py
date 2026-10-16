@@ -34,8 +34,8 @@ Run as (see E2E_AUSTRIA_AML.md for the full env-var contract):
     export AZ_RG=... AZ_ML_WORKSPACE=... AZ_SUBSCRIPTION_ID=... AZ_CLUSTER=...
     export AZ_UAMI_CLIENT_ID=...
     export AZ_ROOT=abfss://<fs>@<account>.dfs.core.windows.net/<prefix>
-    export AZ_ENV_NAME=fsd-aml-env AZ_ENV_VERSION=...
-    export AZ_INFER_ENV_NAME=fsd-infer-env AZ_INFER_ENV_VERSION=...
+    export AZ_ENV_NAME=rise-eo-aml-env AZ_ENV_VERSION=...
+    export AZ_INFER_ENV_NAME=rise-eo-infer-env AZ_INFER_ENV_VERSION=...
     # no CDSE credentials: MPC is anonymous (D13 as amended), and `run_aml_download`
     # refuses creds for an MPC run rather than staging a secret on blob for nothing.
     python demos/e2e_austria_aml.py --fresh --dry-run
@@ -64,13 +64,13 @@ os.environ["PYTHONPATH"] = _HERE + os.pathsep + os.environ.get("PYTHONPATH", "")
 
 from adapters import DemoRF  # noqa: E402
 
-import fsd  # noqa: E402
-from fsd import config, grid  # noqa: E402
-from fsd.api import TrainingData  # noqa: E402
-from fsd.catalog.catalog import TileCatalog  # noqa: E402
-from fsd.model import bundle  # noqa: E402
-from fsd.sources import mpc  # noqa: E402
-from fsd.storage import fs  # noqa: E402
+import rise_eo  # noqa: E402
+from rise_eo import config, grid  # noqa: E402
+from rise_eo.api import TrainingData  # noqa: E402
+from rise_eo.catalog.catalog import TileCatalog  # noqa: E402
+from rise_eo.model import bundle  # noqa: E402
+from rise_eo.sources import mpc  # noqa: E402
+from rise_eo.storage import fs  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(_HERE))  # workspace root
 
@@ -87,7 +87,7 @@ ARCHIVE_DIRNAME = "imagery"           # `{AZ_ROOT}/imagery`: the one shared arch
 # `collection=` (default "sentinel-2-l2a") and `properties_filter=` (spec 58 D9) stay at
 # their defaults throughout: S2 L2A declares `mosaic_partition=()`, so nothing needs
 # selecting and an empty filter leaves every cube path byte-identical to pre-P2 (AC13).
-# `fsd.collections.known()` lists what else is registered (`sentinel-1-rtc` since P2).
+# `rise_eo.collections.known()` lists what else is registered (`sentinel-1-rtc` since P2).
 MOSAIC_DAYS = 20
 START = datetime.datetime(2018, 4, 1)
 END = datetime.datetime(2018, 9, 30)
@@ -261,7 +261,7 @@ def _measure_clock_skew(root: str) -> dict:
 
     Returns `{"seconds": None, ...}` when the backend records no mtime at all, so the
     bound reads as *unmeasured* rather than as a confident zero."""
-    probe_url = f"{root.rstrip('/')}/.fsd_clock_skew_probe"
+    probe_url = f"{root.rstrip('/')}/.rise_eo_clock_skew_probe"
     before = pd.Timestamp.now(tz="UTC")
     with fs.open(probe_url, "w") as f:
         f.write("skew-probe")
@@ -370,7 +370,7 @@ def step_preflight(ml_client, root: str) -> dict:
                     f"the VM a managed identity (E2E_AUSTRIA_AML.md §8.1 step 2): {exc}")
 
     try:
-        probe = f"{root.rstrip('/')}/.fsd_preflight_probe"
+        probe = f"{root.rstrip('/')}/.rise_eo_preflight_probe"
         with _timed_check("blob read+write", check_seconds):
             with fs.open(probe, "w") as f:
                 f.write("preflight")
@@ -464,7 +464,7 @@ def step_tiling(outdir: str) -> dict:
 # `_aml_submit_and_wait` writes `<run_root>/_timing.json` under a run_id it generates
 # itself (`run_aml`/`run_aml_download`/`run_aml_flatten`/`run_aml_inference` all default
 # `run_id=None` -> a fresh timestamp) -- the demo script never learns that id from the
-# `fsd.download`/`create_training_data`/`run_inference` return values (they don't carry
+# `rise_eo.download`/`create_training_data`/`run_inference` return values (they don't carry
 # it, ADR 0021). So each dispatching step snapshots which `_timing.json` files exist
 # under `root/runs/` before its call and diffs after, embedding what's new into its own
 # `_result.json` -- which is how `timings.json` stays self-contained (D9) without this
@@ -485,8 +485,8 @@ def _list_run_ids(root: str) -> set:
 
 
 def _assert_dispatch_telemetry_complete(dispatch_timings: list, *, step: str) -> None:
-    """The four in-job stamps (D2) are written by `fsd` **on the node**, i.e. by whatever
-    `fsd` is baked into the AML Environment image -- NOT by the driver's checkout. An
+    """The four in-job stamps (D2) are written by `rise-eo` **on the node**, i.e. by whatever
+    `rise-eo` is baked into the AML Environment image -- NOT by the driver's checkout. An
     Environment built before spec 40 therefore produces a `_status/<k>.json` with the old
     shape: `seconds` present, `process_start_at`/`work_start_at`/`work_end_at`/`ended_at`
     absent. Everything still runs and every science output is correct, so nothing fails --
@@ -511,9 +511,9 @@ def _assert_dispatch_telemetry_complete(dispatch_timings: list, *, step: str) ->
         f"{step}: none of the {len(jobs)} dispatched job(s) reported the D2 in-job stamps "
         "(process_start_at/work_start_at/work_end_at/ended_at), so job_admission_seconds "
         "-- D11's headline metric -- would be null for this entire demo run.\n"
-        "      The stamps are written by the `fsd` INSIDE the AML Environment image, not "
+        "      The stamps are written by the `rise-eo` INSIDE the AML Environment image, not "
         "by this checkout, so the image predates spec 40.\n"
-        "      Fix: rebuild both Environments from current fsd (see "
+        "      Fix: rebuild both Environments from current rise-eo (see "
         "docs/howto/build-the-images.md), bump AZ_ENV_VERSION / AZ_INFER_ENV_VERSION, then "
         "resume with --run-id <the id printed at the start of this run> -- the download "
         "is already on disk and skips."
@@ -564,7 +564,7 @@ def _asset_key(path: str) -> str:
 def _expected_offset(granule_id: str) -> int | None:
     """The additive reflectance offset this granule's own processing baseline implies
     (`…_N0500_…` -> 05.00 -> -1000; -1000 for baseline >= 04.00, else 0 -- ESA, via
-    `fsd.sources._s2_radiometry`), or `None` if the id carries no baseline token.
+    `rise_eo.sources._s2_radiometry`), or `None` if the id carries no baseline token.
 
     `None` is the common case on MPC, whose item ids drop the `N####` field entirely
     (`S2B_MSIL2A_20220219T100019_R122_T33UWP_20220225T100522` -- verified against
@@ -593,8 +593,8 @@ def _assert_cog_tags_match_catalog(row) -> None:
 
     A header read (no pixels decoded), one band per sampled granule.
     """
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
-    from fsd.raster import rio_open
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.raster import rio_open
 
     band_file = next(
         (f.strip() for f in str(row["files"]).split(",")
@@ -702,7 +702,7 @@ def _assert_archive_trustworthy(catalog_fp: str, dst_folderpath: str) -> dict:
 def step_download(ml_client, root: str, az_root: str) -> dict:
     # Spec 59 D12: imagery goes to ONE shared archive at `{AZ_ROOT}/imagery`, not under this
     # run's `root`, so a repeat run (or the next demo) downloads nothing it already holds.
-    # One catalog per collection directory: the archive layout (D5; see `fsd.archive_catalog_filepath`).
+    # One catalog per collection directory: the archive layout (D5; see `rise_eo.archive_catalog_filepath`).
     dst_folderpath = f"{az_root.rstrip('/')}/{ARCHIVE_DIRNAME}"
     roi_url = f"{root.rstrip('/')}/_inputs/AT_ROI.geojson"
     with open(ROI_FP, "rb") as src, fs.open(roi_url, "wb") as dst:
@@ -723,7 +723,7 @@ def step_download(ml_client, root: str, az_root: str) -> dict:
     # cluster's own `max_instances`, which is what makes this a full-width fan-out and
     # gives D11 its ~16 download admission samples. Pinning a number here would silently
     # under-use a resized cluster.
-    catalog_fp = fsd.download(roi_url, START, END, BANDS, dst_folderpath,
+    catalog_fp = rise_eo.download(roi_url, START, END, BANDS, dst_folderpath,
                               collection=COLLECTION, source="mpc", max_tiles=MAX_TILES,
                               max_cloudcover=MAX_CLOUDCOVER,
                               runner="aml", runner_kwargs=runner_kwargs)
@@ -751,7 +751,7 @@ def step_training_data(ml_client, root: str, catalog_fp: str, adapter, local_exp
                      "ml_client": ml_client, "poll_interval_seconds": 10}
 
     before = _list_run_ids(root)
-    td = fsd.create_training_data(
+    td = rise_eo.create_training_data(
         label_polygons=train_url, catalog_filepath=catalog_fp,
         startdate=START, enddate=END, mosaic_days=MOSAIC_DAYS, bands=BANDS,
         id_col=ID_COL, label_col=LABEL_COL,
@@ -771,7 +771,7 @@ def step_training_data(ml_client, root: str, catalog_fp: str, adapter, local_exp
     dispatch_timings = _new_dispatch_timings(root, before)
 
     d = td.load()
-    feats, T = d["features"], fsd.compute_n_timestamps(START, END, MOSAIC_DAYS)
+    feats, T = d["features"], rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS)
     if feats.shape[1] != T:
         fail(f"features T={feats.shape[1]} != expected T={T}")
     ok(f"features {feats.shape}, T={T}, {len(set(d['feature_labels']))} classes")
@@ -818,7 +818,7 @@ def step_inference(ml_client, root: str, bundle_dir: str, catalog_fp: str, outdi
     roi_url = f"{root.rstrip('/')}/_inputs/AT_ROI.geojson"  # staged already in step 2
 
     before = _list_run_ids(root)
-    result = fsd.run_inference(
+    result = rise_eo.run_inference(
         model=bundle_dir, output_folderpath=f"{root.rstrip('/')}/model_outputs",
         roi=roi_url, catalog_filepath=catalog_fp,
         startdate=START, enddate=END, mosaic_days=MOSAIC_DAYS, bands=BANDS,
@@ -945,7 +945,7 @@ def _print_delete_command(prev_run_id: str, az_root: str):
     silently expands to empty. The directory is also `<AZ_ROOT's path>/demo_runs/<id>`,
     NOT a bare `demo_runs/<id>` -- `az storage fs directory delete -n` takes a path
     relative to the filesystem root, and AZ_ROOT carries its own prefix."""
-    from fsd.storage.azure import account_from_url, to_vsi
+    from rise_eo.storage.azure import account_from_url, to_vsi
 
     prev_root = f"{az_root.rstrip('/')}/demo_runs/{prev_run_id}"
     try:
@@ -954,11 +954,11 @@ def _print_delete_command(prev_run_id: str, az_root: str):
         _, _, filesystem, path = to_vsi(prev_root).split("/", 3)
     except Exception:  # noqa: BLE001 - a non-blob root has no `az storage` command at all
         print(f"  ! previous run {prev_run_id!r} left data at {prev_root} -- delete it by hand "
-              f"(fsd's own recursive delete is broken, TODO #50).")
+              f"(rise-eo's own recursive delete is broken, TODO #50).")
         return
     account = account_from_url(prev_root)
     account_arg = f'--account-name "{account}"' if account else "--account-name <account>"
-    print(f"  ! previous run {prev_run_id!r} left data on blob. To reclaim it (fsd's own "
+    print(f"  ! previous run {prev_run_id!r} left data on blob. To reclaim it (rise-eo's own "
           f"recursive delete is broken, TODO #50 -- the OPERATOR runs this, never this "
           f"script):\n"
           f"      az storage fs directory delete -f \"{filesystem}\" {account_arg} "
@@ -968,7 +968,7 @@ def _print_delete_command(prev_run_id: str, az_root: str):
 def _last_run_marker_fp() -> str:
     """Which run last *spent* anything -- written when the download step starts, not
     when a run id is allocated. A run that dies in preflight has an empty prefix and
-    must not overwrite the id of the run that actually holds the data; with fsd's
+    must not overwrite the id of the run that actually holds the data; with rise-eo's
     recursive delete broken (TODO #50), a forgotten id is orphaned storage nobody can
     name."""
     return os.path.join(_LOCAL_OUTDIR_BASE, ".last_run_id")
@@ -1040,7 +1040,7 @@ def main(argv=None):
                                             step="2_download")
 
         adapter = DemoRF()
-        adapter.n_timestamps = fsd.compute_n_timestamps(START, END, MOSAIC_DAYS)
+        adapter.n_timestamps = rise_eo.compute_n_timestamps(START, END, MOSAIC_DAYS)
         local_export_fp = os.path.join(demo.outdir, "training_data")
         td_result = demo.run_step("3_training_data", step_training_data, ml_client, root,
                                   dl["catalog_fp"], adapter, local_export_fp)

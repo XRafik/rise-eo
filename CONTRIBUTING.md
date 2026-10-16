@@ -1,4 +1,4 @@
-# Contributing to fsd
+# Contributing to rise-eo
 
 Code is MIT; by opening a PR you license your contribution under the repo's terms (GitHub ToS §D.6,
 inbound = outbound). No CLA, no sign-off line. Agents: also read `AGENTS.md`.
@@ -28,7 +28,7 @@ ready once the other gates hold, and say what waits in the PR description.
    in the PR or filed as an issue.
 4. **Real-run evidence** when you touch real data, the cloud or pixels: paste the output or a screenshot
    (QGIS). "The cloud" includes code that dispatches, runs as or reports from a cloud job: the AML runner,
-   `fsd.workflows.shard` / `infer_shard`, the `fsd.workflows.runners` they call, image definitions. That holds
+   `rise_eo.workflows.shard` / `infer_shard`, the `rise_eo.workflows.runners` they call, image definitions. That holds
    even when tests use fakes. A run with the real tools and no fakes (e.g. real Snakemake on a laptop) counts,
    unless the change depends on Azure itself. No archive or Azure access? Say so; the reviewer runs it.
    A comments-only diff needs no run when all four hold on a clean checkout of the PR head, with
@@ -36,7 +36,7 @@ ready once the other gates hold, and say what waits in the PR description.
    `scripts/comment_astcheck.py <base>` exits 0 with no `NEW` line;
    `git diff --diff-filter=ADR --name-only <base> -- src/` prints nothing;
    `git diff --name-only <base> -- src/ ':(exclude)*.py'` prints nothing;
-   `grep -rn "__doc__" src/fsd` prints nothing.
+   `grep -rn "__doc__" src/rise_eo` prints nothing.
 
 The PR title becomes the release-note line. The maintainer labels and merges (merge commit).
 
@@ -68,7 +68,7 @@ Each line points at the incident that taught it.
 - [ ] **Doc call sites rot silently.** pytest never runs a notebook cell; `scripts/docs_kwarg_sweep.py` does
   (four dead `scl_mask_classes=` call sites after spec 58 P1).
 - [ ] **Prior art.** If the mechanism is homemade, does the PR say what standard practice it replaced?
-- [ ] **Spec vs. code.** Was the spec checked against fsd's own code, not only against its sources?
+- [ ] **Spec vs. code.** Was the spec checked against rise-eo's own code, not only against its sources?
 - [ ] **A lesson becomes a check.** If review caught a class of bug, did the PR add a test or guard for the class?
 
 ## Maintainer tasks
@@ -81,7 +81,7 @@ Each line points at the incident that taught it.
   with one line naming the maintainers team (`* @<org>/<maintainers-team>`), require 1 approval and turn on
   "Require review from Code Owners". Gate 3 is then that approval (spec 102 A10.3).
 - **Release.** Tag `v0.y.z` when there is something worth shipping; `breaking` bumps `y`, everything else bumps `z`.
-  Only the maintainer edits the `pyproject.toml` version, the one place it is written (`fsd.__version__` reads it
+  Only the maintainer edits the `pyproject.toml` version, the one place it is written (`rise_eo.__version__` reads it
   from the installed package). First merge a PR that sets the new version. Then, on an up-to-date `main`, create
   the release with the tag read from `pyproject.toml`. The check stops a missed bump: `gh release create` would
   otherwise publish a release on an old tag that has none (`v0.1.0` is one).

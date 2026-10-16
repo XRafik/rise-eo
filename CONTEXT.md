@@ -1,6 +1,6 @@
-# fsd — domain glossary
+# rise-eo — domain glossary
 
-The ubiquitous language for the fsd pipeline (download → datacube → flatten → inference at scale). A
+The ubiquitous language for the rise-eo pipeline (download → datacube → flatten → inference at scale). A
 glossary only: terms specific to this project, defined by what they *are*. Design lives in `specs/`,
 decisions in `docs/adr/`, terminology gotchas also in `CLAUDE.md`.
 
@@ -8,13 +8,13 @@ decisions in `docs/adr/`, terminology gotchas also in `CLAUDE.md`.
 
 **Bundle**:
 A portable, self-describing folder — trained weights + a `module:attr` adapter code *reference* + the
-model spec (bands, T, output dtype/nodata/names). fsd stages and loads it to run a model; it does **not**
+model spec (bands, T, output dtype/nodata/names). rise-eo stages and loads it to run a model; it does **not**
 contain the adapter code or its dependencies.
 _Avoid_: model package, model artifact (overloaded).
 
 **Manifest** (`bundle.json`):
 The bundle's self-declaration: a `module:attr` adapter code reference, an `artifacts` map (name →
-relative file path — the bundle's *table of contents*), and the model spec. Lets fsd list a bundle's
+relative file path — the bundle's *table of contents*), and the model spec. Lets rise-eo list a bundle's
 files and validate a run **without loading the model** (model-free preflight), and lets a node fetch
 exactly the files the bundle names.
 _Avoid_: index, metadata (too generic).
@@ -22,11 +22,11 @@ _Avoid_: index, metadata (too generic).
 **Adapter** (`ModelAdapter`):
 The user's class declaring required bands / T / output spec + the one feature transform + `load`/predict.
 Referenced by a bundle; installed as a package in the inference Environment. Feature transform is run by
-fsd at *both* training-data generation and inference (the anti-skew invariant).
+rise-eo at *both* training-data generation and inference (the anti-skew invariant).
 _Avoid_: model (that's the weights), wrapper.
 
 **Inference Environment** (a.k.a. inference image):
-The AML Docker Environment a node runs inside = `fsd[azure,mpc]` + the user's adapter package + its
+The AML Docker Environment a node runs inside = `rise-eo[azure,mpc]` + the user's adapter package + its
 runtime deps. Built once per adapter version, referenced by name. Distinct from the generic datacube
 build Environment.
 _Avoid_: container (too generic), bundle (that's weights+reference, not the image).
@@ -34,7 +34,7 @@ _Avoid_: container (too generic), bundle (that's weights+reference, not the imag
 ## Sources & collections
 
 **Source**:
-The *provider* fsd fetches bytes from — `"cdse"`, `"mpc"`. Decides authentication, transport, and
+The *provider* rise-eo fetches bytes from — `"cdse"`, `"mpc"`. Decides authentication, transport, and
 whether the native bytes need converting. One source hosts many collections.
 _Avoid_: satellite, provider (say Source), data source (redundant).
 
@@ -52,9 +52,9 @@ Provider-independent: `sentinel-2-l2a` declares the same thing whether it came f
 _Avoid_: source declaration (it describes a Collection, not a Source), config, schema.
 
 **Canonical band name**:
-The band vocabulary fsd addresses bands by — STAC EO `common_name` values (`red`, `nir`, `nir08`,
+The band vocabulary rise-eo addresses bands by — STAC EO `common_name` values (`red`, `nir`, `nir08`,
 `swir16`, …). Each Collection declares its own mapping from these to its native asset keys, so one
-adapter's `required_bands` works across collections. fsd declares the mapping itself; a provider's
+adapter's `required_bands` works across collections. rise-eo declares the mapping itself; a provider's
 published `common_name` is not trusted.
 _Avoid_: band alias (that's the mapping, not the name), common band, band code.
 
@@ -105,12 +105,12 @@ _Avoid_: baseline (S2-only word), collection version, product version.
 ## Grids & work units
 
 **Grid cell** (a.k.a. S2 grid cell):
-The ~5 km ROI subdivision on the S2-geometry grid (`fsd.grid.roi_to_s2_grids`), id like `165b09c`. One
+The ~5 km ROI subdivision on the S2-geometry grid (`rise_eo.grid.roi_to_s2_grids`), id like `165b09c`. One
 grid cell = one inference datacube = one build+infer unit-of-work = one `output.tif`. Never write a bare "tile": say MGRS tile or grid cell.
 _Avoid_: bare "tile" (ambiguous with MGRS tile).
 
 **MGRS tile** (a.k.a. satellite / Sentinel-2 tile):
-The ~110 km source granule on the military MGRS grid, id like `T33UWP`. What fsd downloads and merges
+The ~110 km source granule on the military MGRS grid, id like `T33UWP`. What rise-eo downloads and merges
 across; catalog column `mgrs_tile`.
 _Avoid_: bare "tile".
 
@@ -140,15 +140,15 @@ _Avoid_: run (reserved, below), pipeline run.
 **Benchmark harness**:
 A script whose purpose is to **measure** the pipeline — stepwise timings, throughput probes, resume,
 structured logging. `demos/e2e_austria.py` and `demos/e2e_austria_aml.py` are these (531 and 1056 lines,
-of which 12 and comparably few touch `fsd`), as is everything under `benchmarks/`. A harness may
+of which 12 and comparably few touch `rise-eo`), as is everything under `benchmarks/`. A harness may
 deliberately **bypass the public API** to reach a measurement — `e2e_austria.py` calls
-`cdse.download_resume` directly rather than `fsd.download` — which is exactly why it cannot double as
+`cdse.download_resume` directly rather than `rise_eo.download` — which is exactly why it cannot double as
 an example. Its write-up is a **benchmark report**: point-in-time, statused, keeping results and
 appendices.
 _Avoid_: demo (the directory is misnamed and stays so, ADR 0026), example, guide.
 
 **Example**:
-A minimal, readable, copy-paste script that composes fsd's verbs and nothing else — no timing, resume,
+A minimal, readable, copy-paste script that composes rise-eo's verbs and nothing else — no timing, resume,
 signal handling or plotting. ~60–80 lines, lives in `examples/`. The artifact a reader **edits into
 their own pipeline**. Correctness is demonstrated by being short enough to read.
 _Avoid_: demo, benchmark, snippet.
@@ -242,4 +242,4 @@ Bringing a run's compact output home to the operator's laptop after a cloud disp
 `storage.transfer` (single-object, atomic) — never the raw inputs, only the small result (spec 39 D4:
 the flatten reduce's `data.npy`/`coords.npy`/`ids.npy`/`metadata.pickle.npy`/`labels.npy?`). Keeps the
 driver control-plane-only: it orchestrates and receives results, it does not pull bulk data over the WAN.
-_Avoid_: download (ambiguous with `fsd.download`, the imagery-fetch verb).
+_Avoid_: download (ambiguous with `rise_eo.download`, the imagery-fetch verb).

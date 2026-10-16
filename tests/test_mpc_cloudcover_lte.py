@@ -10,7 +10,7 @@ import pystac_client
 import pytest
 from shapely.geometry import box
 
-from fsd.sources import mpc
+from rise_eo.sources import mpc
 
 
 @pytest.mark.parametrize("name", ["_search_items", "_search_items_unsigned"])

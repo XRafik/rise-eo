@@ -1,4 +1,4 @@
-"""Tests for fsd.datacube.builder (spec 03). Synthetic GeoTIFF tiles on disk."""
+"""Tests for rise_eo.datacube.builder (spec 03). Synthetic GeoTIFF tiles on disk."""
 
 import dataclasses
 import datetime
@@ -15,9 +15,9 @@ from rasterio.crs import CRS as RioCRS
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from fsd.catalog.declaration import CollectionDeclaration, MaskSpec
-from fsd.datacube import builder
-from fsd.storage import fs
+from rise_eo.catalog.declaration import CollectionDeclaration, MaskSpec
+from rise_eo.datacube import builder
+from rise_eo.storage import fs
 
 CRS = "EPSG:32633"
 TRANSFORM = from_origin(500000, 5000000, 10, 10)  # 10 m pixels
@@ -360,8 +360,8 @@ def test_flatten_catalog_attaches_declaration():
           "files": "B04.jp2", "area_contribution": 50.0, "offset": 0, "nodata": 0,
           "geometry": TILE_BOX}], crs=CRS,
     )
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.declaration import S2_L2A_DECLARATION
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.declaration import S2_L2A_DECLARATION
 
     flat = builder.flatten_catalog(gdf)
     assert "declaration" not in flat.attrs
@@ -389,9 +389,9 @@ def test_declaration_survives_ingest_filter_slice_reread_flatten():
     """
     import tempfile
 
-    from fsd.catalog import declaration as declaration_module
-    from fsd.catalog.catalog import TileCatalog
-    from fsd.storage import fs as fs_module
+    from rise_eo.catalog import declaration as declaration_module
+    from rise_eo.catalog.catalog import TileCatalog
+    from rise_eo.storage import fs as fs_module
 
     ts = pd.Timestamp("2018-06-01", tz="UTC")
     custom = CollectionDeclaration(reference_band="B04", mask_spec=None, mosaic_method="median")
@@ -439,7 +439,7 @@ def test_unstamped_file_read_catalog_raises_at_flatten(tmp_path):
     """spec 35 §5a: a catalog gdf that came from a file (`fs.read_parquet` stamps
     `attrs[fs.SOURCE_PATH_ATTRS_KEY]`) with no declaration stamp is an error, not
     a silent S2 fallback."""
-    from fsd.storage import fs as fs_module
+    from rise_eo.storage import fs as fs_module
 
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": "/tmp", "timestamp": 0,
@@ -455,7 +455,7 @@ def test_unstamped_file_read_catalog_raises_at_flatten(tmp_path):
 
 def test_hand_built_gdf_keeps_s2_default_no_raise():
     """spec 35 §5a: a hand-built GeoDataFrame (never through fs.read_parquet, so
-    no fsd:source_path) keeps the S2 default -- an explicit in-process call is
+    no rise_eo:source_path) keeps the S2 default -- an explicit in-process call is
     an explicit choice, and this preserves synthetic-test/notebook ergonomics."""
     gdf = gpd.GeoDataFrame(
         [{"id": "x", "local_folderpath": "/tmp", "timestamp": 0,
@@ -463,7 +463,7 @@ def test_hand_built_gdf_keeps_s2_default_no_raise():
           "geometry": TILE_BOX}], crs=CRS,
     )
     flat = builder.flatten_catalog(gdf)
-    from fsd.catalog import declaration as declaration_module
+    from rise_eo.catalog import declaration as declaration_module
 
     assert declaration_module.from_attrs(flat) == builder.S2_L2A_DECLARATION
 
