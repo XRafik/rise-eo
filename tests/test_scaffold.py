@@ -6,12 +6,29 @@ Tests section).
 """
 
 import importlib
+import importlib.metadata
+import os
+
+import pytest
 
 
 def test_package_imports():
     import fsd
 
     assert fsd.__version__
+
+
+def test_version_is_the_installed_distribution_version():
+    import fsd
+
+    assert fsd.__version__ == importlib.metadata.version("fsd")
+
+
+@pytest.mark.skipif(os.environ.get("GITHUB_REF_TYPE") != "tag", reason="runs only when CI builds a tag")
+def test_version_matches_the_release_tag():
+    import fsd
+
+    assert os.environ["GITHUB_REF_NAME"] == f"v{fsd.__version__}"
 
 
 def test_submodules_import():

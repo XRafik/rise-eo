@@ -5,6 +5,8 @@ High-level API (specs/16): `fsd.download`, `fsd.create_training_data`,
 These are the verbs users call; the modules under fsd.* are the internals.
 """
 
+import importlib.metadata
+
 from fsd import config
 from fsd.api import (
     InferenceResult,
@@ -21,7 +23,7 @@ from fsd.api import (
 )
 from fsd.model import BaseModelAdapter, ModelAdapter, Output, load_bundle, save_bundle
 
-__version__ = "0.1.0"
+__version__ = importlib.metadata.version("fsd")
 
 __all__ = [
     "BaseModelAdapter",
