@@ -205,8 +205,7 @@ def _config_dir_named(folder: str) -> Path:
 
 
 def _legacy_config_hint() -> str:
-    """When the pre-rename config (`.../fsd/config.toml`, fsd <= v0.2) exists and the new one
-    does not, the command that moves it. Empty otherwise. The old folder is never read."""
+    """The command that moves `fsd/config.toml` to the `rise-eo` folder, or `""` if there is nothing to move."""
     old = _config_dir_named("fsd") / "config.toml"
     new = config_path()
     if not old.is_file() or new.exists():

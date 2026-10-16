@@ -664,12 +664,8 @@ def _guard_module_collision(module_name: str, code_root: str) -> None:
 
 
 def _legacy_fsd_imports(bundle_path: str, manifest: dict) -> list[str]:
-    """Paths (relative to the bundle) of embedded `code/` files that import the old package name.
-
-    A bundle saved with fsd <= v0.2 carries an adapter that does `import fsd` or `from fsd... import`;
-    the package is now `rise_eo` (spec 102 A11), so that adapter can no longer be imported. Found
-    statically, because the import may sit inside a method and only fail at predict time.
-    """
+    """Paths, relative to the bundle, of embedded `code/` files that import `fsd`."""
+    # Found statically: an import inside a method would only fail at predict time.
     if not manifest.get("code"):
         return []
     code_root = os.path.join(bundle_path, manifest["code"].get("root", CODE_DIR))
