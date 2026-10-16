@@ -168,7 +168,7 @@ def test_verify_image_ref_stale_rise_eo_refuses_before_submission(tmp_path, impo
     assert ml_client.submitted == []
 
 
-def test_verify_image_ref_prerename_image_raises_before_submission(tmp_path, importable, fake_aml_command):
+def test_verify_image_ref_prerename_image_fails_before_submission(tmp_path, importable, fake_aml_command):
     importable("vrefold_mod.py")
     import vrefold_mod
     try:
@@ -186,13 +186,15 @@ def test_verify_image_ref_prerename_image_raises_before_submission(tmp_path, imp
     image_registry.publish("rise-eo-infer-sklearn", registry_root, resolved, digest_mod.digest(resolved))
 
     ml_client = _FakeMLClient({"smoke": "Completed"})
-    with pytest.raises(ValueError, match="built before the package was renamed"):
-        verify_image(
-            bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
-            runner_kwargs=dict(cluster="c", root="memory://vimgref_old/root",
-                               identity_client_id="x", ml_client=ml_client),
-            image_ref="rise-eo-infer-sklearn:1", registry=registry_root,
-        )
+    result = verify_image(
+        bdir, environment="rise-eo-infer-sklearn:1", runner="aml",
+        runner_kwargs=dict(cluster="c", root="memory://vimgref_old/root",
+                           identity_client_id="x", ml_client=ml_client),
+        image_ref="rise-eo-infer-sklearn:1", registry=registry_root,
+    )
+
+    assert result["pass"] is False
+    assert "built before the package was renamed" in result["error"]
     assert ml_client.submitted == []
 
 

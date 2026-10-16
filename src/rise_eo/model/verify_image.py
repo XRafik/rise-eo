@@ -179,15 +179,12 @@ def verify_image(
     # who passes image_ref without registry, or a ref the registry cannot resolve, is misuse
     # -- same treatment as an absent wheel.
     image_ref_rise_eo = None
+    prerename_image = False
     if image_ref and not build_context:
         if not registry:
             raise ValueError("verify_image(image_ref=...) requires registry=.")
         definition = _image_registry.resolve(image_ref, registry).definition
-        if "rise_eo" not in definition and "fsd" in definition:
-            raise ValueError(
-                f"{image_ref} was built before the package was renamed to rise-eo, so it cannot run "
-                "this code. Rebuild it (docs/howto/build-the-images.md), then re-run verify_image."
-            )
+        prerename_image = "rise_eo" not in definition and "fsd" in definition
         image_ref_rise_eo = definition.get("rise_eo")
 
     result: dict = {
@@ -243,6 +240,12 @@ def verify_image(
                     "will not put it on sys.path. Rebuild the wheel and the image, then re-run "
                     "verify_image."
                 )
+
+        if prerename_image:
+            raise ValueError(
+                f"{image_ref} was built before the package was renamed to rise-eo, so it cannot run "
+                "this code. Rebuild it (docs/howto/build-the-images.md), then re-run verify_image."
+            )
 
         if image_ref_rise_eo is not None:
             fresh = _image_ref_has_spec44(image_ref_rise_eo, fetch=_fetch_rise_eo_source)
