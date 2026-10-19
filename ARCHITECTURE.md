@@ -157,7 +157,7 @@ dict; nodata is 0; cubes over one start/end/`mosaic_days` share an identical `ti
   `np.save` was stable across both. xarray could one day replace the dict + array pair.
 - **Bands are resampled *to a real reference image* (B08, 10 m)**, never to an abstract target
   grid, because the resampler does not reliably line up with one. Another resolution means another
-  reference band, not new resample parameters. Unmeasured so far: [#100](https://github.com/nikhilsrajan/fsd/issues/100).
+  reference band, not new resample parameters. Unmeasured so far: [#100](https://github.com/nasaharvest/rise-eo/issues/100).
 - **MGRS tiles are moved into one CRS before `rasterio.merge`**, which needs a single CRS: the zone
   with the largest mean `area_contribution` wins.
 - **Raster output is checked by eye in QGIS.** Unit tests do not prove pixels are right; a change
