@@ -103,7 +103,7 @@ Each line points at the incident that taught it.
   `while read -r v; do git ls-files -z | xargs -0 grep -lF "$v"; done < <your-values-file>`.
   Replace a hit with a placeholder (`st<proj>`) and describe the value, never spell it, even when
   writing up the leak. A pushed leak stays in history unless it is rewritten.
-- **Order of work:** one pinned issue ([#125](https://github.com/nikhilsrajan/fsd/issues/125)) holds
+- **Order of work:** one pinned issue ([#125](https://github.com/nasaharvest/rise-eo/issues/125)) holds
   the order; each piece of work keeps its own state in its PR description or issue.
 
 ## Maintainer handover

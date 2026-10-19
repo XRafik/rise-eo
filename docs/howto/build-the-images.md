@@ -30,7 +30,7 @@ identically with the last dependency swapped.
 - An AML workspace and resource group -- a platform-admin action, not something this repo
   provisions. Ask for them by name; see [`run-at-scale.md`](run-at-scale.md).
 - A local rise-eo checkout with its venv (`pip install -e ".[dev,aml,mpc,azure,grid]"`) -- or, for a
-  consumer with no checkout, rise-eo installed from a git ref (`pip install "rise-eo[aml] @ git+https://github.com/nikhilsrajan/fsd@<ref>"`).
+  consumer with no checkout, rise-eo installed from a git ref (`pip install "rise-eo[aml] @ git+https://github.com/nasaharvest/rise-eo@<ref>"`).
 - Your Azure coordinates in `~/.config/rise-eo/config.toml`, **including `image_registry`** (spec 55
   D2 -- the storage-seam path definitions are published to):
   ```bash
@@ -45,7 +45,7 @@ from rise_eo.image import ImageDefinition
 
 # rise-eo developer, from a checkout: rise_eo="path:..." -- the ONE case that builds a wheel and hashes
 # its content (spec 56 D5). A consumer with no checkout uses a pinned git ref instead:
-#   rise_eo="git+https://github.com/nikhilsrajan/fsd@<40-char sha or branch>"
+#   rise_eo="git+https://github.com/nasaharvest/rise-eo@<40-char sha or branch>"
 BASE = ImageDefinition(
     name="rise-eo-aml-env",
     rise_eo="path:/path/to/your/rise-eo/checkout",

@@ -14,7 +14,7 @@ runs it at scale. That line is deliberate and permanent.
 ## Install
 
 ```bash
-pip install "rise-eo[local,mpc,grid] @ git+https://github.com/nikhilsrajan/fsd@v0.3.0"
+pip install "rise-eo[local,mpc,grid] @ git+https://github.com/nasaharvest/rise-eo@v0.3.0"
 ```
 
 That set is what the quickstart below needs: `[local]` runs the default `runner="local"` pipeline,
