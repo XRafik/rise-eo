@@ -151,12 +151,14 @@ work, and writes one COG per grid cell plus a STAC catalog. Bundling is covered 
 [`docs/howto/bundle-your-model.md`](docs/howto/bundle-your-model.md).
 
 To share a model, `rise_eo.deploy` publishes a saved bundle to a registry. It refuses a bundle with no
-`requirements`, and refuses until the bundle has run on the node image you name. `run_inference` then
-takes the returned ref in place of the path, plus the registry:
+`requirements`, and first runs the bundle on one Azure ML node with the image you name, so it takes
+the same `runner_kwargs` as [step 4](#4-scale-out-on-azure-ml). `run_inference` then takes the returned
+ref in place of the path, plus the registry:
 
 ```python
 ref = rise_eo.deploy(
     "my_bundle/", name="crop-rf", registry="abfss://.../models", environment="rise-eo-infer-sklearn:3",
+    runner_kwargs=runner_kwargs,     # cluster, root, identity_client_id
 )                                    # -> "crop-rf:1"
 rise_eo.run_inference(ref, registry="abfss://.../models", output_folderpath="data/predictions")
 # ...plus the ROI arguments from the run_inference call above
@@ -203,8 +205,8 @@ itself. Any standard tile server can turn them into XYZ tiles for a web map. Two
 `demos/`, so they need a clone of this repo:
 - **One map, no database:** a small rio-tiler server (`demos/titiler_serve.py`, the `titiler` extra)
   serves the merged COG with a class colour map.
-- **Many runs, searchable:** a Docker stack of stock pgSTAC + titiler-pgstac (`demos/mini_mpc/`); the
-  `serving` extra and `pypgstac` load the STAC into it.
+- **Many runs, searchable:** a Docker stack of stock pgSTAC + titiler-pgstac (`demos/mini_mpc/`);
+  `pypgstac` loads the STAC into it.
 
 Both are walked through in [`docs/howto/serve-xyz.md`](docs/howto/serve-xyz.md).
 
