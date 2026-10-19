@@ -28,10 +28,11 @@ wrapped in a small adapter, and runs it over any region. That line is deliberate
 Copernicus Data Space Ecosystem (CDSE), and Sentinel-1 RTC from MPC.
 
 **Measured on real data:**
-- **Inference at scale:** a 300-cell Austria ROI ran on Azure ML in **18.8 minutes across 32 nodes**:
-  213 MPC granules in, 300 COGs + STAC + a merged map out ([report](demos/E2E_AUSTRIA_AML.md)).
+- **The whole pipeline at scale:** a 300-cell Austria ROI ran end to end on Azure ML, from imagery to
+  a merged map, in **18.8 minutes across 32 nodes**: 8 steps, 213 MPC granules in, 300 COGs + STAC +
+  a merged map out ([run-at-scale how-to](docs/howto/run-at-scale.md)).
 - **Training data at scale:** 900 field datacubes on blob storage reduced into one training array on a
-  single node.
+  single node in 6.8 minutes ([report](demos/E2E_AUSTRIA_AML.md)).
 
 ## Install
 
@@ -39,8 +40,9 @@ Copernicus Data Space Ecosystem (CDSE), and Sentinel-1 RTC from MPC.
 pip install "rise-eo[local,mpc,grid] @ git+https://github.com/nasaharvest/rise-eo@v0.3.0"
 ```
 
-Python ≥ 3.11. If you use RISE, it installs rise-eo for you. Install only the extras you need;
-if one is missing, rise-eo's error names the extra to add.
+Python ≥ 3.11. If you use RISE, it installs rise-eo for you. Install only the extras you need; for
+most of them, a missing extra gives an error that names it (`aml` and `serving` raise a plain
+`ImportError`).
 
 | extra | you need it for |
 |---|---|
@@ -49,7 +51,7 @@ if one is missing, rise-eo's error names the extra to add.
 | `s3` | `source="cdse"` downloads, and any `s3://` path |
 | `grid` | splitting an ROI into grid cells (`roi=` on `run_inference` and `verify_adapter`) |
 | `azure`, `aml` | `abfss://` storage and managed identity; `runner="aml"` |
-| `titiler`, `serving` | serving the output maps |
+| `titiler`, `serving` | the map-serving demos (see [step 5](#5-serve-the-maps)) |
 
 For development: clone, then follow [`CONTRIBUTING.md`](CONTRIBUTING.md#setup).
 
@@ -71,14 +73,15 @@ catalog = rise_eo.download(
 )
 ```
 
-- **The archive is shared and lossless.** A repeat run downloads only what is missing. If two
-  processings of one acquisition are both stored (an MPC copy and a CDSE copy, say), later steps ask you
-  to pick one with `processing=` instead of silently choosing.
+- **The archive is shared and lossless.** A repeat run downloads only what is missing. If one
+  acquisition is stored under two processing baselines, later steps ask you to pick one with
+  `processing=` instead of silently choosing.
 - **Preflight runs before any spend.** `max_tiles` is required; rise-eo counts the matching granules
   from metadata alone and stops if the ROI is bigger than you meant.
 - **Sentinel-1 RTC** uses the same call with `collection="sentinel-1-rtc"`, `bands=["vv", "vh"]` and
-  `source="mpc"`. Ascending and descending passes are never mixed in one datacube: when you build, pick
-  one with `properties_filter={"sat:orbit_state": "ascending"}`.
+  `source="mpc"`, and without `max_cloudcover` (radar has no cloud cover, so it raises). S1 downloads
+  whole scenes, not MGRS granules. Ascending and descending passes are never mixed in one datacube:
+  when you build, pick one with `properties_filter={"sat:orbit_state": "ascending"}`.
 
 ## 2. Build training data
 
@@ -111,8 +114,8 @@ features.
 ## 3. Run your model
 
 Wrap your trained model in a **`ModelAdapter`**. It declares the bands and number of timestamps it
-needs and what it outputs, and implements `load` and `predict`. Subclass `rise_eo.BaseModelAdapter` and
-the rest is filled in. [`examples/eurocrops_rf.py`](examples/eurocrops_rf.py) is a complete one to copy.
+needs, its features (`feature_sequence`) and what it outputs, and implements `load` and `predict`.
+Subclass `rise_eo.BaseModelAdapter` and the rest is filled in. [`examples/eurocrops_rf.py`](examples/eurocrops_rf.py) is a complete one to copy.
 
 ```python
 rise_eo.verify_adapter(              # one real grid cell, end to end, before a large run
@@ -125,7 +128,10 @@ rise_eo.verify_adapter(              # one real grid cell, end to end, before a 
     bands=["B04", "B08", "B8A", "SCL"],
     export_folderpath="data/verify",
 )
-rise_eo.save_bundle(my_adapter, {"model": "model.joblib"}, "my_bundle/")
+rise_eo.save_bundle(
+    my_adapter, {"model": "model.joblib"}, "my_bundle/",
+    requirements=["scikit-learn"],   # what another machine must install to run it
+)
 
 result = rise_eo.run_inference(
     "my_bundle/",
@@ -141,21 +147,33 @@ result = rise_eo.run_inference(
 ```
 
 `run_inference` checks that the adapter's bands and timestamp count match the run before any heavy
-work, and writes one COG per grid cell plus a STAC catalog. To share a model, `rise_eo.deploy`
-publishes a saved bundle to a registry, and refuses until the bundle has run on the node image you
-name. `run_inference` then takes the returned ref (`"crop-rf:1"`) in place of the path. See
+work, and writes one COG per grid cell plus a STAC catalog. Bundling is covered in
 [`docs/howto/bundle-your-model.md`](docs/howto/bundle-your-model.md).
+
+To share a model, `rise_eo.deploy` publishes a saved bundle to a registry. It refuses a bundle with no
+`requirements`, and refuses until the bundle has run on the node image you name. `run_inference` then
+takes the returned ref in place of the path, plus the registry:
+
+```python
+ref = rise_eo.deploy(
+    "my_bundle/", name="crop-rf", registry="abfss://.../models", environment="rise-eo-infer-sklearn:3",
+)                                    # -> "crop-rf:1"
+rise_eo.run_inference(ref, registry="abfss://.../models", output_folderpath="data/predictions")
+# ...plus the ROI arguments from the run_inference call above
+```
 
 ## 4. Scale out on Azure ML
 
 Add `runner="aml"` and `runner_kwargs` (your cluster, node image, blob working root and identity) to
-the same calls. ROI-mode inference also takes `storage="azure"`. Nothing else changes: every file goes
-through one storage layer (`fsspec`), so local paths and `abfss://` paths are interchangeable.
+the same calls. ROI-mode inference also takes `storage="azure"`. Every file goes through one storage
+layer (`fsspec`), so local paths and `abfss://` paths are interchangeable. The one difference: cluster
+nodes can't read your laptop, so the archive and its catalog go on blob storage, from a `download` run
+with `runner="aml"` and an `abfss://` `dst_folderpath`.
 
 ```python
 result = rise_eo.run_inference(
     "my_bundle/", output_folderpath="data/predictions",
-    roi="my_roi.geojson", catalog_filepath=catalog,
+    roi="my_roi.geojson", catalog_filepath=blob_catalog,   # returned by download(runner="aml")
     startdate=datetime.datetime(2018, 1, 1), enddate=datetime.datetime(2019, 1, 1),
     mosaic_days=20, bands=["B04", "B08", "B8A", "SCL"],
     merge="reproject",
@@ -163,7 +181,8 @@ result = rise_eo.run_inference(
 )
 ```
 
-Cluster settings live in a user-level config file, written once:
+Keep your cluster settings in a user-level config file, written once. The verbs never read it: load it
+with `rise_eo.config.load()` and pass its values into `runner_kwargs`.
 
 ```bash
 rise-eo init     # -> ~/.config/rise-eo/config.toml
@@ -180,12 +199,14 @@ A crashed inference run resumes per grid cell: finished cells are skipped. Full 
 ## 5. Serve the maps
 
 rise-eo writes standard outputs (Cloud-Optimized GeoTIFFs and a STAC catalog) and hosts nothing
-itself. Stock open-source servers turn them into XYZ tiles for any web map:
-- **One map, no database:** serve the merged COG directly with TiTiler (the `titiler` extra).
-- **Many runs, searchable:** load the STAC into pgSTAC and serve it with titiler-pgstac (the
-  `serving` extra).
+itself. Any standard tile server can turn them into XYZ tiles for a web map. Two worked demos live in
+`demos/`, so they need a clone of this repo:
+- **One map, no database:** a small rio-tiler server (`demos/titiler_serve.py`, the `titiler` extra)
+  serves the merged COG with a class colour map.
+- **Many runs, searchable:** a Docker stack of stock pgSTAC + titiler-pgstac (`demos/mini_mpc/`); the
+  `serving` extra and `pypgstac` load the STAC into it.
 
-Both are worked through in [`docs/howto/serve-xyz.md`](docs/howto/serve-xyz.md).
+Both are walked through in [`docs/howto/serve-xyz.md`](docs/howto/serve-xyz.md).
 
 ## Not yet
 
