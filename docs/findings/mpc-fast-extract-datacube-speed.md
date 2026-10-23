@@ -260,9 +260,15 @@ Lessons for anyone repeating this:
 ## What was not tested
 
 - **One region, one UTM zone, mostly one season.** Austria, UTM 33N, April–September 2018, plus one month
-  of 2023 on one cell. An ROI that crosses a UTM zone boundary was not tried. There rise-eo keeps only one
-  zone and drops the other's data, while mpc-fast-extract reprojects the other zone in, so the cubes would
-  differ by design.
+  of 2023 on one cell. An ROI that crosses a UTM zone boundary was not tried.
+  - mpc-fast-extract projects every scene exactly onto the chosen grid.
+  - rise-eo puts each cube in one zone. Its builder code reprojects the other zone's granules onto that
+    zone's grid (nearest, through GDAL's approximate transformer), and uses them only where the main
+    zone's granule has no value. Its `LIMITATIONS.md` row instead says the other zone's data is dropped;
+    neither has been checked against real imagery.
+  - Expect the tie-break difference again, plus a few percent of cross-zone pixels where the two
+    transforms pick neighbouring source pixels. mpc-fast-extract's own comparison with odc-stac, which
+    also uses GDAL, found 3–5 %.
 - **A window that mixes old and new processing baselines.** For example, one spanning late January 2022,
   when the offset began. Both tools' code applies the offset per scene, so it should work, but it was not
   run.
@@ -302,7 +308,8 @@ Lessons for anyone repeating this:
 - **What mpc-fast-extract can do that rise-eo cannot today:**
   - any output CRS or resolution, such as 20 or 30 m, with per-band nearest, bilinear or average
     resampling (rise-eo is fixed at 10 m on B08's grid);
-  - ROIs that cross UTM zones, without dropping data;
+  - ROIs that cross UTM zones, projected exactly onto one grid and validated against an exact
+    reference (rise-eo's cross-zone handling is untested; see "What was not tested");
   - a per-pixel Python function over the time series, run in memory;
   - per-polygon statistics as tables.
 - **Maintenance.** It is one person's repository, pinned here at a commit.
