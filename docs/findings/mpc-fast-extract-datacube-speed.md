@@ -43,7 +43,7 @@ Computer (MPC), reads SCL first so fully cloudy blocks are skipped, and composit
 Here it wrote one Zarr per workload, which the run-book then cut into rise-eo-format cubes.
 
 **The machine.** One Azure ML compute instance, Standard_E4ds_v4, in West Europe (the region MPC's
-imagery is stored in): 4 vCPUs on **2 physical cores** (2 threads per core), 32 GB RAM, $0.35 per hour.
+imagery is stored in): 4 vCPUs on **2 physical cores** (2 threads per core), 32 GB RAM, USD 0.35 per hour.
 Both tools ran on it alone, one after the other.
 
 **The workloads.** Sentinel-2 L2A from MPC, 2018-04-01 to 2018-09-30, bands B04 and B08 (SCL for the
@@ -123,7 +123,7 @@ height × width × windows is 3.6 million for the fields and 859 million for the
 The fields cost far more per pixel than the cells in both tools: a field cube is tiny, so fixed costs per
 cube (below) dominate.
 
-**Money.** At $0.35 an hour: rise-eo $0.29 (fields) and $0.18 (cells); mpc-fast-extract $0.01 and $0.02.
+**Money.** At USD 0.35 an hour: rise-eo USD 0.29 (fields) and USD 0.18 (cells); mpc-fast-extract USD 0.01 and USD 0.02.
 At this scale the money is small either way; the waiting is the cost (49 minutes against under 2).
 
 **Disk.** rise-eo's archive took 96 GB on disk (102.7 GB in decimal units), out of 108 GB free on the VM's
@@ -379,5 +379,5 @@ The questions the spec must settle, each with a proposed answer:
   - `datacube/ops.py`: the numba median kernel.
 - **rise-eo's earlier benchmarks:** `benchmarks/datacube_throughput_report_cog.md` (the 2 → 4-build
   comparison it predicted, 1.9×) and `benchmarks/eurocrops_year_report.md` (reading as 73 % of builder CPU).
-- **The VM's price:** the compute instance's details page in Azure ML studio, $0.35 per hour when running
+- **The VM's price:** the compute instance's details page in Azure ML studio, USD 0.35 per hour when running
   (read 2026-10-23).
