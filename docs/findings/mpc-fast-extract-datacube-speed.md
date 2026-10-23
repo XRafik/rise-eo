@@ -28,10 +28,11 @@ summary: On one 2-core VM, mpc-fast-extract built the same datacubes as rise-eo 
   same overpass, so those pixels differ by a few DN.
 - **The −1000 DN radiometric offset of newer imagery, and resampling a 20 m band to 10 m, behave the same
   in both tools** (a separate check on June 2023 imagery).
-- **The run also found three problems in rise-eo** that have nothing to do with mpc-fast-extract
+- **The run also found four problems in rise-eo** that have nothing to do with mpc-fast-extract
   ([#200](https://github.com/nasaharvest/rise-eo/issues/200),
   [#201](https://github.com/nasaharvest/rise-eo/issues/201),
-  [#202](https://github.com/nasaharvest/rise-eo/issues/202)).
+  [#202](https://github.com/nasaharvest/rise-eo/issues/202),
+  [#203](https://github.com/nasaharvest/rise-eo/issues/203)).
 
 ## What was compared
 
@@ -221,9 +222,16 @@ The disagreement sits exactly in the strips where MGRS tiles overlap (about 10 k
 - **Why the copies differ.** The atmospheric correction is estimated tile by tile, so the two products'
   reflectance differs slightly, and their cloud masks (SCL) can differ too. This is the likely reason; it
   was not checked file by file.
-- **Which copy each tool keeps.** Each tool keeps a different one: rise-eo the first in its catalog
-  order, mpc-fast-extract the first by acquisition time, then id. Both are valid observations of the same
-  overpass.
+- **Which copy each tool keeps.** Both tools take the median over acquisitions, not over products. The two
+  products of one overpass share a timestamp, so each tool first merges them into one value per pixel
+  (first valid wins), then takes the median across acquisitions. Which product comes first differs:
+  - mpc-fast-extract: the first by acquisition time, then id, a fixed rule;
+  - rise-eo: the first in its catalog's row order. That order is set by the order the download's
+    transfers finished (and the STAC result order), not by a rule. Re-downloading the same archive can
+    therefore change which product fills an overlap pixel
+    ([#203](https://github.com/nasaharvest/rise-eo/issues/203); from reading the code, not tested).
+
+  Both products are valid observations of the same overpass.
 
 That the choice of product is the cause is an inference: the split by tile count and the map show where
 the differences are, but no pixel was traced back to its product.
@@ -259,6 +267,11 @@ These are rise-eo issues, found because a second tool gave an independent answer
 - **[#202](https://github.com/nasaharvest/rise-eo/issues/202): every cube recompiles the median code**,
   about 3 s per cube (above). Caching the compiled code would cut the fields' build time noticeably on its
   own.
+- **[#203](https://github.com/nasaharvest/rise-eo/issues/203): which tile fills an overlap pixel depends on
+  download order.** rise-eo merges the two products of one overpass in the catalog's row order, and that
+  order comes from when each download finished. Two downloads of the same archive can therefore build
+  slightly different cubes in every overlap strip. This comes from reading the code, prompted by the
+  multi-tile disagreement; it was not tested.
 
 Lessons for anyone repeating this:
 - mpc-fast-extract's end date is inclusive.
@@ -332,10 +345,13 @@ supplies the pixels. That is the evidence a spec needs.
 
 The questions the spec must settle, each with a proposed answer:
 
-1. **The tie-break in tile overlaps.** *Proposal:* one rule for both paths, written down and tested. The
-   simplest is to make rise-eo's builder use mpc-fast-extract's order: first by acquisition time, then by
-   granule id. Then rise-eo's own path and the new backend give the same multi-tile cubes, and a parity
-   test on multi-tile fields can assert it. Asking Rohan for a configurable order is the alternative.
+1. **The tie-break in tile overlaps.** rise-eo's order today comes from download timing (#203), so it
+   needs a fixed rule anyway. *Proposal:* one rule for both paths, written down and tested. The simplest is
+   to make rise-eo's builder use mpc-fast-extract's order: first by acquisition time, then by granule id.
+   - Then rise-eo's own path and the new backend give the same multi-tile cubes, and a parity test on
+     multi-tile fields can assert it.
+   - The same change makes rise-eo's own builds reproducible across re-downloads.
+   - Asking Rohan for a configurable order is the alternative.
 2. **How cubes are written.** *Proposal:*
    - the backend runs mpc-fast-extract once per request, over every geometry, and keeps its Zarr
      `(time, band, y, x)` as the datacube artifact;
@@ -361,8 +377,8 @@ The questions the spec must settle, each with a proposed answer:
 
 **Next steps:**
 - the spec, under its own tracking issue;
-- independent of that, rise-eo's own fixes: #200, #201 and #202 (the last one alone shortens every small
-  cube's build by about 3 s).
+- independent of that, rise-eo's own fixes: #200, #201, #202 and #203. #202 alone shortens every small
+  cube's build by about 3 s; #203 is the same fixed order as proposal 1.
 
 ## How to reproduce
 
