@@ -287,7 +287,8 @@ the differences are, but no pixel was traced back to its product.
 *Figure 7. How large the differences are: rise-eo minus mpc-fast-extract, single- vs multi-tile cubes.*
 
 How large the differences are, by group:
-- **single-tile cubes:** all but a few dozen pixels are within 1 DN;
+- **single-tile cubes:** within 1 DN on 99.94 % of the fields' values (1,227 values, 0.06 %, differ by
+  more) and on every one of the cells' values;
 - **multi-tile cubes:** 91 % (fields) and 95 % (cells) of pixels are within ±50 DN (±0.005
   reflectance). Among the pixels that differ at all, the median gap is 12 DN (fields) and 10 DN (cells).
   The tail is long: 0.7 % of the fields' multi-tile values and 0.4 % of the cells' (1.77 million values)
@@ -367,7 +368,7 @@ Lessons for anyone repeating this:
 - **Whether the overlap differences matter for a model.** Not measured.
 - **rise-eo's memory use, and a tuned download.** rise-eo's download ran with 32 files in flight and
   averaged about 246 MB/s. More parallelism or a bigger VM might shorten it.
-- **The conversion step is run-book code.** At 30–40 % of mpc-fast-extract's time, a real backend could be
+- **The conversion step is run-book code.** At 42 % (fields) and 36 % (cells) of mpc-fast-extract's time, a real backend could be
   faster still.
 
 ## Trade-offs beyond speed
@@ -445,12 +446,14 @@ The questions the spec must settle, each with a proposed answer:
 
 What would make it practical for rise-eo to depend on mpc-fast-extract, most important first. These are
 requests, not defects. Each was checked against mpc-fast-extract's documentation at `da6bf12`; upstream
-has moved on since, and none of the newer commits addresses them by its title.
+has moved on since: none of the 7 commits from `da6bf12` to `3fcc06a` (2026-10-22) addresses them, judging
+by their titles.
 
 **Needed before rise-eo can depend on it:**
 1. **Versioned releases.** Today it is distributed from source only, with no tags or packages. rise-eo
    needs a stable version to pin, so tagged releases at least. A prebuilt Linux x86-64 wheel would also
-   spare rise-eo's Azure ML image a Rust build (about 5–15 minutes on the VM used here).
+   spare rise-eo's Azure ML image a Rust build (it compiles with fat LTO in release mode; the build was not
+   timed here).
 2. **Which scenes each Zarr window used.** Its COGs carry a `SCENES` tag; according to its documentation,
    the Zarr store records only `complete` and `issues`. For reproducible training data, rise-eo needs, per
    work tile and window, the scene ids and processing versions that went into it (proposal 4 above).
@@ -458,7 +461,7 @@ has moved on since, and none of the newer commits addresses them by its title.
    (first by acquisition time, then id), so both tools agree there. That only works if the rule is a
    documented contract that will not change quietly. An option to choose the order is the alternative.
 4. **Output per geometry.** rise-eo needs one cube per geometry. Today the caller cuts the shared Zarr,
-   which was 30–40 % of mpc-fast-extract's time in this run. It is also where the memory trap is: the
+   which was 42 % (fields) and 36 % (cells) of mpc-fast-extract's time in this run. It is also where the memory trap is: the
    Zarr spans whole 100 km work tiles (about 34 GB for the cells if loaded whole). An output mode that
    writes each geometry's window directly would remove both.
 
