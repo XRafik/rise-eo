@@ -212,10 +212,19 @@ Both tools used the same acquisition days.
 
 ![Where the cubes disagree](figures/mpc-fast-extract/fig6_disagreement_maps.png)
 
-The disagreement sits exactly in the strips where MGRS tiles overlap (about 10 km wide). There, one
-overpass is delivered as two products, one per tile. MPC processed each tile separately, so the two
-products' values differ slightly. Each tool keeps a different one: rise-eo the first in its catalog order,
-mpc-fast-extract the first by acquisition time, then id. Both are valid observations of the same overpass.
+The disagreement sits exactly in the strips where MGRS tiles overlap (about 10 km wide).
+- **Why an overlap holds two copies.** On each overpass Sentinel-2 records one long strip of ground. The
+  strip is cut into tiles of about 110 km, and neighbouring tiles overlap by about 10 km. Each tile is then
+  processed on its own, from the raw measurement to surface reflectance, and published as its own product
+  (its own set of band files). A ground pixel in an overlap is therefore in two products, from the same
+  moment and the same raw measurement.
+- **Why the copies differ.** The atmospheric correction is estimated tile by tile, so the two products'
+  reflectance differs slightly, and their cloud masks (SCL) can differ too. This is the likely reason; it
+  was not checked file by file.
+- **Which copy each tool keeps.** Each tool keeps a different one: rise-eo the first in its catalog
+  order, mpc-fast-extract the first by acquisition time, then id. Both are valid observations of the same
+  overpass.
+
 That the choice of product is the cause is an inference: the split by tile count and the map show where
 the differences are, but no pixel was traced back to its product.
 
