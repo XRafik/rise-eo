@@ -68,6 +68,31 @@ mask), 20-day windows (10 windows), all in UTM zone 33N:
 | resampling | nearest | nearest (the default) |
 | output | uint16 DN, offset applied, nodata 0 | float32 reflectance, × 10,000 and rounded when cut into cubes |
 
+**How the Zarr becomes cubes.** mpc-fast-extract writes one Zarr array `data`, shaped
+`(time, band, y, x)`, on the configured grid (here UTM 33N at 10 m, one time slot per 20-day window).
+- **Its extent is whole work tiles, not the geometries.** The engine snaps the geometries' extent to work
+  tiles of 10,240 × 10,240 px (about 102 km at 10 m), whose origins sit at multiples of 102.4 km.
+  - The fields span about 64 × 65 km, but their Zarr is 1 × 2 work tiles (102 × 205 km), because they
+    straddle a tile edge.
+  - The cells span about 68 × 68 km; their Zarr is 2 × 2 work tiles (205 × 205 km).
+- **It is mostly empty.** It is stored per work tile and window, and inside that per 512 × 512 block.
+  Blocks no geometry touches are never written, and read back as nodata. Both Zarrs together took 5.4 GB
+  on disk. Loaded whole, though, the cells Zarr would be about 34 GB of float32, so it has to be read
+  lazily.
+- **The engine clips to the union of the geometries only:** a pixel outside every geometry is nodata. It
+  writes no per-geometry cubes.
+- **The run-book does the cutting** (Step 7). For each geometry it reads the geometry's bounding box from
+  the Zarr, sets pixels outside the geometry to 0 (keeping touched pixels, as rise-eo does), converts
+  reflectance to rise-eo's uint16 DN (× 10,000), and saves `datacube.npy` with its metadata. Where two
+  cells overlap, this step decides which cube a pixel goes into.
+
+**The median does not depend on the geometry.** Both tools take the median per pixel, over that pixel's
+own clear observations in the window. The geometry decides only which pixels get computed, never a
+pixel's value: the same pixel gets the same value whichever polygon it sits in. That is why single-tile
+cubes can match pixel for pixel. Two cases where the geometry would matter, neither used here:
+mpc-fast-extract's per-polygon statistics (a median across a polygon's pixels, not across time), and
+bilinear or average resampling, which reads neighbouring source pixels that may lie outside the geometry.
+
 **What each time includes.** rise-eo: `rise_eo.download` of every granule both workloads need (290
 granules, timed once and counted in full for each workload, since each needs all 290), then
 `run_create_datacube` with the local runner. mpc-fast-extract: one `mpc_fast_extract.run` per workload,
