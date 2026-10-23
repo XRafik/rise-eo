@@ -130,10 +130,13 @@ ax.text(0, 1.03, "mpc-fast-extract bars: dark = engine run (streams blocks from 
 for w, y in (("fields", 3), ("cells", 1)):
     r = rows[w]
     ratio = (r["download"] + r["build4"]) / (r["run"] + r["convert"])
-    ax.text(ax.get_xlim()[1] if False else 52, y - 0.5, f"{w}: {ratio:.0f}× faster", fontsize=10,
+    ax.text(52, y - 0.5, f"{w}: {ratio:.0f}× faster", fontsize=10,
             fontweight="bold", color=MPC, va="center", ha="right")
 ax.set_xlim(0, 56)
 save(fig, "fig1_wall_time.png")
+
+plan = timing("plan")
+n_granules = len(set(plan["fields"]["granules"]) | set(plan["cells"]["granules"]))
 
 # --- figure 2: what each tool reads ----------------------------------------------------------
 tiles = tile_outlines()
@@ -160,7 +163,7 @@ for ax, w in zip(axes, WORKLOADS):
     ax.set_ylim(min(ys) - 3000, max(ys) + 3000)
     r = rows[w]
     km_axes(ax, WORKLOADS[w])
-    ax.text(0.02, 0.02, f"rise-eo: 4 whole tiles × 290 granules = {download['archive_gb']:.0f} GB\n"
+    ax.text(0.02, 0.02, f"rise-eo: {n_granules} whole granules over the 4 tiles = {download['archive_gb']:.0f} GB\n"
             f"mpc-fast-extract: {len(blocks)} distinct 512-px block cells (orange) "
             f"→ {r['gb_read']:.1f} GB read", transform=ax.transAxes, fontsize=8.5, color=INK,
             bbox=dict(facecolor=SURFACE, edgecolor=GRID))

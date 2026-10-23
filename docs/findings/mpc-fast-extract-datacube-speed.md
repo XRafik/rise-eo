@@ -27,7 +27,8 @@ summary: On one 2-core VM, mpc-fast-extract built the same datacubes as rise-eo 
 - **It read 8–16× fewer bytes:** 6.6 GB and 12.4 GB, against rise-eo's 102.7 GB archive.
 - **Where one MGRS tile supplies the pixels, the cubes are the same:** 99.94–100 % of pixels agree within
   1 DN. Where two tiles overlap, the tools fill the overlap from different (equally valid) products of the
-  same overpass, so those pixels differ by a few DN.
+  same overpass, so many of those pixels differ: where they do, by a median of 10–12 DN, with a long
+  tail reaching hundreds of DN.
 - **The −1000 DN radiometric offset of newer imagery, and resampling a 20 m band to 10 m, behave the same
   in both tools** (a separate check on June 2023 imagery).
 - **The run also found four problems in rise-eo** that have nothing to do with mpc-fast-extract
@@ -46,7 +47,8 @@ Computer (MPC), reads SCL first so fully cloudy blocks are skipped, and composit
 Here it wrote one Zarr per workload, which the run-book then cut into rise-eo-format cubes.
 
 **The machine.** One Azure ML compute instance, Standard_E4ds_v4, in West Europe (the region MPC's
-imagery is stored in): 4 vCPUs on **2 physical cores** (2 threads per core), 32 GB RAM, USD 0.35 per hour.
+imagery is stored in): 4 vCPUs on **2 physical cores** (`lscpu` on the VM: 2 threads per core, 2 cores
+per socket, 1 socket), 32 GB RAM, USD 0.35 per hour.
 Both tools ran on it alone, one after the other.
 
 **The workloads.** Sentinel-2 L2A from MPC, 2018-04-01 to 2018-09-30, bands B04 and B08 (SCL for the
@@ -141,7 +143,8 @@ Storage prices are left out.
 
 *Figure 2. What each tool reads: whole MGRS tiles (blue) against the 512-px blocks the geometries touch (orange).*
 
-rise-eo downloads every granule whole: four tiles × 290 granules, 102.7 GB, even though the fields cover
+rise-eo downloads every granule whole: 290 granules across the four tiles (72–73 per tile), 102.7 GB,
+even though the fields cover
 11 km². mpc-fast-extract reads, per scene, only the 512 × 512 blocks (5.1 km at 10 m) that some geometry
 touches (orange), and it reads SCL first so a block that is cloudy in that scene is never fetched. Its
 plan put the most it could read for the fields at 14.4 GB; it read 6.6 GB. For the cells it read 12.4 GB.
@@ -283,7 +286,14 @@ the differences are, but no pixel was traced back to its product.
 
 *Figure 7. How large the differences are: rise-eo minus mpc-fast-extract, single- vs multi-tile cubes.*
 
-The differences are small: 98 % lie within about ±50 DN (±0.005 reflectance). The zigzag in the curves is
+How large the differences are, by group:
+- **single-tile cubes:** all but a few dozen pixels are within 1 DN;
+- **multi-tile cubes:** 91 % (fields) and 95 % (cells) of pixels are within ±50 DN (±0.005
+  reflectance). Among the pixels that differ at all, the median gap is 12 DN (fields) and 10 DN (cells).
+  The tail is long: 0.7 % of the fields' multi-tile values and 0.4 % of the cells' (1.77 million values)
+  differ by 300 DN or more, the edge of the histogram.
+
+The zigzag in the curves is
 real: even-numbered differences occur more often than odd ones. Its cause was not investigated, and it does
 not change the conclusion. The overlap share was also lower in the August–September windows (25–47 % of
 multi-tile pixels off) than in April–July (42–93 %). That pattern was not explained either.
@@ -431,6 +441,43 @@ The questions the spec must settle, each with a proposed answer:
    order as proposal 1, and changes the multi-tile agreement).
 4. The spec for the mpc-fast-extract backend, under its own tracking issue, using the re-run's numbers.
 
+## Requests to mpc-fast-extract's maintainer
+
+What would make it practical for rise-eo to depend on mpc-fast-extract, most important first. These are
+requests, not defects. Each was checked against mpc-fast-extract's documentation at `da6bf12`; upstream
+has moved on since, and none of the newer commits addresses them by its title.
+
+**Needed before rise-eo can depend on it:**
+1. **Versioned releases.** Today it is distributed from source only, with no tags or packages. rise-eo
+   needs a stable version to pin, so tagged releases at least. A prebuilt Linux x86-64 wheel would also
+   spare rise-eo's Azure ML image a Rust build (about 5–15 minutes on the VM used here).
+2. **Which scenes each Zarr window used.** Its COGs carry a `SCENES` tag; according to its documentation,
+   the Zarr store records only `complete` and `issues`. For reproducible training data, rise-eo needs, per
+   work tile and window, the scene ids and processing versions that went into it (proposal 4 above).
+3. **A stable overlap rule.** Proposal 1 suggests rise-eo adopt mpc-fast-extract's order in tile overlaps
+   (first by acquisition time, then id), so both tools agree there. That only works if the rule is a
+   documented contract that will not change quietly. An option to choose the order is the alternative.
+4. **Output per geometry.** rise-eo needs one cube per geometry. Today the caller cuts the shared Zarr,
+   which was 30–40 % of mpc-fast-extract's time in this run. It is also where the memory trap is: the
+   Zarr spans whole 100 km work tiles (about 34 GB for the cells if loaded whole). An output mode that
+   writes each geometry's window directly would remove both.
+
+**Nice to have:**
+5. **Building on machines that are not x86.** `.cargo/config.toml` sets `target-cpu=x86-64-v3` for every
+   build, so a developer on Apple Silicon cannot use the checked-in configuration as is (whether the build
+   fails or only warns was not tested). Making that setting x86-only would let rise-eo's developers run it
+   locally.
+6. **Four documentation clarifications,** from things this run had to discover:
+   - that `end` is inclusive (the reference shows only an example date);
+   - that the Zarr spans whole work tiles, so it should be read lazily;
+   - what `reflectance: false` outputs, and whether it applies the −1000 offset;
+   - whether the SCL band can be output (our reading of the documentation is that it cannot).
+
+**Something this run gives back.** This is an independent check of the engine against a second
+implementation: on single-tile cubes it matched rise-eo within 1 DN on 99.94–100 % of pixels, including
+the −1000 DN offset and resampling a 20 m band to 10 m (figure 5). It could join the validation table in
+mpc-fast-extract's `docs/validation.md`, with a link to this finding.
+
 ## How to reproduce
 
 - **The run:** `runbooks/198-p0-mpc-fast-extract-parity.ipynb` on a Linux x86-64 machine in West Europe.
@@ -453,7 +500,9 @@ The questions the spec must settle, each with a proposed answer:
   - `raster/images.py` `apply_offset`: offset applied per granule before the median;
   - `workflows/task.py`: `if_missing_files="warn"`;
   - `datacube/ops.py`: the numba median kernel.
-- **rise-eo's earlier benchmarks:** `benchmarks/datacube_throughput_report_cog.md` (the 2 → 4-build
-  comparison it predicted, 1.9×) and `benchmarks/eurocrops_year_report.md` (reading as 73 % of builder CPU).
+- **rise-eo's earlier benchmarks:** `benchmarks/datacube_throughput_stats_cog.json` (191.65 s at 2
+  builds, 102.92 s at 4: the 1.86× this run did not see) and `benchmarks/eurocrops_year_report.md` (reading as 73 % of builder CPU).
+- **The VM's cores:** `lscpu` on the compute instance, run by hand on 2026-10-23: 2 threads per core,
+  2 cores per socket, 1 socket.
 - **The VM's price:** the compute instance's details page in Azure ML studio, USD 0.35 per hour when running
   (read 2026-10-23).
