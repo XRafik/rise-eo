@@ -169,7 +169,7 @@ fig.suptitle("What each tool reads: rise-eo downloads every tile whole (blue); m
 save(fig, "fig2_what_is_read.png")
 print("read ratio:", {w: round(download["archive_gb"] / rows[w]["gb_read"], 1) for w in WORKLOADS})
 
-# --- figure 3: rise-eo builds the overlap of neighbouring cells more than once -----------------
+# --- figure 4: rise-eo builds the overlap of neighbouring cells more than once -----------------
 cells = gpd.read_file(EXPORT / "cells.geojson").to_crs(CRS)
 x0, y0, x1, y1 = cells.total_bounds
 res = 50
@@ -189,9 +189,9 @@ cb = fig.colorbar(im, ax=ax, shrink=0.7, ticks=[1, 2, 3, 4])
 cb.set_label("rise-eo cubes covering the pixel")
 covered = cover[cover > 0]
 print("cells: pixel-builds per distinct pixel:", round(covered.sum() / covered.size, 3))
-save(fig, "fig3_rise_eo_rebuilds_overlaps.png")
+save(fig, "fig4_rise_eo_rebuilds_overlaps.png")
 
-# --- figure 4: where rise-eo's time per cube goes ----------------------------------------------
+# --- figure 3: where rise-eo's time per cube goes ----------------------------------------------
 groups = {"reading imagery (load_images)": ["phase_load_images"],
           "grid alignment (reference_profile, resample)": ["phase_reference_profile", "phase_resample"],
           "mask + median, incl. numba compile (ops)": ["phase_ops"],
@@ -219,7 +219,7 @@ ax.set_xlabel("seconds per cube (wall time × 4 build slots ÷ cubes)")
 ax.set_xlim(0, 24)
 ax.set_title("Where rise-eo's time per cube goes (4 builds at a time)", loc="left")
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=2, frameon=False, fontsize=8.5)
-save(fig, "fig4_rise_eo_time_per_cube.png")
+save(fig, "fig3_rise_eo_time_per_cube.png")
 
 # --- figure 5: agreement --------------------------------------------------------------------
 offset = json.loads((EXPORT / "compare" / "offset_2023.json").read_text())

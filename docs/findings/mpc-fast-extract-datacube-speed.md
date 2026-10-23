@@ -19,6 +19,8 @@ summary: On one 2-core VM, mpc-fast-extract built the same datacubes as rise-eo 
 
 ![Wall time per workload](figures/mpc-fast-extract/fig1_wall_time.png)
 
+*Figure 1. Wall time to create the same datacubes, per tool and workload.*
+
 - **mpc-fast-extract created the same datacubes 30× faster for 900 small field cubes, and 9× faster for
   299 large grid cells**, counting rise-eo's download. Counting only rise-eo's build (as if the archive
   were already on disk), it was 25× and 7× faster.
@@ -137,6 +139,8 @@ Storage prices are left out.
 
 ![What each tool reads](figures/mpc-fast-extract/fig2_what_is_read.png)
 
+*Figure 2. What each tool reads: whole MGRS tiles (blue) against the 512-px blocks the geometries touch (orange).*
+
 rise-eo downloads every granule whole: four tiles × 290 granules, 102.7 GB, even though the fields cover
 11 km². mpc-fast-extract reads, per scene, only the 512 × 512 blocks (5.1 km at 10 m) that some geometry
 touches (orange), and it reads SCL first so a block that is cloudy in that scene is never fetched. Its
@@ -144,7 +148,9 @@ plan put the most it could read for the fields at 14.4 GB; it read 6.6 GB. For t
 
 ### 2. One pass for all geometries, instead of one process per cube
 
-![Where rise-eo's time per cube goes](figures/mpc-fast-extract/fig4_rise_eo_time_per_cube.png)
+![Where rise-eo's time per cube goes](figures/mpc-fast-extract/fig3_rise_eo_time_per_cube.png)
+
+*Figure 3. Where rise-eo's time per cube goes, from each cube's `timings.json`.*
 
 rise-eo builds every cube in its own Python process (one Snakemake job per cube). From each cube's own
 `timings.json`, per cube (wall time × 4 build slots ÷ cubes):
@@ -166,9 +172,42 @@ therefore fixed cost, paid 900 times. mpc-fast-extract runs as one process and p
 (rise-eo's earlier benchmarks found reading to be 73 % of the *builder's* CPU time; that measure left out
 everything outside the builder, which is most of the cost for small cubes.)
 
+**Why the fields' ratio (25×) is so much larger than the cells' (7×).** The fixed cost per cube is about
+the same for both, about 9 s (6 s outside the builder plus about 3 s of compiling), but its share is not:
+
+| | fixed cost per cube | real work per cube | fixed share | fixed cost over the workload (÷ 4 slots) |
+|---|---|---|---|---|
+| fields | about 9 s | about 2.3 s | about 80 % | about 2,000 of 2,540 s |
+| cells | about 8.6 s | about 11 s | about 45 % | about 640 of 1,466 s |
+
+A field cube is tiny, so the fixed cost dwarfs its real work, and it is paid 900 times. mpc-fast-extract's
+time grows with the data it reads, not with the number of cubes (100 s for 900 fields, 216 s for 299
+cells). The fields therefore mostly measure rise-eo's per-cube overhead; the cells mostly measure real work.
+
+**Estimate, not measured: what is left once the fixed cost is gone.** Two rise-eo changes remove it:
+caching the compiled median code ([#202](https://github.com/nasaharvest/rise-eo/issues/202)) and building
+several cubes per process ([#204](https://github.com/nasaharvest/rise-eo/issues/204)). With only the real
+work left (the "compiling" share is itself an estimate: a 16 × 15 px median takes milliseconds, so nearly
+all of a field's 3.3 s `ops` time is assumed to be compiling):
+
+| | rise-eo build today | rise-eo build, estimated | mpc-fast-extract | ratio today | ratio, estimated |
+|---|---|---|---|---|---|
+| fields | 2,540 s | about 2.3 s × 900 ÷ 4 ≈ **520 s** | 100 s | 25× | **about 5×** |
+| cells | 1,466 s | about 11 s × 299 ÷ 4 ≈ **820 s** | 216 s | 7× | **about 4×** |
+
+The remaining 4–5× comes from how each tool reads (sections 1 and 3):
+- each field cube opens about 870 files (290 granules × 3 bands) to read one small window from each;
+- neighbouring fields and overlapping cells read the same parts of the same files again;
+- mpc-fast-extract reads each 512-px block once for every geometry on it, and skips cloudy blocks.
+
+[#205](https://github.com/nasaharvest/rise-eo/issues/205) re-runs this comparison once #202 and #204 have
+landed, to test the estimate.
+
 ### 3. rise-eo builds the overlap between neighbouring cells more than once
 
-![rise-eo rebuilds overlaps](figures/mpc-fast-extract/fig3_rise_eo_rebuilds_overlaps.png)
+![rise-eo rebuilds overlaps](figures/mpc-fast-extract/fig4_rise_eo_rebuilds_overlaps.png)
+
+*Figure 4. How many rise-eo cell cubes cover each pixel: overlaps are built 2–4 times.*
 
 Grid cells overlap their neighbours by about 10 % on each side, and rise-eo builds each cell's box on its
 own, so the overlaps are read and composited 2–4 times: on average **1.84 builds per pixel**. mpc-fast-extract
@@ -195,6 +234,8 @@ the pixels both cubes cover, over every window and band.
 
 ![Pixel agreement](figures/mpc-fast-extract/fig5_agreement.png)
 
+*Figure 5. Pixel agreement between the two tools' cubes, by tile count, plus the 2023 offset check.*
+
 | | cubes | nodata agrees | within 1 DN | exactly equal |
 |---|---|---|---|---|
 | 2018 fields, 1 MGRS tile | 645 | 99.999 % | **99.94 %** | 96.7 % |
@@ -212,6 +253,8 @@ Both tools used the same acquisition days.
 **Multi-tile cubes differ only where tiles overlap.**
 
 ![Where the cubes disagree](figures/mpc-fast-extract/fig6_disagreement_maps.png)
+
+*Figure 6. Where the cubes disagree: per pixel for the cells (left), per field (right), with the MGRS tile outlines.*
 
 The disagreement sits exactly in the strips where MGRS tiles overlap (about 10 km wide).
 - **Why an overlap holds two copies.** On each overpass Sentinel-2 records one long strip of ground. The
@@ -237,6 +280,8 @@ That the choice of product is the cause is an inference: the split by tile count
 the differences are, but no pixel was traced back to its product.
 
 ![Size of the differences](figures/mpc-fast-extract/fig7_difference_histogram.png)
+
+*Figure 7. How large the differences are: rise-eo minus mpc-fast-extract, single- vs multi-tile cubes.*
 
 The differences are small: 98 % lie within about ±50 DN (±0.005 reflectance). The zigzag in the curves is
 real: even-numbered differences occur more often than odd ones. Its cause was not investigated, and it does
@@ -266,7 +311,8 @@ These are rise-eo issues, found because a second tool gave an independent answer
   stopped. Only the comparison with mpc-fast-extract showed it.
 - **[#202](https://github.com/nasaharvest/rise-eo/issues/202): every cube recompiles the median code**,
   about 3 s per cube (above). Caching the compiled code would cut the fields' build time noticeably on its
-  own.
+  own. Together with building several cubes per process
+  ([#204](https://github.com/nasaharvest/rise-eo/issues/204)), it removes most of a small cube's fixed cost.
 - **[#203](https://github.com/nasaharvest/rise-eo/issues/203): which tile fills an overlap pixel depends on
   download order.** rise-eo merges the two products of one overpass in the catalog's row order, and that
   order comes from when each download finished. Two downloads of the same archive can therefore build
@@ -376,9 +422,14 @@ The questions the spec must settle, each with a proposed answer:
    - contributing rise-eo's needs upstream (the tie-break order, for example) rather than forking.
 
 **Next steps:**
-- the spec, under its own tracking issue;
-- independent of that, rise-eo's own fixes: #200, #201, #202 and #203. #202 alone shortens every small
-  cube's build by about 3 s; #203 is the same fixed order as proposal 1.
+1. rise-eo's own speed-ups for small cubes: #202 (cache the compiled median, about 3 s per cube) and #204
+   (several cubes per process, about 6 s per cube).
+2. Re-run this comparison after them ([#205](https://github.com/nasaharvest/rise-eo/issues/205)) and write
+   it up as a new finding. The gap that is left (estimated above at about 5× and 4×) is the honest basis
+   for the spec.
+3. rise-eo's correctness fixes, ideally before the re-run: #200, #201 and #203 (#203 is the same fixed
+   order as proposal 1, and changes the multi-tile agreement).
+4. The spec for the mpc-fast-extract backend, under its own tracking issue, using the re-run's numbers.
 
 ## How to reproduce
 
