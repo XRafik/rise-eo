@@ -60,40 +60,26 @@ def test_to_vsi_malformed_az_raises():
 # --- storage= config seam -------------------------------------------------------
 
 
-@pytest.fixture()
-def _clean_fsspec_conf(monkeypatch):
-    """`fsspec.config.conf` is process-global — snapshot + restore around each test."""
-    before = {k: dict(v) for k, v in fsspec.config.conf.items()}
-    before_env = os.environ.get("FSSPEC_ABFSS_ANON")
-    yield
-    fsspec.config.conf.clear()
-    fsspec.config.conf.update(before)
-    if before_env is None:
-        os.environ.pop("FSSPEC_ABFSS_ANON", None)
-    else:
-        os.environ["FSSPEC_ABFSS_ANON"] = before_env
-
-
-def test_configure_storage_azure_string_sets_env_and_conf(_clean_fsspec_conf):
+def test_configure_storage_azure_string_sets_env_and_conf():
     rise_eo_azure.configure_storage("azure")
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
     assert fsspec.config.conf["abfss"]["anon"] is False
 
 
-def test_configure_storage_azure_dict_form(_clean_fsspec_conf):
+def test_configure_storage_azure_dict_form():
     rise_eo_azure.configure_storage({"backend": "azure"})
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
     assert fsspec.config.conf["abfss"]["anon"] is False
 
 
-def test_configure_storage_none_is_noop(_clean_fsspec_conf):
+def test_configure_storage_none_is_noop():
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
     rise_eo_azure.configure_storage(None)
     assert "FSSPEC_ABFSS_ANON" not in os.environ
     assert "abfss" not in fsspec.config.conf
 
 
-def test_configure_storage_bad_backend_raises(_clean_fsspec_conf):
+def test_configure_storage_bad_backend_raises():
     with pytest.raises(ValueError):
         rise_eo_azure.configure_storage("s3")
     with pytest.raises(ValueError):
@@ -110,7 +96,7 @@ def test_api_storage_local_or_none_leaves_env_unset(tmp_path, monkeypatch):
     assert "FSSPEC_ABFSS_ANON" not in os.environ
 
 
-def test_configure_storage_local_string_is_noop(_clean_fsspec_conf):
+def test_configure_storage_local_string_is_noop():
     os.environ.pop("FSSPEC_ABFSS_ANON", None)
     rise_eo_azure.configure_storage("local")
     assert "FSSPEC_ABFSS_ANON" not in os.environ
@@ -141,7 +127,7 @@ def test_api_check_local_seams_runner_still_rejected():
 # --- spec 52 AC6/AC7: deploy/run_inference/verify_adapter/verify_image each authenticate ----
 
 
-def test_deploy_calls_configure_storage_before_its_first_storage_access(_clean_fsspec_conf):
+def test_deploy_calls_configure_storage_before_its_first_storage_access():
     """AC6. `deploy` no longer refuses `storage='azure'` (D4 removes the old
     `storage_allowed=False` gate); it must set up authenticated adlfs before it ever touches
     `bundle_path` or `registry`. A bogus `name` (caught by `check_name`, after the
@@ -158,9 +144,7 @@ def test_deploy_calls_configure_storage_before_its_first_storage_access(_clean_f
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
 
 
-def test_run_inference_calls_configure_storage_before_its_first_storage_access(
-    _clean_fsspec_conf,
-):
+def test_run_inference_calls_configure_storage_before_its_first_storage_access():
     """AC7, in a process where no other verb has run first (the fixture resets the env).
 
     Driven through **ROI mode on the AML runner**, the one `run_inference` shape where
@@ -181,9 +165,7 @@ def test_run_inference_calls_configure_storage_before_its_first_storage_access(
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
 
 
-def test_run_inference_rejects_a_bad_backend_as_preflight_not_a_bare_value_error(
-    _clean_fsspec_conf,
-):
+def test_run_inference_rejects_a_bad_backend_as_preflight_not_a_bare_value_error():
     """Opus review, 2026-08-24. `_configure_storage` **raises** `ValueError` on an
     unsupported backend, so calling it ahead of `_raise_preflight` replaced this verb's
     collected `PreflightError` with a bare `ValueError` and threw away every other
@@ -201,7 +183,7 @@ def test_run_inference_rejects_a_bad_backend_as_preflight_not_a_bare_value_error
     assert "FSSPEC_ABFSS_ANON" not in os.environ
 
 
-def test_run_inference_refusing_azure_here_does_not_configure_storage(_clean_fsspec_conf):
+def test_run_inference_refusing_azure_here_does_not_configure_storage():
     """The pre-built-cubes path refuses `storage="azure"` (inference-on-blob is gated to
     ROI+AML). Refusing it must also leave the process's fsspec state alone -- configuring
     adlfs as a side effect of a rejected call is exactly the accident D4 removes."""
@@ -216,9 +198,7 @@ def test_run_inference_refusing_azure_here_does_not_configure_storage(_clean_fss
     assert "FSSPEC_ABFSS_ANON" not in os.environ
 
 
-def test_verify_adapter_calls_configure_storage_before_its_first_storage_access(
-    _clean_fsspec_conf,
-):
+def test_verify_adapter_calls_configure_storage_before_its_first_storage_access():
     """AC7, in a process where no other verb has run first (the fixture resets the env).
     `runner="aml"` because that is the shape where `verify_adapter` allows non-local
     storage at all (`storage_allowed=(runner == "aml")`) -- see the `run_inference`
@@ -236,9 +216,7 @@ def test_verify_adapter_calls_configure_storage_before_its_first_storage_access(
     assert os.environ["FSSPEC_ABFSS_ANON"] == "false"
 
 
-def test_verify_image_calls_configure_storage_before_its_first_storage_access(
-    _clean_fsspec_conf,
-):
+def test_verify_image_calls_configure_storage_before_its_first_storage_access():
     """AC7, in a process where no other verb has run first (the fixture resets the env).
     `bundle_path` does not exist, so `verify_image` catches the read failure internally
     (spec 24: always a shaped result, never a bare traceback) and returns `pass: False`
@@ -578,7 +556,7 @@ def test_os_path_join_is_url_safe_on_abfss():
     "storage, shown",
     [("s3", "'s3'"), ({"backend": "gcs"}, "'gcs'"), ({}, "None"), (123, "None")],
 )
-def test_unsupported_backend_text_in_both_places(_clean_fsspec_conf, storage, shown):
+def test_unsupported_backend_text_in_both_places(storage, shown):
     from rise_eo import api
 
     line = f"storage backend {shown} not supported (only 'azure' in P1)."
