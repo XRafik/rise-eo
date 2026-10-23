@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 import fsspec
+import pytest
 
 from rise_eo.storage import azure as rise_eo_azure
 
@@ -22,4 +23,6 @@ def test_a_leaky_caller_configures_azure():
 
 
 def test_b_the_leak_does_not_reach_the_next_test():
+    if "state" not in _STATE_BEFORE:
+        pytest.skip("needs test_a to run first")
     assert _fsspec_state() == _STATE_BEFORE["state"]
