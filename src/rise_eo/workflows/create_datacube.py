@@ -1032,7 +1032,12 @@ def run_create_datacube(
 
     if runner == "local":
         return runners.run_local(dispatch_csv_filepath, cores=cores, dry_run=dry_run,
-                                 unlock=unlock)
+                                 unlock=unlock, overwrite=overwrite)
     if runner == "aml":
-        return runners.run_aml(dispatch_csv_filepath, **(runner_kwargs or {}))
+        # `overwrite` rides the shard command (`--overwrite`, forwarded to the node's
+        # `run_local`), the same seam `run_aml_inference` carries. Never clobber an
+        # explicit caller kwarg.
+        runner_kwargs = dict(runner_kwargs or {})
+        runner_kwargs.setdefault("overwrite", overwrite)
+        return runners.run_aml(dispatch_csv_filepath, **runner_kwargs)
     raise ValueError(f"Unknown runner={runner!r}; valid values: 'local', 'aml'.")

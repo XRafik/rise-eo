@@ -46,9 +46,14 @@ def _n_final_exists(export_folderpaths) -> int:
     )
 
 
-def run_shard(shard_csv_url: str, *, cores: int) -> dict:
+def run_shard(shard_csv_url: str, *, cores: int, overwrite: bool = False) -> dict:
     """Materialize `shard_csv_url` locally, run it via `runners.run_local`, and publish
-    a `_status/<k>.json` shaped like a spec-24 `_result.json`."""
+    a `_status/<k>.json` shaped like a spec-24 `_result.json`.
+
+    `overwrite` is forced through to `run_local` (`--forceall` there): the driver's
+    `_force_rebuild` deleted the cubes before dispatch, so the `done.txt` sentinels a
+    prior invocation left in this node's scratch must not make the rebuild skip every
+    row (#200's exposure, node side)."""
     with fs.open(shard_csv_url, "r") as f:
         shard_df = pd.read_csv(f)
 
@@ -63,7 +68,7 @@ def run_shard(shard_csv_url: str, *, cores: int) -> dict:
         work_start_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
         error = None
         try:
-            result = runners.run_local(local_csv, cores=cores)
+            result = runners.run_local(local_csv, cores=cores, overwrite=overwrite)
             if result.returncode != 0:
                 error = f"snakemake exited {result.returncode}"
                 if result.stderr:
@@ -102,12 +107,14 @@ def _parse_args(argv=None) -> argparse.Namespace:
     )
     p.add_argument("shard_csv_url", help="the shard's input.csv slice (any rise_eo.storage URL)")
     p.add_argument("--cores", type=int, default=1)
+    p.add_argument("--overwrite", action="store_true",
+                   help="force a rebuild even if sentinels/artifacts exist from a prior run")
     return p.parse_args(argv)
 
 
 def main(argv=None) -> None:
     args = _parse_args(argv)
-    status = run_shard(args.shard_csv_url, cores=args.cores)
+    status = run_shard(args.shard_csv_url, cores=args.cores, overwrite=args.overwrite)
     if status["status"] != "ok":
         raise SystemExit(f"shard failed: {status}")
 

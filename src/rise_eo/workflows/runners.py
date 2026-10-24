@@ -107,6 +107,7 @@ def run_local(
     cores: int,
     dry_run: bool = False,
     unlock: bool = False,
+    overwrite: bool = False,
     njobs: int = 1,
     njobs_load_images: int = 1,
     jitter_span: int = 1,
@@ -115,6 +116,13 @@ def run_local(
 
     `cores` = Snakemake parallelism (how many datacubes build at once); `njobs` /
     `njobs_load_images` = intra-build parallelism passed to each task.
+
+    `overwrite` forces a recompute of every row (`--forceall`, mirroring
+    `run_local_inference`'s seam): the caller cleared the old artifacts
+    (`create_datacube._force_rebuild`) and wants every row rebuilt, so the
+    `done.txt` sentinels a PRIOR invocation left in node-local scratch must not
+    make Snakemake skip them -- otherwise a forced local rebuild of rows built
+    before deletes every cube and rebuilds none (#200).
     """
     config = {
         "input_csv": input_csv,
@@ -131,6 +139,8 @@ def run_local(
         "--cores", str(cores),
         "--config", *[f"{k}={v}" for k, v in config.items()],
     ]
+    if overwrite:
+        cmd.append("--forceall")
     if dry_run:
         cmd.append("--dry-run")
     if unlock:
@@ -661,6 +671,7 @@ def run_aml(
     run_id: str | None = None,
     n_shards: int | None = None,
     cores: int = 16,
+    overwrite: bool = False,
     ml_client=None,
     subscription_id: str | None = None,
     resource_group_name: str | None = None,
@@ -690,6 +701,12 @@ def run_aml(
     `root` is the storage root (any `rise_eo.storage` URL, typically `abfss://...`) under
     which `runs/<run_id>/{shards,_status}/...` is laid out. `n_shards` defaults to
     the cluster's `max_instances`.
+
+    `overwrite` forces a rebuild of every row on the node (`--overwrite` on the shard
+    command, forwarded to the node's `run_local` -> `--forceall`), the same seam
+    `run_aml_inference` carries. Without it, the `done.txt` sentinels a PRIOR
+    invocation left in the node's scratch make a forced rebuild skip every row
+    (#200's exposure, node side).
     """
     if ml_client is None:
         from azure.ai.ml import MLClient
@@ -722,7 +739,8 @@ def run_aml(
             pd.DataFrame(rows).to_csv(f, index=False)
 
         jobs[k] = aml_command(
-            command=f"python -m rise_eo.workflows.shard {shard_url} --cores {cores}",
+            command=f"python -m rise_eo.workflows.shard {shard_url} --cores {cores}"
+                  + (" --overwrite" if overwrite else ""),
             environment=environment,
             compute=cluster,
             environment_variables={"AZURE_CLIENT_ID": identity_client_id},
